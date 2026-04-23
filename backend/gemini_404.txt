@@ -1,0 +1,53 @@
+﻿
+> backend.log:3435:20
+26-02-03T15:01:40.607
++05:30 ERROR 34712 
+--- 
+[recruitai-agent] [ht
+tp-nio-8089-exec-5] c
+.r.a.ats.service.Gemi
+niAgentService     : 
+Gemini HTTP Error: 
+404 NOT_FOUND - 
+Body: {
+  backend.log:3436:  
+"error": {
+  backend.log:3437:  
+  "code": 404,
+  backend.log:3438:  
+  "message": "models/
+gemini-1.5-flash is 
+not found for API 
+version v1beta, or 
+is not supported for 
+generateContent. 
+Call ListModels to 
+see the list of 
+available models and 
+their supported 
+methods.",
+  backend.log:3439:  
+  "status": 
+"NOT_FOUND"
+  backend.log:3440:  
+}
+  backend.log:3441:}
+  backend.log:3442:
+  backend.log:3443:20
+26-02-03T15:01:40.609
++05:30 ERROR 34712 
+--- 
+[recruitai-agent] [ht
+tp-nio-8089-exec-5] c
+.r.a.service.PhoneExt
+ractionService     : 
+Error during phone 
+extraction process
+  backend.log:3444:
+  backend.log:3445:ja
+va.lang.RuntimeExcept
+ion: Gemini API HTTP 
+failure: 404 
+NOT_FOUND
+
+

@@ -1,0 +1,22 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "1. **Java 17+** - Download and install from [Oracle JDK](https://www.oracle.com/java/technologies/downloads/) or [OpenJDK](https://adoptium.net/)\r 2. **Maven 3.6+** - Download from [Apache Maven](https://maven.apache.org/download.cgi) or use the included Maven wrapper",
+  "main": "simple-server.js",
+  "scripts": {
+    "predev": "powershell -Command \"$pid8089 = (Get-NetTCPConnection -LocalPort 8089 -ErrorAction SilentlyContinue).OwningProcess; if ($pid8089) { Stop-Process -Id $pid8089 -Force; Write-Host 'Stopped process on port 8089' }\"",
+    "dev": "mvn spring-boot:run",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mammoth": "^1.11.0",
+    "mongodb": "^7.0.0",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1"
+  }
+}
