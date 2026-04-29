@@ -56,7 +56,7 @@ function extractData() {
             if (text && text.trim().length > 1) {
                 // Remove brackets (Standard and Full-width) and everything inside them
                 data.name = text.replace(/\s*[\(\[\（\【].*?[\)\]\）\】]\s*/g, ' ').replace(/\s+/g, ' ').trim();
-                if (data.name.toLowerCase() === 'linkedin member') continue; 
+                if (data.name.toLowerCase() === 'linkedin member') continue;
                 break;
             }
         }
@@ -84,13 +84,13 @@ function extractData() {
         '.flex-1.mr5 h2',
         '.pv-text-details__left-panel div:nth-child(2)'
     ];
-    
+
     for (const sel of headlineSelectors) {
         const el = document.querySelector(sel);
         if (el && el.innerText.trim().length > 3) {
             headlineText = el.innerText.trim();
             // Store raw for org extraction later
-            data.rawHeadline = headlineText; 
+            data.rawHeadline = headlineText;
             data.headline = headlineText.replace(/JLPT\s*N[1-5],?\s*/i, '').split(/ in | at | @ | - | \| /i)[0].trim();
             break;
         }
@@ -104,7 +104,7 @@ function extractData() {
         '.top-card-layout__first-subline .profile-info-subheader span:first-child',
         '.pv-text-details__left-panel span.text-body-small:not(.text-body-medium)'
     ];
-    
+
     for (const sel of locSelectors) {
         const el = document.querySelector(sel);
         if (el) {
@@ -115,7 +115,7 @@ function extractData() {
             }
         }
     }
-    
+
     // SMART OVERRIDE: Prioritize Japan/Target countries from headline
     const priorityCountries = ['Japan', 'USA', 'Singapore', 'Germany'];
     for (const country of priorityCountries) {
@@ -132,7 +132,7 @@ function extractData() {
         'button[aria-label^="Current company"]',
         '[data-tracking-control-name="public_profile_topcard-current-company"]'
     ];
-    
+
     for (const sel of orgSelectors) {
         const el = document.querySelector(sel);
         if (el && el.innerText.trim().length > 1 && !el.innerText.includes('connections')) {
@@ -165,13 +165,13 @@ function extractData() {
     // Normalization
     if (data.currentOrganization && data.currentOrganization.includes('Tata Consultancy Services')) data.currentOrganization = 'TCS';
     if (data.currentOrganization && data.currentOrganization.includes('Business Machines')) data.currentOrganization = 'IBM';
-    
+
     // Japanese Proficiency Extraction (from headline if found)
     const jlptMatch = headlineText.match(/JLPT\s*N[1-5]/i);
     if (jlptMatch && (!data.japaneseLanguageProficiency || data.japaneseLanguageProficiency === 'N/A')) {
         data.japaneseLanguageProficiency = jlptMatch[0].toUpperCase();
     }
-    
+
     console.log('🏢 Final Org:', data.currentOrganization);
 
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
@@ -202,16 +202,16 @@ function extractData() {
         }
 
         // SMART SALARY & NOTICE PERIOD DETECTION
-        const salaryMatch = data.about.match(/salary\s*(?:expectations?|expectation|desired)?\s*[:=-]?\s*([₹$¥€]?\d+[kKmMbB]?\+?)/i) || 
-                            data.about.match(/lpa\s*[:=-]?\s*(\d+\+?)/i);
+        const salaryMatch = data.about.match(/salary\s*(?:expectations?|expectation|desired)?\s*[:=-]?\s*([₹$¥€]?\d+[kKmMbB]?\+?)/i) ||
+            data.about.match(/lpa\s*[:=-]?\s*(\d+\+?)/i);
         if (salaryMatch) {
             data.salaryExpectation = salaryMatch[1];
             console.log("💰 Found salary in About:", data.salaryExpectation);
         }
 
-        const noticeMatch = data.about.match(/(\d+)\s*days?\s*notice/i) || 
-                            data.about.match(/notice\s*period\s*[:=-]?\s*(\d+)\s*days?/i) ||
-                            data.about.match(/(immediately|available now)/i);
+        const noticeMatch = data.about.match(/(\d+)\s*days?\s*notice/i) ||
+            data.about.match(/notice\s*period\s*[:=-]?\s*(\d+)\s*days?/i) ||
+            data.about.match(/(immediately|available now)/i);
         if (noticeMatch) {
             data.noticePeriod = noticeMatch[1].toLowerCase() === 'immediately' ? 0 : parseInt(noticeMatch[1]);
             console.log("⏲️ Found notice period in About:", data.noticePeriod);
@@ -239,7 +239,7 @@ function extractData() {
         console.log(`🔍 Found ${expItems.length} experience items`);
 
         expItems.forEach((item, index) => {
-            if (index > 15) return; 
+            if (index > 15) return;
 
             const isPresent = item.innerText.includes('Present');
 
@@ -258,12 +258,12 @@ function extractData() {
             // Update selectors for expanded compatibility
             const roleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], div > div > span[aria-hidden="true"]');
             const companyEl = item.querySelector('.t-14.t-normal span[aria-hidden="true"], .t-14.t-normal.t-black--light span[aria-hidden="true"]');
-            
+
             const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated');
             if (isGroup && item.innerText.includes('roles')) {
                 const topCompanyEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]');
                 company = topCompanyEl ? topCompanyEl.innerText.split('·')[0].trim() : '';
-                
+
                 const roles = item.querySelectorAll('.pvs-list__item--line-separated');
                 if (roles.length > 0) {
                     const latestRoleEl = roles[0].querySelector('span[aria-hidden="true"]');
@@ -291,7 +291,7 @@ function extractData() {
                     [role, company] = [company, role];
                 }
             }
-            
+
             // If we found a company but no role, or role looks like a company name
             if (company && (!role || isProbablyCompany(role))) {
                 const headerText = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]')?.innerText || '';
@@ -302,16 +302,16 @@ function extractData() {
 
             if (role && !roleNoise.includes(role) && role.length > 2) {
                 role = role.split(' at ')[0].split(' @ ')[0].split(' - ')[0].trim();
-                
+
                 if (role && (company || isPresent)) {
                     data.experience.push({ title: role, company: company || 'Current Project', isPresent: isPresent });
-                    
+
                     if (isPresent) {
                         data.primaryRole = role;
                         data.currentOrganization = company || data.currentOrganization;
                     } else if (!data.primaryRole) {
-                         data.primaryRole = role;
-                         data.currentOrganization = company || data.currentOrganization;
+                        data.primaryRole = role;
+                        data.currentOrganization = company || data.currentOrganization;
                     }
                 }
             }
@@ -329,7 +329,7 @@ function extractData() {
 
     // Convert months to decimal years (e.g., 2 yrs 6 mos -> 2.5)
     data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
-    
+
     // Fallback if sum is 0 but we have items
     if (data.totalExperienceYears === 0 && data.experience.length > 0) {
         data.totalExperienceYears = data.experience.length; // Fallback to item count if parsing failed
@@ -388,10 +388,10 @@ function extractData() {
     }
 
     // 7. Extract Languages
-    const languagesAnchor = document.querySelector('#languages') || 
-                            document.querySelector('section[id="languages"]') ||
-                            [...document.querySelectorAll('h2')].find(h2 => h2.innerText.includes('Languages'));
-    
+    const languagesAnchor = document.querySelector('#languages') ||
+        document.querySelector('section[id="languages"]') ||
+        [...document.querySelectorAll('h2')].find(h2 => h2.innerText.includes('Languages'));
+
     if (languagesAnchor) {
         const languagesContainer = languagesAnchor.closest('.pvs-list__outer-container') || languagesAnchor.parentElement;
         if (languagesContainer) {
@@ -433,12 +433,12 @@ function extractData() {
     if (!data.primaryRole && data.headline) {
         // DETECT KEYWORD HEADLINES: If headline has many commas/pipes, it's a skill list
         const isSkillList = (data.headline.match(/[,|]/g) || []).length > 3;
-        
+
         if (isSkillList) {
             // Option A: Try to find a role-like string (Software Engineer, QA, etc.)
             const roleKeywords = ['Engineer', 'Developer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Testing', 'Tester', 'Specialist', 'Lead'];
             const foundRole = data.headline.split(/[,|]/).find(part => roleKeywords.some(kw => part.toLowerCase().includes(kw.toLowerCase())));
-            
+
             if (foundRole) {
                 data.primaryRole = foundRole.trim();
             } else if (data.about) {
@@ -454,7 +454,7 @@ function extractData() {
             const firstPart = data.headline.split(/[,|@]/)[0].trim();
             data.primaryRole = firstPart;
         }
-        
+
         if (data.primaryRole.length < 2) data.primaryRole = 'Professional';
     }
 
@@ -463,7 +463,7 @@ function extractData() {
 
     // 9. Global Page Scan for Email/Phone (Fallback if modal not opened)
     const pageText = document.body.innerText;
-    
+
     if (!data.email) {
         const emailMatch = pageText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
         if (emailMatch) {
@@ -986,7 +986,7 @@ function createSidebar() {
 
             <!-- TAB CONTENT: NOTES -->
             <div id="rai-tab-notes" class="rai-tab-content" style="display:none;">
-                <textarea class="rai-input" style="width:100%; height:200px; border:1px solid #e5e7eb; padding:10px;" placeholder="Add private notes about this candidate..."></textarea>
+                <textarea id="rai-notes-text" class="rai-input" style="width:100%; height:200px; border:1px solid #e5e7eb; padding:10px;" placeholder="Add private notes about this candidate..."></textarea>
             </div>
 
             <!-- TAB CONTENT: CONTACT -->
@@ -1150,8 +1150,8 @@ function toggleSidebar() {
         btn.style.right = '0';
     } else {
         sidebar.classList.add('open');
-        btn.style.right = '420px'; 
-        
+        btn.style.right = '420px';
+
         // Auto-fetch contact info once on open
         setTimeout(() => {
             fetchContactInfo();
@@ -1161,12 +1161,12 @@ function toggleSidebar() {
         let attempts = 0;
         const maxAttempts = 8;
         populateSidebar(); // Immediate first try
-        
+
         const pollExtract = setInterval(() => {
             attempts++;
             const currentName = document.getElementById('rai-fname-input')?.value;
             const currentOrg = document.getElementById('rai-company-input')?.value;
-            
+
             // If we still have missing critical data, try again
             if ((!currentName || !currentOrg || currentOrg === 'N/A') && attempts < maxAttempts) {
                 console.log(`🔄 Re-extracting data (Attempt ${attempts}/8)...`);
@@ -1215,9 +1215,9 @@ async function fetchContactInfo() {
         const poll = setInterval(() => {
             attempts++;
             // Check for various modal wrappers
-            const modal = document.querySelector('.artdeco-modal') || 
-                          document.querySelector('[role="dialog"]') ||
-                          document.querySelector('.pv-contact-info');
+            const modal = document.querySelector('.artdeco-modal') ||
+                document.querySelector('[role="dialog"]') ||
+                document.querySelector('.pv-contact-info');
 
             if (modal && modal.innerText.length > 50) {
                 clearInterval(poll);
@@ -1259,7 +1259,7 @@ async function fetchContactInfo() {
                         phoneShortcut.style.background = '#dcfce7';
                         phoneShortcut.style.color = '#15803d';
                     }
-                    
+
                     // Trigger a re-extraction of other small details if needed
                     extractedProfile.email = emailMatch ? emailMatch[0] : extractedProfile.email;
                     extractedProfile.phone = phoneMatch ? phoneMatch[0] : extractedProfile.phone;
@@ -1270,15 +1270,15 @@ async function fetchContactInfo() {
 
                 // Close modal after delay
                 setTimeout(() => {
-                    const closeBtn = modal.querySelector('button[aria-label="Dismiss"]') || 
-                                     document.querySelector('button[aria-label="Dismiss"]') ||
-                                     modal.querySelector('.artdeco-modal__dismiss');
+                    const closeBtn = modal.querySelector('button[aria-label="Dismiss"]') ||
+                        document.querySelector('button[aria-label="Dismiss"]') ||
+                        modal.querySelector('.artdeco-modal__dismiss');
                     if (closeBtn) closeBtn.click();
-                    
+
                     if (!foundAny) {
-                        setTimeout(() => { 
-                            btn.textContent = originalText; 
-                            btn.style.background = '#4b5563'; 
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                            btn.style.background = '#4b5563';
                         }, 2000);
                     }
                 }, 1500);
@@ -1288,9 +1288,9 @@ async function fetchContactInfo() {
                 btn.textContent = 'Modal Timeout';
                 btn.style.background = '#ef4444';
                 console.warn("⚠️ Contact modal polling timed out.");
-                setTimeout(() => { 
-                    btn.textContent = originalText; 
-                    btn.style.background = '#4b5563'; 
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#4b5563';
                 }, 3000);
             }
         }, 500);
@@ -1347,7 +1347,7 @@ function populateSidebar() {
         // Use extracted email or leave blank - NO PLACEHOLDERS
         if (extractedProfile.email && extractedProfile.email.includes('@')) {
             const emailInput = document.getElementById('rai-email-input');
-            if (emailInput && !emailInput.value) emailInput.value = extractedProfile.email; 
+            if (emailInput && !emailInput.value) emailInput.value = extractedProfile.email;
         } else {
             const emailInput = document.getElementById('rai-email-input');
             if (emailInput && !emailInput.value) emailInput.placeholder = "Click FETCH to find email";
@@ -1363,11 +1363,12 @@ function populateSidebar() {
 
         // BETTER COMPANY EXTRACTION
         let extractedCompany = extractedProfile.currentOrganization || 'N/A';
-        document.getElementById('rai-company-input').value = extractedCompany;
-        document.getElementById('rai-locality-input').value = extractedProfile.locality || '';
-        document.getElementById('rai-postal-input').value = extractedProfile.postalCode || '';
-        document.getElementById('rai-japanese-input').value = extractedProfile.japaneseLanguageProficiency || '';
-        
+        const setUIVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        setUIVal('rai-company-input', extractedCompany);
+        setUIVal('rai-locality-input', extractedProfile.locality || '');
+        setUIVal('rai-postal-input', extractedProfile.postalCode || '');
+        setUIVal('rai-japanese-input', extractedProfile.japaneseLanguageProficiency || '');
+
         // Populate new fields
         document.getElementById('rai-notice-input').value = extractedProfile.noticePeriod || 0;
         document.getElementById('rai-cur-salary-input').value = extractedProfile.currentSalary || '';
@@ -1396,7 +1397,7 @@ function populateSidebar() {
         (async () => {
             const statusSpan = document.getElementById('rai-skills-status');
             if (!statusSpan) return;
-            
+
             statusSpan.textContent = 'Fetching full list...';
             statusSpan.style.color = '#d97706';
 
@@ -1454,7 +1455,8 @@ function populateSidebar() {
                             updateIfEmpty('rai-summary-input', aiData.summary); // Adding a summary field if possible
 
                             if (aiData.summary) {
-                                document.getElementById('rai-notes-text').value = aiData.summary;
+                                const notesEl = document.getElementById('rai-notes-text');
+                                if (notesEl) notesEl.value = aiData.summary;
                             }
 
                             aiBadge.innerHTML = '✨ AI Analysis Complete';
@@ -1572,19 +1574,19 @@ function saveToCRM() {
         primaryRole: document.getElementById('rai-role-input').value,
         email: document.getElementById('rai-email-input').value,
         phone: document.getElementById('rai-phone-input').value,
-        location: document.getElementById('rai-location-input').value,
-        locality: document.getElementById('rai-locality-input').value || extractedProfile.locality,
-        postalCode: document.getElementById('rai-postal-input').value,
-        japaneseLanguageProficiency: document.getElementById('rai-japanese-input').value,
-        currentSalary: document.getElementById('rai-cur-salary-input').value,
-        salaryExpectation: document.getElementById('rai-exp-salary-input').value,
-        noticePeriod: parseInt(document.getElementById('rai-notice-input').value) || 0,
-        relevantExperience: parseInt(document.getElementById('rai-rel-exp-input').value) || 0,
-        visaType: document.getElementById('rai-visa-input').value,
-        country: extractedProfile.country,
-        skills: document.getElementById('rai-skills-input').value.split(',').map(s => s.trim()).filter(s => s),
-        company: document.getElementById('rai-company-input').value,
-        currentOrganization: document.getElementById('rai-company-input').value,
+        location: document.getElementById('rai-location-input')?.value || '',
+        locality: document.getElementById('rai-locality-input')?.value || extractedProfile.locality,
+        postalCode: document.getElementById('rai-postal-input')?.value || extractedProfile.postalCode || '',
+        japaneseLanguageProficiency: document.getElementById('rai-japanese-input')?.value || extractedProfile.japaneseLanguageProficiency || '',
+        currentSalary: document.getElementById('rai-cur-salary-input')?.value || '',
+        salaryExpectation: document.getElementById('rai-exp-salary-input')?.value || '',
+        noticePeriod: parseInt(document.getElementById('rai-notice-input')?.value) || 0,
+        relevantExperience: parseInt(document.getElementById('rai-rel-exp-input')?.value) || 0,
+        visaType: document.getElementById('rai-visa-input')?.value || '',
+        country: extractedProfile.country || '',
+        skills: (document.getElementById('rai-skills-input')?.value || '').split(',').map(s => s.trim()).filter(s => s),
+        company: document.getElementById('rai-company-input')?.value || extractedProfile.currentOrganization || '',
+        currentOrganization: document.getElementById('rai-company-input')?.value || extractedProfile.currentOrganization || '',
         languageSkills: extractedProfile.languages,
         summary: extractedProfile.about || extractedProfile.summary,
         experienceDescription: extractedProfile.about,

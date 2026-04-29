@@ -11,11 +11,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .catch(error => sendResponse({ status: 'error', message: error.message }));
         return true; // async response
     }
-    
+
     if (request.action === 'PARSE_PROFILE') {
         parseProfileAI(request.text)
             .then(result => sendResponse({ status: 'success', data: result }))
             .catch(error => sendResponse({ status: 'error', message: error.message }));
+        return true;
+    }
+
+    // Sync token from the localhost web app content script (token_sync.js)
+    if (request.action === 'SYNC_TOKEN_INTERNAL') {
+        chrome.storage.local.set({ jwt_token: request.token }, () => {
+            console.log('🔑 JWT Token synced from web app (internal content script)');
+            sendResponse({ status: 'success' });
+        });
+        return true;
+    }
+
+    // Clear token on logout
+    if (request.action === 'CLEAR_TOKEN') {
+        chrome.storage.local.remove(['jwt_token'], () => {
+            console.log('🔒 JWT Token cleared from extension storage (user logged out)');
+            sendResponse({ status: 'success' });
+        });
         return true;
     }
 });
@@ -111,7 +129,7 @@ async function saveToCRM(profileData) {
                 }
             }
         }
-        
+
         // Name-based fallback if no candidate found via email
         if (!candidateId && profileData.name) {
             const searchRes = await fetch(`${API_BASE_URL}/candidates/search?search=${encodeURIComponent(profileData.name)}`, {
@@ -133,7 +151,7 @@ async function saveToCRM(profileData) {
     // 4. PREPARE FINAL PAYLOAD (Merge LinkedIn Data)
     const payload = {
         ...(initialCandidate || {}), // Keep all existing fields (noticePeriod, salary, etc.)
-        id: candidateId, 
+        id: candidateId,
         name: profileData.name || initialCandidate?.name,
         email: profileData.email || initialCandidate?.email || `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`,
         phone: profileData.phone || initialCandidate?.phone || '',

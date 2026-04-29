@@ -48,12 +48,32 @@ const Layout: React.FC = () => {
 
         if (!token) {
             navigate('/login');
-        } else if (userData) {
+        } else {
+            // Sync existing token to Chrome Extension on every page load
+            // This fixes "Authentication required" for already-logged-in users
             try {
-                setUser(JSON.parse(userData));
+                const chromeRuntime = (window as any).chrome?.runtime;
+                if (chromeRuntime && chromeRuntime.sendMessage) {
+                    chromeRuntime.sendMessage({ action: 'SYNC_TOKEN', token }, () => {
+                        if (chromeRuntime.lastError) {
+                            // Extension may not be installed — silently ignore
+                            void chromeRuntime.lastError;
+                        } else {
+                            console.log('✅ Token re-synced to extension on page load');
+                        }
+                    });
+                }
             } catch (e) {
-                console.error("Failed to parse user data", e);
-                localStorage.removeItem('user'); // Clear corrupted data
+                // Extension not installed — ignore
+            }
+
+            if (userData) {
+                try {
+                    setUser(JSON.parse(userData));
+                } catch (e) {
+                    console.error("Failed to parse user data", e);
+                    localStorage.removeItem('user'); // Clear corrupted data
+                }
             }
         }
     }, [navigate]);
@@ -319,7 +339,7 @@ const Layout: React.FC = () => {
                                 <Plus size={16} className="group-hover:rotate-90 transition-transform duration-300" />
                             </button>
 
-                            <button 
+                            <button
                                 onClick={() => setIsHelpModalOpen(true)}
                                 className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all h-8 w-8 flex items-center justify-center">
                                 <HelpCircle size={16} />
@@ -358,7 +378,7 @@ const Layout: React.FC = () => {
                             </div>
 
                             <div className="relative cursor-pointer group leading-none">
-                                <span 
+                                <span
                                     onClick={() => navigate('/inbox')}
                                     className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg block transition-all">
                                     <Mail size={18} />
@@ -385,12 +405,12 @@ const Layout: React.FC = () => {
                                             </div>
                                         ) : (
                                             recentMessages.map((msg: any) => (
-                                                <div 
+                                                <div
                                                     key={msg.id}
                                                     onClick={() => navigate('/inbox', { state: { candidateId: msg.id } })}
                                                     className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex gap-4 items-center">
                                                     <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center font-bold text-blue-600 text-xs">
-                                                        {msg.name?.split(' ').map((n:any) => n[0]).join('') || 'CA'}
+                                                        {msg.name?.split(' ').map((n: any) => n[0]).join('') || 'CA'}
                                                     </div>
                                                     <div className="flex-1">
                                                         <h5 className="text-[11px] font-black text-slate-800">{msg.name}</h5>
@@ -402,7 +422,7 @@ const Layout: React.FC = () => {
                                         )}
                                     </div>
                                     <div className="p-4 bg-slate-50 border-t border-blue-50 text-center">
-                                        <button 
+                                        <button
                                             onClick={() => navigate('/inbox')}
                                             className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors">
                                             Go To Full Inbox
@@ -415,7 +435,7 @@ const Layout: React.FC = () => {
                                 onClick={() => navigate('/settings')}
                                 className="p-2 text-gray-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                             >
-                                    <Settings size={18} />
+                                <Settings size={18} />
                             </button>
 
                             <div className="h-6 w-px bg-gray-200 mx-1"></div>
@@ -481,32 +501,32 @@ const Layout: React.FC = () => {
                                 <X size={20} />
                             </button>
                         </div>
-                        
+
                         <div className="p-10 space-y-6">
                             <div className="grid grid-cols-1 gap-4">
-                                <HelpLink 
-                                    icon={<FileText className="text-blue-500" />} 
-                                    title="User Documentation" 
-                                    desc="Learn how to use Recruit Ai effectively" 
+                                <HelpLink
+                                    icon={<FileText className="text-blue-500" />}
+                                    title="User Documentation"
+                                    desc="Learn how to use Recruit Ai effectively"
                                     onClick={() => window.open('https://docs.recruitai.com', '_blank')}
                                 />
-                                <HelpLink 
-                                    icon={<MessageCircle className="text-emerald-500" />} 
-                                    title="Live Support" 
-                                    desc="Chat with our engineering team" 
+                                <HelpLink
+                                    icon={<MessageCircle className="text-emerald-500" />}
+                                    title="Live Support"
+                                    desc="Chat with our engineering team"
                                     onClick={() => alert('Live support chat is connecting...')}
                                 />
-                                <HelpLink 
-                                    icon={<HelpCircle className="text-orange-500" />} 
-                                    title="FAQs" 
-                                    desc="Commonly asked questions & setup" 
+                                <HelpLink
+                                    icon={<HelpCircle className="text-orange-500" />}
+                                    title="FAQs"
+                                    desc="Commonly asked questions & setup"
                                     onClick={() => window.open('https://recruitai.com/faqs', '_blank')}
                                 />
                                 <a href="mailto:support@recruitai.com">
-                                    <HelpLink 
-                                        icon={<Mail className="text-indigo-500" />} 
-                                        title="Email Support" 
-                                        desc="support@recruitai.com" 
+                                    <HelpLink
+                                        icon={<Mail className="text-indigo-500" />}
+                                        title="Email Support"
+                                        desc="support@recruitai.com"
                                     />
                                 </a>
                             </div>
@@ -530,7 +550,7 @@ const Layout: React.FC = () => {
 };
 
 const HelpLink: React.FC<{ icon: React.ReactNode; title: string; desc: string; onClick?: () => void }> = ({ icon, title, desc, onClick }) => (
-    <div 
+    <div
         onClick={onClick}
         className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer group"
     >

@@ -24,6 +24,36 @@ const SignIn: React.FC = () => {
         }
     }, [location]);
 
+    // Sync JWT token to Chrome Extension so LinkedIn scraper can authenticate
+    const syncTokenToExtension = (token: string) => {
+        try {
+            const extensionId = (window as any).__RECRUITAI_EXTENSION_ID__;
+            const chromeRuntime = (window as any).chrome?.runtime;
+            if (chromeRuntime && chromeRuntime.sendMessage) {
+                const targetId = extensionId || undefined;
+                const message = { action: 'SYNC_TOKEN', token };
+                if (targetId) {
+                    chromeRuntime.sendMessage(targetId, message, () => {
+                        if (chromeRuntime.lastError) {
+                            console.warn('Extension token sync (external):', chromeRuntime.lastError.message);
+                        } else {
+                            console.log('✅ Token synced to extension');
+                        }
+                    });
+                } else {
+                    // Fallback: try internal messaging (works if page is inside extension context)
+                    chromeRuntime.sendMessage(message, () => {
+                        if (chromeRuntime.lastError) {
+                            console.warn('Extension token sync (internal):', chromeRuntime.lastError.message);
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Could not sync token to extension (extension may not be installed):', e);
+        }
+    };
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -38,6 +68,7 @@ const SignIn: React.FC = () => {
             if (response.data && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data));
+                syncTokenToExtension(response.data.token);
                 navigate('/dashboard');
             }
         } catch (err: any) {
@@ -64,6 +95,7 @@ const SignIn: React.FC = () => {
             if (response.data && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data));
+                syncTokenToExtension(response.data.token);
                 navigate('/dashboard');
             }
         } catch (err: any) {
@@ -110,7 +142,7 @@ const SignIn: React.FC = () => {
 
             const response = await msalInstance.loginPopup({
                 ...loginRequest,
-                prompt: 'select_account' 
+                prompt: 'select_account'
             });
 
             if (response && response.account) {
@@ -195,7 +227,7 @@ const SignIn: React.FC = () => {
                     {/* Card with Glassmorphism */}
                     <div className="bg-slate-900/40 backdrop-blur-2xl rounded-3xl border border-slate-800 p-8 shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-600/10 opacity-20 rounded-full -mr-24 -mt-24 blur-3xl group-hover:bg-indigo-600/20 transition-all duration-700"></div>
-                        
+
                         {/* Messages */}
                         {successMessage && (
                             <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-3 animate-slide-down">
