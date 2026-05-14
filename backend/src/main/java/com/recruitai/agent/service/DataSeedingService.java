@@ -163,7 +163,7 @@ public class DataSeedingService {
                 com.recruitai.agent.entity.Notification.class);
         loadFromFile("data/skillmatrices_dump.json", skillMatrixRepository,
                 com.recruitai.agent.entity.SkillMatrix.class);
-        loadFromFile("data/users_dump.json", userRepository, com.recruitai.agent.entity.User.class);
+        // loadFromFile("data/users_dump.json", userRepository, com.recruitai.agent.entity.User.class);
         loadFromFile("data/resumes_dump.json", resumeRepository, com.recruitai.agent.entity.Resume.class);
         loadFromFile("data/auditlogs_dump.json", auditLogRepository, com.recruitai.agent.entity.AuditLog.class);
         loadFromFile("data/job_applications_dump.json", jobApplicationRepository,

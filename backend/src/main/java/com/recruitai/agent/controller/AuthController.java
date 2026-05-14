@@ -90,46 +90,93 @@ public class AuthController {
         }
     }
 
+    // @PostMapping("/login")
+    // public ResponseEntity<?> login(@RequestBody AuthRequest request) {
+    //     System.out.println("DEBUG: Login attempt for: " + request.getEmail());
+    //     try {
+    //         Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
+    //         System.out.println("userOpt: " + userOpt);
+    //         // Self-healing: If admin account is missing, create it!
+    //         if (userOpt.isEmpty() && "admin@recruitai.com".equalsIgnoreCase(request.getEmail())) {
+    //             System.out.println("DEBUG: Admin user missing during login. Creating on-the-fly...");
+    //             User admin = new User("admin@recruitai.com",
+    //                     // "Admin@123",
+    //                     passwordEncoder.encode("Admin@123"),
+    //                     "System Admin",
+    //                     "HR",
+    //                     "ACTIVE");
+    //             userRepository.save(admin);
+    //             userOpt = Optional.of(admin);
+    //         }
+    //         System.out.println("userOpt1: " + userOpt);
+
+    //         if (userOpt.isEmpty()) {
+    //             System.out.println("DEBUG: Login failed - User totally not found: " + request.getEmail());
+    //             return ResponseEntity.status(401).body("Error: Invalid email or password");
+    //         }
+
+    //         User user = userOpt.get();
+    //         System.out.println("DEBUG: User found. Role: " + user.getRole() + ", HasPassword: " + (user.getPassword() != null) + "DEBUG: Password: " + user.getPassword() + "DEBUG: Request Password: " + request.getPassword());
+    //         if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+    //             System.out.println("DEBUG: Login failed - Password mismatch for: " + request.getEmail());
+    //             return ResponseEntity.status(401).body("Error: Invalid email or password");
+    //         }
+
+    //         String token = jwtUtils.generateToken(user.getEmail(), user.getRole());
+    //         System.out.println("DEBUG: Login successful for: " + request.getEmail());
+    //         return ResponseEntity.ok(
+    //                 new AuthResponse(token, user.getRole(), user.getEmail(), user.getName(), user.getProfilePicture()));
+    //     } catch (Exception e) {
+    //         System.err.println("DEBUG: Login Exception: " + e.getMessage());
+    //         e.printStackTrace();
+    //         return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+    //     }
+    // }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
-        System.out.println("DEBUG: Login attempt for: " + request.getEmail());
-        try {
-            Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
 
-            // Self-healing: If admin account is missing, create it!
-            if (userOpt.isEmpty() && "admin@recruitai.com".equalsIgnoreCase(request.getEmail())) {
-                System.out.println("DEBUG: Admin user missing during login. Creating on-the-fly...");
-                User admin = new User("admin@recruitai.com",
-                        passwordEncoder.encode("Admin@123"),
-                        "System Admin",
-                        "HR",
-                        "ACTIVE");
-                userRepository.save(admin);
-                userOpt = Optional.of(admin);
+        try {
+            // Request validation
+            if (request.getEmail() == null || request.getPassword() == null) {
+                return ResponseEntity.badRequest().body("Email and password required");
             }
 
+            String email = request.getEmail().trim().toLowerCase();
+
+            // Find user in MongoDB
+            Optional<User> userOpt = userRepository.findByEmail(email);
+
             if (userOpt.isEmpty()) {
-                System.out.println("DEBUG: Login failed - User totally not found: " + request.getEmail());
-                return ResponseEntity.status(401).body("Error: Invalid email or password");
+                return ResponseEntity.status(401).body("Invalid email or password");
             }
 
             User user = userOpt.get();
-            System.out.println(
-                    "DEBUG: User found. Role: " + user.getRole() + ", HasPassword: " + (user.getPassword() != null));
 
-            if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                System.out.println("DEBUG: Login failed - Password mismatch for: " + request.getEmail());
-                return ResponseEntity.status(401).body("Error: Invalid email or password");
+            boolean passwordMatch = passwordEncoder.matches(request.getPassword(), user.getPassword());
+
+            if (!passwordMatch) {
+                return ResponseEntity.status(401).body("Invalid email or password");
             }
 
+            // Generate JWT
             String token = jwtUtils.generateToken(user.getEmail(), user.getRole());
-            System.out.println("DEBUG: Login successful for: " + request.getEmail());
+
             return ResponseEntity.ok(
-                    new AuthResponse(token, user.getRole(), user.getEmail(), user.getName(), user.getProfilePicture()));
+                    new AuthResponse(
+                            token,
+                            user.getRole(),
+                            user.getEmail(),
+                            user.getName(),
+                            user.getProfilePicture()
+                    )
+            );
+
         } catch (Exception e) {
-            System.err.println("DEBUG: Login Exception: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+
+            return ResponseEntity.internalServerError()
+                    .body("Error: " + e.getMessage());
         }
     }
 }
