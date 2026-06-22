@@ -1,0 +1,39 @@
+# Java / Spring Boot
+backend/target/
+target/
+*.class
+
+# Environment files
+.env
+.env.local
+.env.production
+
+
+# Logs & build/debug dumps (may contain machine paths or config)
+logs
+*.log
+build_log.txt
+build_debug.txt
+backend/build_debug.txt
+backend/test_db.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

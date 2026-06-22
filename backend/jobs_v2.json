@@ -1,0 +1,16 @@
+[
+  {
+    "id": "JOB-1001",
+    "title": "Software Engineer",
+    "department": "Engineering",
+    "status": "Open",
+    "createdAt": "2026-02-01T10:00:00.000Z"
+  },
+  {
+    "id": "JOB-1002",
+    "title": "Data Scientist",
+    "department": "Data",
+    "status": "Open",
+    "createdAt": "2026-02-02T11:00:00.000Z"
+  }
+]

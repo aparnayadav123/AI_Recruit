@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test MongoDB Job Creation</title>
+</head>
+<body>
+    <h1>Test MongoDB Job Creation</h1>
+    <button onclick="createJob()">Create Test Job</button>
+    <button onclick="getJobs()">Get All Jobs</button>
+    <div id="result"></div>
+
+    <script>
+        async function createJob() {
+            const jobData = {
+                title: "Frontend Developer",
+                description: "Looking for experienced React developer",
+                location: "Remote",
+                department: "Engineering", 
+                employmentType: "FULL_TIME",
+                requirements: "React, JavaScript, HTML, CSS"
+            };
+
+            try {
+                const response = await fetch('http://localhost:8080/api/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jobData)
+                });
+
+                const result = await response.json();
+                document.getElementById('result').innerHTML = 
+                    `<h3>✅ Job Created!</h3>
+                     <pre>${JSON.stringify(result, null, 2)}</pre>
+                     <p>Check MongoDB Compass to see this job in the 'jobs' collection!</p>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<h3>❌ Error</h3><pre>${error.message}</pre>`;
+            }
+        }
+
+        async function getJobs() {
+            try {
+                const response = await fetch('http://localhost:8080/api/jobs');
+                const jobs = await response.json();
+                document.getElementById('result').innerHTML = 
+                    `<h3>📋 All Jobs (${jobs.totalElements})</h3>
+                     <pre>${JSON.stringify(jobs, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<h3>❌ Error</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

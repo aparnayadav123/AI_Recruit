@@ -1,0 +1,437 @@
+﻿
+> console_output.txt:
+338:	at org.springfra
+mework.security.web.a
+ccess.ExceptionTransl
+ationFilter.doFilter(
+ExceptionTranslationF
+ilter.java:120) ~[spr
+ing-security-web-6.2.
+0.jar:6.2.0]
+  console_output.txt:
+339:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+340:	at org.springfra
+mework.security.web.s
+ession.SessionManagem
+entFilter.doFilter(Se
+ssionManagementFilter
+.java:131) ~[spring-s
+ecurity-web-6.2.0.jar
+:6.2.0]
+  console_output.txt:
+341:	at org.springfra
+mework.security.web.s
+ession.SessionManagem
+entFilter.doFilter(Se
+ssionManagementFilter
+.java:85) ~[spring-se
+curity-web-6.2.0.jar:
+6.2.0]
+  console_output.txt:
+342:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+343:	at org.springfra
+mework.security.web.a
+uthentication.Anonymo
+usAuthenticationFilte
+r.doFilter(AnonymousA
+uthenticationFilter.j
+ava:100) ~[spring-sec
+urity-web-6.2.0.jar:6
+.2.0]
+  console_output.txt:
+344:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+345:	at org.springfra
+mework.security.web.s
+ervletapi.SecurityCon
+textHolderAwareReques
+tFilter.doFilter(Secu
+rityContextHolderAwar
+eRequestFilter.java:1
+79) ~[spring-security
+-web-6.2.0.jar:6.2.0]
+  console_output.txt:
+346:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+347:	at org.springfra
+mework.security.web.s
+avedrequest.RequestCa
+cheAwareFilter.doFilt
+er(RequestCacheAwareF
+ilter.java:63) ~[spri
+ng-security-web-6.2.0
+.jar:6.2.0]
+  console_output.txt:
+348:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+349:	at com.recruitai
+.agent.config.JwtAuth
+enticationFilter.doFi
+lterInternal(JwtAuthe
+nticationFilter.java:
+58) ~[classes/:na]
+  console_output.txt:
+350:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+351:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+352:	at org.springfra
+mework.security.web.a
+uthentication.logout.
+LogoutFilter.doFilter
+(LogoutFilter.java:10
+7) ~[spring-security-
+web-6.2.0.jar:6.2.0]
+  console_output.txt:
+353:	at org.springfra
+mework.security.web.a
+uthentication.logout.
+LogoutFilter.doFilter
+(LogoutFilter.java:93
+) ~[spring-security-w
+eb-6.2.0.jar:6.2.0]
+  console_output.txt:
+354:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+355:	at org.springfra
+mework.web.filter.Cor
+sFilter.doFilterInter
+nal(CorsFilter.java:9
+1) ~[spring-web-6.1.1
+.jar:6.1.1]
+  console_output.txt:
+356:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+357:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+358:	at org.springfra
+mework.security.web.h
+eader.HeaderWriterFil
+ter.doHeadersAfter(He
+aderWriterFilter.java
+:90) ~[spring-securit
+y-web-6.2.0.jar:6.2.0
+]
+  console_output.txt:
+359:	at org.springfra
+mework.security.web.h
+eader.HeaderWriterFil
+ter.doFilterInternal(
+HeaderWriterFilter.ja
+va:75) ~[spring-secur
+ity-web-6.2.0.jar:6.2
+.0]
+  console_output.txt:
+360:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+361:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+362:	at org.springfra
+mework.security.web.c
+ontext.SecurityContex
+tHolderFilter.doFilte
+r(SecurityContextHold
+erFilter.java:82) ~[s
+pring-security-web-6.
+2.0.jar:6.2.0]
+  console_output.txt:
+363:	at org.springfra
+mework.security.web.c
+ontext.SecurityContex
+tHolderFilter.doFilte
+r(SecurityContextHold
+erFilter.java:69) ~[s
+pring-security-web-6.
+2.0.jar:6.2.0]
+  console_output.txt:
+364:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+365:	at org.springfra
+mework.security.web.c
+ontext.request.async.
+WebAsyncManagerIntegr
+ationFilter.doFilterI
+nternal(WebAsyncManag
+erIntegrationFilter.j
+ava:62) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+366:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+367:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+368:	at org.springfra
+mework.security.web.s
+ession.DisableEncodeU
+rlFilter.doFilterInte
+rnal(DisableEncodeUrl
+Filter.java:42) ~[spr
+ing-security-web-6.2.
+0.jar:6.2.0]
+  console_output.txt:
+369:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+370:	at org.springfra
+mework.security.web.F
+ilterChainProxy$Virtu
+alFilterChain.doFilte
+r(FilterChainProxy.ja
+va:374) ~[spring-secu
+rity-web-6.2.0.jar:6.
+2.0]
+  console_output.txt:
+371:	at org.springfra
+mework.security.web.F
+ilterChainProxy.doFil
+terInternal(FilterCha
+inProxy.java:233) ~[s
+pring-security-web-6.
+2.0.jar:6.2.0]
+  console_output.txt:
+372:	at org.springfra
+mework.security.web.F
+ilterChainProxy.doFil
+ter(FilterChainProxy.
+java:191) ~[spring-se
+curity-web-6.2.0.jar:
+6.2.0]
+  console_output.txt:
+373:	at org.springfra
+mework.web.filter.Del
+egatingFilterProxy.in
+vokeDelegate(Delegati
+ngFilterProxy.java:35
+2) ~[spring-web-6.1.1
+.jar:6.1.1]
+  console_output.txt:
+374:	at org.springfra
+mework.web.filter.Del
+egatingFilterProxy.do
+Filter(DelegatingFilt
+erProxy.java:268) ~[s
+pring-web-6.1.1.jar:6
+.1.1]
+  console_output.txt:
+375:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.interna
+lDoFilter(Application
+FilterChain.java:174)
+ ~[tomcat-embed-core-
+10.1.16.jar:10.1.16]
+  console_output.txt:
+376:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.doFilte
+r(ApplicationFilterCh
+ain.java:149) ~[tomca
+t-embed-core-10.1.16.
+jar:10.1.16]
+  console_output.txt:
+377:	at org.springfra
+mework.web.filter.Req
+uestContextFilter.doF
+ilterInternal(Request
+ContextFilter.java:10
+0) ~[spring-web-6.1.1
+.jar:6.1.1]
+  console_output.txt:
+378:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+379:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.interna
+lDoFilter(Application
+FilterChain.java:174)
+ ~[tomcat-embed-core-
+10.1.16.jar:10.1.16]
+  console_output.txt:
+380:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.doFilte
+r(ApplicationFilterCh
+ain.java:149) ~[tomca
+t-embed-core-10.1.16.
+jar:10.1.16]
+  console_output.txt:
+381:	at org.springfra
+mework.web.filter.For
+mContentFilter.doFilt
+erInternal(FormConten
+tFilter.java:93) ~[sp
+ring-web-6.1.1.jar:6.
+1.1]
+  console_output.txt:
+382:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+383:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.interna
+lDoFilter(Application
+FilterChain.java:174)
+ ~[tomcat-embed-core-
+10.1.16.jar:10.1.16]
+  console_output.txt:
+384:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.doFilte
+r(ApplicationFilterCh
+ain.java:149) ~[tomca
+t-embed-core-10.1.16.
+jar:10.1.16]
+  console_output.txt:
+385:	at org.springfra
+mework.web.filter.Cha
+racterEncodingFilter.
+doFilterInternal(Char
+acterEncodingFilter.j
+ava:201) ~[spring-web
+-6.1.1.jar:6.1.1]
+  console_output.txt:
+386:	at org.springfra
+mework.web.filter.Onc
+ePerRequestFilter.doF
+ilter(OncePerRequestF
+ilter.java:116) ~[spr
+ing-web-6.1.1.jar:6.1
+.1]
+  console_output.txt:
+387:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.interna
+lDoFilter(Application
+FilterChain.java:174)
+ ~[tomcat-embed-core-
+10.1.16.jar:10.1.16]
+  console_output.txt:
+388:	at org.apache.ca
+talina.core.Applicati
+onFilterChain.doFilte
+r(ApplicationFilterCh
+ain.java:149) ~[tomca
+t-embed-core-10.1.16.
+jar:10.1.16]
+
+

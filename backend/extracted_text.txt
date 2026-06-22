@@ -1,0 +1,123 @@
+
+Mymoon Shaik
+Nellore, Andhra Pradesh
+
+� +91-9908648046 # mymoonshaik004@gmail.com ï LinkedIn ÃHackerRank
+
+EDUCATION
+
+Ramireddy Subbarami Reddy Engineering College, Kavali — B.Tech (CSE) 2018 – 2023
+
+Chandra Reddy Junior College — MPC 2016 – 2018
+
+EXPERIENCE
+
+Bilingual Software Engineer — Nellore Apr 2025 – Present
+
+– Working as a React Full-Stack Web Developer, building scalable web applications and developing intelligent agents using
+Python.
+
+Python Developer Intern — InGage Solutions, Chennai Sep 2024 – Dec 2024
+
+– Developed backend services and intelligent solutions leveraging Azure AI services and AWS Cloud fundamentals.
+
+Full Stack Developer Intern — Kartexa (WFH) Feb 2023 – Jul 2023
+
+– Built production-ready applications using modern front-end and back-end frameworks.
+
+– Collaborated with teams to design and optimize full-stack solutions.
+
+PROJECTS
+
+Kaizan Dhara — React, Web Technologies 2026
+
+– Developed a business-focused web platform aimed at continuous improvement and digital transformation initiatives.
+
+– Focused on clean UI/UX design, scalability, and performance optimization.
+
+SSO Authentication Platform — OAuth2, JWT, React, Node.js 2025
+
+– Designed and implemented a centralized Single Sign-On (SSO) system to enable secure authentication across multiple
+enterprise applications such as HR, Payroll, and Invoice systems.
+
+– Integrated OAuth2 and JWT-based authentication for seamless user login and session management.
+
+SakuraLingua — React, MongoDB 2025
+
+– Built a Japanese language learning platform with interactive quizzes, user progress tracking, levels, and rankings.
+
+– Implemented backend APIs using Xano and MongoDB for quiz sets, user authentication, and performance analytics.
+
+RecruitAI — AI-Powered Recruitment System — Python, LLMs 2025
+
+– Developed an AI-driven recruitment platform to analyze resumes, rank candidates, and assist in automated screening.
+
+– Leveraged intelligent agents and NLP techniques to improve hiring efficiency and decision-making.
+
+AI Travel Agent Platform — Python, Agentic AI, APIs 2025
+
+– Built an agentic AI-based travel planner that compares flights, hotels, and local attractions across platforms.
+
+– Integrated third-party APIs and AI agents to automate recommendations and booking workflows.
+
+Food Image Recognition System — Python, CNN, Deep Learning 2022
+
+– Led a team to build a CNN-based food recognition system providing accurate nutritional analysis.
+
+– Delivered personalized dietary insights using deep learning models.
+
+E-Sports Gaming Platform — HTML, CSS, JavaScript 2023
+
+– Developed a dynamic e-sports platform with community forums, donations, and merchandise integration.
+
+– Acted as Team Lead, managing feature planning and deployment.
+
+TECHNICAL SKILLS
+
+Web Technologies: React.js, Node.js, Express.js, HTML5, CSS3, Bootstrap, PHP
+Full Stack Development: React Full-Stack Development, REST APIs, Backend Services
+Databases: MySQL, MongoDB, Firebase
+Cloud & AI: Azure AI Services, AWS Cloud Practitioner, Generative AI, Agentic AI
+UI/UX Tools: Figma, Adobe Photoshop, Canva
+
+mailto:mymoonshaik004@gmail.com
+https://www.linkedin.com/in/mymoon-shaik/
+https://www.hackerrank.com/profile/mymoonshaik004
+
+
+COURSES
+
+AI Engineer (MLOps) — Udemy Nov 2025
+
+Python — Simplilearn Aug 2022
+
+Full Stack Development — Social Prachar Sep 2022 – Mar 2023
+
+ReactJS — YouTube (Java Guides) Mar 2023
+
+CERTIFICATIONS
+
+Certified Full Stack Developer — Social Prachar 2022 – 2023
+
+Consultant Virtual Experience Program — Accenture 2023
+
+Face Recognition Using Python — GUVI 2021
+
+HOBBIES
+
+Photography, Puzzle Solving, Playing Guitar, Crafting, Photo & Video Editing, Dancing, Reading
+
+LANGUAGES
+
+English, Japanese, Hindi, Urdu, Telugu
+
+
+	EDUCATION
+	EXPERIENCE
+	PROJECTS
+	TECHNICAL SKILLS
+	COURSES
+	CERTIFICATIONS
+	HOBBIES
+	LANGUAGES
+

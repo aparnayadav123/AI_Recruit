@@ -1,0 +1,118 @@
+﻿
+> recruitai-agent@0.0.0 build
+> vite build
+
+[36mvite v6.4.1 [32mbuilding for production...[36m[39m
+node.exe : 
+At C:\Program 
+Files\nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE $NPM_CLI_JS 
+$args
++   ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo          
+    : NotSpecified: (:Stri  
+  ng) [], RemoteException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+/index.css doesn't exist at 
+build time, it will remain 
+unchanged to be resolved at 
+runtime
+transforming...
+[32mΓ£ô[39m 1957 modules transformed.
+[31mΓ£ù[39m Build failed 
+in 11.25s
+[31merror during build:
+[31m[vite]: Rollup failed 
+to resolve import 
+"react-is" from "C:/Users/Le
+novo/Downloads/recruitai-age
+nt (2)/recruitai-agent 
+(4)/recruitai-agent (2)/recr
+uitai-agent/node_modules/rec
+harts/es6/util/ReactUtils.js
+".
+This is most likely 
+unintended because it can 
+break your application at 
+runtime.
+If you do want to 
+externalize this module 
+explicitly add it to
+`build.rollupOptions.externa
+l`[31m
+    at viteLog (file:///C:/U
+sers/Lenovo/Downloads/recrui
+tai-agent%20(2)/recruitai-ag
+ent%20(4)/recruitai-agent%20
+(2)/recruitai-agent/node_mod
+ules/vite/dist/node/chunks/d
+ep-D4NMHUTW.js:46374:15)
+    at file:///C:/Users/Leno
+vo/Downloads/recruitai-agent
+%20(2)/recruitai-agent%20(4)
+/recruitai-agent%20(2)/recru
+itai-agent/node_modules/vite
+/dist/node/chunks/dep-D4NMHU
+TW.js:46432:18
+    at onwarn (file:///C:/Us
+ers/Lenovo/Downloads/recruit
+ai-agent%20(2)/recruitai-age
+nt%20(4)/recruitai-agent%20(
+2)/recruitai-agent/node_modu
+les/@vitejs/plugin-react/dis
+t/index.js:76:7)
+    at file:///C:/Users/Leno
+vo/Downloads/recruitai-agent
+%20(2)/recruitai-agent%20(4)
+/recruitai-agent%20(2)/recru
+itai-agent/node_modules/vite
+/dist/node/chunks/dep-D4NMHU
+TW.js:46430:7
+    at onRollupLog (file:///
+C:/Users/Lenovo/Downloads/re
+cruitai-agent%20(2)/recruita
+i-agent%20(4)/recruitai-agen
+t%20(2)/recruitai-agent/node
+_modules/vite/dist/node/chun
+ks/dep-D4NMHUTW.js:46422:5)
+    at onLog (file:///C:/Use
+rs/Lenovo/Downloads/recruita
+i-agent%20(2)/recruitai-agen
+t%20(4)/recruitai-agent%20(2
+)/recruitai-agent/node_modul
+es/vite/dist/node/chunks/dep
+-D4NMHUTW.js:46072:7)
+    at file:///C:/Users/Leno
+vo/Downloads/recruitai-agent
+%20(2)/recruitai-agent%20(4)
+/recruitai-agent%20(2)/recru
+itai-agent/node_modules/roll
+up/dist/es/shared/node-entry
+.js:21004:32
+    at Object.logger [as 
+onLog] (file:///C:/Users/Len
+ovo/Downloads/recruitai-agen
+t%20(2)/recruitai-agent%20(4
+)/recruitai-agent%20(2)/recr
+uitai-agent/node_modules/rol
+lup/dist/es/shared/node-entr
+y.js:22891:9)
+    at ModuleLoader.handleIn
+validResolvedId (file:///C:/
+Users/Lenovo/Downloads/recru
+itai-agent%20(2)/recruitai-a
+gent%20(4)/recruitai-agent%2
+0(2)/recruitai-agent/node_mo
+dules/rollup/dist/es/shared/
+node-entry.js:21635:26)
+    at file:///C:/Users/Leno
+vo/Downloads/recruitai-agent
+%20(2)/recruitai-agent%20(4)
+/recruitai-agent%20(2)/recru
+itai-agent/node_modules/roll
+up/dist/es/shared/node-entry
+.js:21593:26[39m

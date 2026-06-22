@@ -1,0 +1,33 @@
+﻿node.exe : [31merror when 
+starting dev server:
+At C:\Program 
+Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE $NPX_CLI_JS 
+$args
++   
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: ([31mer  
+  ror when starting dev se   
+ rver::String) [], Remote    
+Exception
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+Error: Port 3000 is already 
+in use
+    at Server.onError (file:/
+//C:/Users/Lenovo/Downloads/r
+ecruitai-agent%20(2)/recruita
+i-agent%20(4)/recruitai-agent
+%20(2)/recruitai-agent/node_m
+odules/vite/dist/node/chunks/
+dep-D4NMHUTW.js:25023:18)
+    at Server.emit 
+(node:events:518:28)
+    at emitErrorNT 
+(node:net:1975:8)
+    at process.processTicksAn
+dRejections (node:internal/pr
+ocess/task_queues:90:21)[39m

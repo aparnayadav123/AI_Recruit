@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <div class="logo-container">
+                <span class="logo-text">RecruitAI</span>
+                <span class="badge">PRO</span>
+            </div>
+            <p class="subtitle">LinkedIn Connector</p>
+        </header>
+
+        <main id="main-content">
+            <div id="login-view" class="hidden">
+                <div class="info-card">
+                    <p>Please log in to your RecruitAI dashboard to synchronize the extension.</p>
+                    <button id="goto-login" class="btn-secondary">Go to Dashboard</button>
+
+                    <div class="divider"></div>
+                    <p class="small-hint">Or paste your JWT Token manually:</p>
+                    <input type="password" id="manual-token" placeholder="Paste Token Here..." class="token-input">
+                    <button id="save-token-btn" class="btn-primary mt-10">Activate Extension</button>
+                </div>
+            </div>
+
+            <div id="profile-view">
+                <div id="profile-preview" class="hidden">
+                    <h3 id="profile-name">Loading...</h3>
+                    <p id="profile-headline"></p>
+                    <div class="divider"></div>
+                </div>
+
+                <div id="initial-state">
+                    <p class="hint">Open a LinkedIn profile to begin</p>
+                </div>
+
+                <button id="save-btn" class="btn-primary" disabled>
+                    <span id="btn-text">Extract Profile</span>
+                    <div id="loader" class="spinner hidden"></div>
+                </button>
+            </div>
+        </main>
+
+        <div id="status-msg" class="status-chip hidden"></div>
+
+        <footer>
+            <p>System Version 1.0.0</p>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+
+</html>

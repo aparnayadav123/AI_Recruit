@@ -1,0 +1,23 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.recruitai:agent >-------------------------
+[INFO] Building recruitai-agent 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.3.2:clean (default-clean) @ agent ---
+[INFO] Deleting C:\Users\Lenovo\Downloads\recruitai-agent (2)\recruitai-agent (4)\recruitai-agent (2)\recruitai-agent\backend\target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ agent ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ agent ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 52 source files with javac [debug release 17] to target\classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  12.068 s
+[INFO] Finished at: 2026-01-13T12:55:19+05:30
+[INFO] ------------------------------------------------------------------------
