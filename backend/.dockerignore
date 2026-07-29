@@ -1,0 +1,24 @@
+# Keep the Docker build context small & reproducible — only pom.xml + src are needed.
+target/
+*.log
+*.log.*
+logs/
+hs_err_pid*.log
+replay_pid*.log
+*.gz
+
+# Local data dumps / snapshots (do NOT bake local DB data into the image; use Atlas)
+*.json
+data/
+uploads/
+
+# Node / misc tooling that lives in this folder
+node_modules/
+*.js
+*.cjs
+maven.zip
+.env
+.git/
+.mvn/
+mvnw
+mvnw.cmd

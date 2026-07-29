@@ -1,0 +1,23 @@
+# Render Blueprint — provisions the always-on RecruitAI backend.
+# In Render: New → Blueprint → pick this repo. It reads this file automatically.
+# You still set the two secret env vars (MONGODB_URI, GEMINI_API_KEY) in the dashboard.
+services:
+  - type: web
+    name: recruitai-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore            # closest Render region to India; change if you prefer
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # MongoDB Atlas connection string — set this in the Render dashboard (marked secret).
+      # e.g. mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: RecruitAI
+      # Optional — leave unset to use the deterministic resume parser (no crash).
+      - key: GEMINI_API_KEY
+        sync: false

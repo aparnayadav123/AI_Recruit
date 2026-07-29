@@ -1,5 +1,6 @@
 package com.recruitai.agent.service;
 
+import com.recruitai.agent.entity.InterviewStage;
 import com.recruitai.agent.entity.JobApplication;
 import com.recruitai.agent.entity.JobApplication.ApplicationStatus;
 import com.recruitai.agent.repository.JobApplicationRepository;
@@ -53,13 +54,24 @@ public class RecruitmentAnalyticsService {
     }
 
     private boolean reachedInterview(JobApplication a) {
-        ApplicationStatus s = a.getStatus();
-        if (s == ApplicationStatus.UNDER_REVIEW || s == ApplicationStatus.SHORTLISTED
-                || s == ApplicationStatus.HIRED) {
-            return true;
+        // A candidate has "reached interview" only once they progress past the initial
+        // Screening / resume-review step into an actual interview round. UNDER_REVIEW and
+        // SHORTLISTED are reached by screening alone (see JobApplicationService
+        // .deriveStatusFromStages) and must NOT be counted here, otherwise the Interview
+        // Rate over-reports vs. the manual interviewed/total calculation.
+        if (a.getStatus() == ApplicationStatus.HIRED) {
+            return true; // cannot be hired without having been interviewed
         }
-        return a.getStages() != null && a.getStages().stream()
-                .anyMatch(st -> st.getOutcome() != null && !"PENDING".equalsIgnoreCase(st.getOutcome()));
+        return a.getStages() != null && a.getStages().stream().anyMatch(this::isConductedInterviewRound);
+    }
+
+    /** True for a real interview round (not "Screening") that was actually conducted. */
+    private boolean isConductedInterviewRound(InterviewStage st) {
+        if (st == null || st.getName() == null || "Screening".equalsIgnoreCase(st.getName().trim())) {
+            return false;
+        }
+        boolean recordedOutcome = st.getOutcome() != null && !"PENDING".equalsIgnoreCase(st.getOutcome().trim());
+        return recordedOutcome || st.getDate() != null;
     }
 
     private double pct(long part, long whole) {

@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
+import { useIsManager } from '../roles';
 import { Candidate, Job, JobApplication, Interview } from '../types';
 import {
     X, Mail, Phone, MapPin, Calendar, Briefcase, CheckCircle2,
@@ -353,6 +354,8 @@ const CandidateDetails: React.FC = () => {
     const [isSavingInline, setIsSavingInline] = useState(false);
     const [inlineFormData, setInlineFormData] = useState<any>({});
     const [currentUser, setCurrentUser] = useState<any>(null);
+    // Hire is an HR Manager-only action (FR-901, BR-09). Recruiters don't see it.
+    const isManager = useIsManager();
 
     useEffect(() => {
         const userStr = localStorage.getItem('user');
@@ -535,6 +538,7 @@ const CandidateDetails: React.FC = () => {
     // /candidates?status=Hired list, and marks the application HIRED).
     const handleHire = async () => {
         if (!id || !candidate) return;
+        if (!isManager) return; // HR Manager-only (FR-901, BR-09)
         if (!window.confirm(`Mark ${candidate.name} as Hired?`)) return;
         setIsHiring(true);
         try {
@@ -948,7 +952,7 @@ const CandidateDetails: React.FC = () => {
                                     Block
                                 </button>
                             )}
-                            {candidate.status !== 'Hired' && (
+                            {candidate.status !== 'Hired' && isManager && (
                                 <button
                                     onClick={handleHire}
                                     disabled={isHiring}

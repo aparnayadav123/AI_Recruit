@@ -443,11 +443,36 @@ public class DataSeedingService {
             User demo = new User();
             demo.setEmail("demo@recruitai.com");
             demo.setName("Demo User");
-            demo.setPassword(passwordEncoder.encode("admin123")); 
+            demo.setPassword(passwordEncoder.encode("admin123"));
             demo.setRole("ADMIN");
             demo.setCreatedAt(LocalDateTime.now());
             userRepository.save(demo);
             logger.info("Demo user created with password: admin123");
+        }
+
+        // Demo HR + Manager accounts. These also have a login BYPASS in AuthController, but
+        // without a backing row Settings > My Profile can't persist edits (updateProfile
+        // findByEmail -> 404). Seeding a real row lets their profile updates save & reload.
+        if (userRepository.findByEmail("hr@recruitai.com").isEmpty()) {
+            User hr = new User();
+            hr.setEmail("hr@recruitai.com");
+            hr.setName("HR Demo");
+            hr.setPassword(passwordEncoder.encode("hr1234"));
+            hr.setRole("HR");
+            hr.setCreatedAt(LocalDateTime.now());
+            userRepository.save(hr);
+            logger.info("Demo HR user created with password: hr1234");
+        }
+
+        if (userRepository.findByEmail("manager@recruitai.com").isEmpty()) {
+            User manager = new User();
+            manager.setEmail("manager@recruitai.com");
+            manager.setName("Manager Demo");
+            manager.setPassword(passwordEncoder.encode("manager1234"));
+            manager.setRole("MANAGER");
+            manager.setCreatedAt(LocalDateTime.now());
+            userRepository.save(manager);
+            logger.info("Demo Manager user created with password: manager1234");
         }
     }
 }

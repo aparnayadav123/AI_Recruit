@@ -1,6 +1,7 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import api from '../api';
-import { User, Bell, Building, Shield, Save, Slack, Linkedin, Mail, CheckCircle2, Settings as SettingsIcon } from 'lucide-react';
+import { useIsManager } from '../roles';
+import { User, Bell, Building, Shield, Save, Slack, Linkedin, Mail, CheckCircle2, Lock, Settings as SettingsIcon } from 'lucide-react';
 
 interface SettingsProps {
   searchQuery?: string;
@@ -8,6 +9,9 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
   const [activeTab, setActiveTab] = useState('profile');
+  // Company & Integrations are HR Manager-only to edit (FR-901, BR-09).
+  // Recruiters can view but not change them. Profile & Notifications stay personal/editable.
+  const isManager = useIsManager();
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -16,6 +20,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
     profilePic: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+  // Field-level validation error for the profile email input (SET-002 / FR-902).
+  const [emailError, setEmailError] = useState('');
+  // The email the account is currently identified by (may differ from the edited value).
+  const [originalEmail, setOriginalEmail] = useState('');
+
+  // Standard email shape: non-space local part, "@", domain with a dot.
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
   const profilePicInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -30,6 +41,7 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
         email: user.email || '',
         profilePic: user.profilePicture || '',
       });
+      setOriginalEmail(user.email || '');
       if (user.notificationPreferences) {
         setNotificationPrefs(user.notificationPreferences);
       }
@@ -101,6 +113,10 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
   }, [profileData.email]);
 
   const toggleIntegration = async (name: string) => {
+    if (!isManager) {
+      showToast('Only an HR Manager can change integrations.');
+      return;
+    }
     if (!profileData.email) {
       showToast('Sign in first to manage integrations.');
       return;
@@ -262,9 +278,11 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     formData.append('email', profileData.email);
 
                     try {
-                      const response = await api.put('/users/profile-picture', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                      });
+                      // NOTE: do NOT set Content-Type here. Letting the browser serialize the
+                      // FormData adds the required `multipart/form-data; boundary=…` header —
+                      // hard-coding "multipart/form-data" omits the boundary and the server
+                      // then can't parse the upload, so the photo never saves.
+                      const response = await api.put('/users/profile-picture', formData);
 
                       if (response.data) {
                         setProfileData(prev => ({ ...prev, profilePic: response.data.profilePicture }));
@@ -309,9 +327,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <input
                     type="email"
                     value={profileData.email}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    aria-invalid={!!emailError}
+                    onChange={(e) => { setProfileData(prev => ({ ...prev, email: e.target.value })); if (emailError) setEmailError(''); }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none focus:ring-1 ${emailError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-blue-500'}`}
                   />
+                  {emailError && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{emailError}</p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end pt-4">
@@ -319,26 +341,49 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                 <button
                   disabled={isSaving}
                   onClick={async () => {
+                    // Reject an invalid email format before hitting the API — no save.
+                    if (!isValidEmail(profileData.email)) {
+                      setEmailError('Please enter a valid email address.');
+                      return;
+                    }
+                    setEmailError('');
                     setIsSaving(true);
                     try {
                       const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
                       const response = await api.put('/users/profile', {
                         email: profileData.email,
                         name: fullName
+                      }, {
+                        // Identify the account by its current email so an email change persists.
+                        params: { currentEmail: originalEmail || profileData.email },
                       });
 
                       if (response.data) {
                         const userData = localStorage.getItem('user');
                         if (userData) {
                           const user = JSON.parse(userData);
-                          const updatedUser = { ...user, name: response.data.name };
+                          const updatedUser = {
+                            ...user,
+                            name: response.data.name,
+                            email: response.data.email,
+                          };
                           localStorage.setItem('user', JSON.stringify(updatedUser));
                           window.dispatchEvent(new Event('storage'));
                         }
+                        // The new email is now the account identifier for subsequent saves.
+                        setOriginalEmail(response.data.email);
+                        setProfileData(prev => ({ ...prev, email: response.data.email }));
                         showToast('Saved successfully');
                       }
-                    } catch (error) {
-                      console.error('Save failed', error);
+                    } catch (error: any) {
+                      // Surface a server-side rejection (e.g. invalid email) at the field.
+                      const data = error?.response?.data;
+                      const msg = typeof data === 'string' ? data : data?.message;
+                      if (error?.response?.status === 400) {
+                        setEmailError(msg || 'Please enter a valid email address.');
+                      } else {
+                        console.error('Save failed', error);
+                      }
                     } finally {
                       setIsSaving(false);
                     }
@@ -446,6 +491,12 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
           {/* INTEGRATIONS TAB */}
           {activeTab === 'integrations' && (
             <div className="space-y-3">
+              {!isManager && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">View only — HR Manager access required to change integrations.</span>
+                </div>
+              )}
               {[
                 { key: 'linkedin', label: 'LinkedIn', desc: 'Sync candidates and outreach',  iconBg: 'bg-blue-50',   iconColor: 'text-blue-600',   icon: <Linkedin className="w-5 h-5" /> },
                 { key: 'slack',    label: 'Slack',    desc: 'Send team alerts to a channel', iconBg: 'bg-purple-50', iconColor: 'text-purple-600', icon: <Slack className="w-5 h-5" /> },
@@ -471,7 +522,8 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     </div>
                     <button
                       onClick={() => toggleIntegration(item.key)}
-                      disabled={busy}
+                      disabled={busy || !isManager}
+                      title={!isManager ? 'HR Manager access required' : ''}
                       className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         connected
                           ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100'
@@ -497,6 +549,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                 <p className="text-[10px] text-gray-600 font-bold">Manage organization settings.</p>
               </div>
 
+              {!isManager && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">View only — HR Manager access required to edit company details.</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Logo</label>
@@ -508,7 +567,8 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     )}
                     <button
                       onClick={() => companyLogoInputRef.current?.click()}
-                      className="px-3 py-1.5 border border-slate-300 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition"
+                      disabled={!isManager}
+                      className="px-3 py-1.5 border border-slate-300 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Update Logo
                     </button>
@@ -533,8 +593,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={companyData.name}
+                    disabled={!isManager}
                     onChange={(e) => setCompanyData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -542,8 +603,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={companyData.website}
+                    disabled={!isManager}
                     onChange={(e) => setCompanyData(prev => ({ ...prev, website: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="col-span-2">
@@ -551,8 +613,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <textarea
                     rows={2}
                     value={companyData.description}
+                    disabled={!isManager}
                     onChange={(e) => setCompanyData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none resize-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -560,16 +623,18 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={companyData.headquarters}
+                    disabled={!isManager}
                     onChange={(e) => setCompanyData(prev => ({ ...prev, headquarters: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Size</label>
                   <select
                     value={companyData.size}
+                    disabled={!isManager}
                     onChange={(e) => setCompanyData(prev => ({ ...prev, size: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                   >
                     <option>1-50 employees</option>
                     <option>51-200 employees</option>
@@ -580,8 +645,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
               </div>
               <div className="flex justify-end pt-2">
                 <button
-                  disabled={isSavingCompany}
+                  disabled={isSavingCompany || !isManager}
                   onClick={async () => {
+                    if (!isManager) return; // HR Manager-only (FR-901, BR-09)
                     setIsSavingCompany(true);
                     try {
                       const response = await api.put('/company', companyData);
@@ -595,7 +661,7 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                       setIsSavingCompany(false);
                     }
                   }}
-                  className={`flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition ${isSavingCompany ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={`flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition ${(isSavingCompany || !isManager) ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <Save className="w-3.5 h-3.5" />
                   {isSavingCompany ? 'Saving...' : 'Save Details'}

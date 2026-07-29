@@ -37,3 +37,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rotated / compressed logs
+*.gz
+*.log.*

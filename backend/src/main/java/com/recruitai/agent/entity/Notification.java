@@ -1,9 +1,21 @@
 package com.recruitai.agent.entity;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 
 /**
  * In-app notification surfaced by the bell icon in the top bar.
@@ -40,6 +52,16 @@ public class Notification {
     private String entityName;   // name to highlight inside the message
     private String type;         // INFO / SUCCESS / WARNING
     private boolean read;
+    /**
+     * When the notification was created, in server wall-clock. Serialized to JSON as an
+     * absolute instant WITH the server's zone offset (e.g. "…+05:30" / "…Z") so the browser
+     * computes "just now" correctly no matter which timezone the server or the browser runs
+     * in. A bare LocalDateTime string (no offset) is ambiguous — the browser would guess the
+     * zone and could show a just-created notification as "6 hours ago". Deserialization
+     * accepts both the offset form and the legacy offset-less form (old backup dumps).
+     */
+    @JsonSerialize(using = SystemZoneInstantSerializer.class)
+    @JsonDeserialize(using = FlexibleLocalDateTimeDeserializer.class)
     private LocalDateTime createdAt;
     private String relatedEntityId;
     private String category;     // see CATEGORY_* constants above
@@ -86,4 +108,50 @@ public class Notification {
     public void setRelatedEntityId(String relatedEntityId) { this.relatedEntityId = relatedEntityId; }
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+
+    /**
+     * Writes a wall-clock {@link LocalDateTime} as an absolute instant carrying the server's
+     * current zone offset (ISO-8601, e.g. "2026-07-28T13:45:15.619+05:30"). This removes the
+     * timezone ambiguity that made a just-created notification render as "6 hours ago".
+     */
+    static class SystemZoneInstantSerializer extends JsonSerializer<LocalDateTime> {
+        @Override
+        public void serialize(LocalDateTime value, JsonGenerator gen, SerializerProvider sp)
+                throws IOException {
+            if (value == null) {
+                gen.writeNull();
+                return;
+            }
+            gen.writeString(value.atZone(ZoneId.systemDefault()).toOffsetDateTime().toString());
+        }
+    }
+
+    /**
+     * Reads a timestamp back into wall-clock. Accepts either the offset/zoned form written by
+     * {@link SystemZoneInstantSerializer} (converted to the server zone) or the legacy
+     * offset-less form found in older backup dumps. Never throws on a garbled value.
+     */
+    static class FlexibleLocalDateTimeDeserializer extends JsonDeserializer<LocalDateTime> {
+        @Override
+        public LocalDateTime deserialize(JsonParser p, DeserializationContext ctx)
+                throws IOException {
+            String s = p.getValueAsString();
+            if (s == null || s.isBlank()) {
+                return null;
+            }
+            s = s.trim();
+            try {
+                // Offset/zoned form (…+05:30 / …Z) → normalize to the server's wall-clock.
+                return OffsetDateTime.parse(s).atZoneSameInstant(ZoneId.systemDefault())
+                        .toLocalDateTime();
+            } catch (DateTimeParseException ignored) {
+                // Not offset-qualified — fall through to a plain local date-time.
+            }
+            try {
+                return LocalDateTime.parse(s);
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+    }
 }

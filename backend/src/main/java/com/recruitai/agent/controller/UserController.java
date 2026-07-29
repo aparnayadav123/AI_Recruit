@@ -19,6 +19,9 @@ public class UserController {
     @Autowired
     private UserRepository userRepository;
 
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+
     @PutMapping("/profile-picture")
     public ResponseEntity<?> updateProfilePicture(@RequestParam("email") String email,
             @RequestParam("file") MultipartFile file) {
@@ -44,17 +47,37 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<?> updateProfile(@RequestBody User userRequest) {
+    public ResponseEntity<?> updateProfile(@RequestBody User userRequest,
+            @RequestParam(value = "currentEmail", required = false) String currentEmail) {
         try {
-            Optional<User> userOpt = userRepository.findByEmail(userRequest.getEmail());
+            // Identify the account by its CURRENT email (id is stable, email is editable).
+            // The body's email carries the possibly-new value, so we must not look up by it.
+            String lookupEmail = (currentEmail != null && !currentEmail.isBlank())
+                    ? currentEmail : userRequest.getEmail();
+            Optional<User> userOpt = userRepository.findByEmail(lookupEmail);
             if (userOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
 
             User user = userOpt.get();
-            user.setName(userRequest.getName());
-            // You can add more fields here like role update etc if needed, but for now name
-            // is the main one in settings
+            if (userRequest.getName() != null) {
+                user.setName(userRequest.getName());
+            }
+
+            // Persist an email change (Settings > My Profile lets the user edit it).
+            String newEmail = userRequest.getEmail();
+            if (newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(user.getEmail())) {
+                if (!EMAIL_PATTERN.matcher(newEmail.trim()).matches()) {
+                    return ResponseEntity.badRequest()
+                            .body(java.util.Map.of("message", "Please enter a valid email address."));
+                }
+                Optional<User> existing = userRepository.findByEmail(newEmail);
+                if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
+                    return ResponseEntity.badRequest().body("Email already in use");
+                }
+                user.setEmail(newEmail);
+            }
+
             userRepository.save(user);
 
             return ResponseEntity.ok(user);

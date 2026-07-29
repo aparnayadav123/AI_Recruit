@@ -93,23 +93,21 @@ public class AuthController {
             }
             String email = request.getEmail().trim().toLowerCase();
 
-            // MASTER BYPASS: Always allow demo login
+            // MASTER BYPASS: Always allow demo login. Name + avatar come from the seeded DB
+            // row so profile edits (FR-902) survive a re-login instead of resetting to defaults.
             if ("demo@recruitai.com".equals(email) && "admin123".equals(request.getPassword())) {
-                String token = jwtUtils.generateToken("demo@recruitai.com", "ADMIN");
-                return ResponseEntity.ok(new AuthResponse(token, "ADMIN", "demo@recruitai.com", "Demo User", null));
+                return demoLogin("demo@recruitai.com", "ADMIN", "Demo User");
             }
 
             // Demo HR account — same shape as the demo bypass above, so testing the
             // deletion-request workflow doesn't require seeding a real user.
             if ("hr@recruitai.com".equals(email) && "hr1234".equals(request.getPassword())) {
-                String token = jwtUtils.generateToken("hr@recruitai.com", "HR");
-                return ResponseEntity.ok(new AuthResponse(token, "HR", "hr@recruitai.com", "HR Demo", null));
+                return demoLogin("hr@recruitai.com", "HR", "HR Demo");
             }
 
             // Demo Manager account
             if ("manager@recruitai.com".equals(email) && "manager1234".equals(request.getPassword())) {
-                String token = jwtUtils.generateToken("manager@recruitai.com", "MANAGER");
-                return ResponseEntity.ok(new AuthResponse(token, "MANAGER", "manager@recruitai.com", "Manager Demo", null));
+                return demoLogin("manager@recruitai.com", "MANAGER", "Manager Demo");
             }
 
             Optional<User> userOpt = userRepository.findByEmail(email);
@@ -127,5 +125,19 @@ public class AuthController {
             return ResponseEntity.internalServerError()
                     .body(java.util.Map.of("message", "An unexpected error occurred. Please try again."));
         }
+    }
+
+    /**
+     * Build the auth response for a demo bypass account, preferring the seeded DB row's
+     * saved name + profile picture so profile edits (FR-902) persist across re-login. Role
+     * and the email identifier stay fixed to what the bypass grants.
+     */
+    private ResponseEntity<?> demoLogin(String email, String role, String fallbackName) {
+        User u = userRepository.findByEmail(email).orElse(null);
+        String name = (u != null && u.getName() != null && !u.getName().isBlank())
+                ? u.getName() : fallbackName;
+        String profilePicture = (u != null) ? u.getProfilePicture() : null;
+        String token = jwtUtils.generateToken(email, role);
+        return ResponseEntity.ok(new AuthResponse(token, role, email, name, profilePicture));
     }
 }

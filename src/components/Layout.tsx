@@ -223,31 +223,16 @@ const Layout: React.FC = () => {
 
         setIsUploading(true);
 
-        // Demo bypass accounts (HR/Manager/Admin demo) have no DB row, so the backend
-        // upload would fail. Store the picture locally as a data URL so it's still
-        // editable and persists in this browser.
-        const DEMO_EMAILS = ['demo@recruitai.com', 'hr@recruitai.com', 'manager@recruitai.com'];
-        if (DEMO_EMAILS.includes((user.email || '').toLowerCase())) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const updatedUser = { ...user, profilePicture: reader.result as string };
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-                setUser(updatedUser);
-                setIsUploading(false);
-            };
-            reader.onerror = () => { alert('Failed to read image.'); setIsUploading(false); };
-            reader.readAsDataURL(file);
-            return;
-        }
-
+        // All accounts (including the demo Admin/HR/Manager) now have a backing DB row,
+        // so the upload persists server-side and the avatar survives a re-login.
         const formData = new FormData();
         formData.append('file', file);
         formData.append('email', user.email);
 
         try {
-            const response = await api.put('/users/profile-picture', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            // Don't set Content-Type — the browser must add the multipart boundary itself.
+            // A hard-coded "multipart/form-data" (no boundary) makes the upload unparseable.
+            const response = await api.put('/users/profile-picture', formData);
 
             if (response.data) {
                 // Update local storage and state
