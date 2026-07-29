@@ -20,8 +20,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {
-                })
+                // Uses the CorsConfigurationSource bean (CorsConfig) inside the security
+                // chain, so preflight OPTIONS gets the Access-Control-Allow-Origin header.
+                .cors(org.springframework.security.config.Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 🔓 DEV MODE: Full access to all APIs
