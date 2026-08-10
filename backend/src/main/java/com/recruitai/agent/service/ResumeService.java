@@ -215,8 +215,14 @@ public class ResumeService implements org.springframework.beans.factory.Initiali
         ParsedResume parsed = deterministicParser.parse(text);
         logger.info("Deterministic parse complete in {} ms", System.currentTimeMillis() - tParse);
 
-        // VALIDATION: Fail early if no data
-        if (parsed.getName() == null && parsed.getEmail() == null) {
+        // VALIDATION: a recruiter uploading a resume directly (source=UPLOAD) still needs a
+        // parseable file. But an applicant submitting through a careers form has ALREADY typed
+        // their name/email — the caller overrides those on the candidate right after creation
+        // — so we must NEVER drop their application just because the file didn't parse. For any
+        // external source we fall through to the placeholder name/email handled just below.
+        boolean externalApplication = source != null && !source.isBlank()
+                && !"UPLOAD".equalsIgnoreCase(source.trim());
+        if (parsed.getName() == null && parsed.getEmail() == null && !externalApplication) {
             throw new RuntimeException("Validation Failed: Could not extract Name or Email from resume.");
         }
 
