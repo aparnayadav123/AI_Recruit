@@ -53,3 +53,31 @@ export const roundOf = (interviewRound?: string | null): string =>
     interviewRound && INTERVIEW_ROUNDS.some(r => r.id === interviewRound)
         ? interviewRound
         : DEFAULT_ROUND_ID;
+
+/**
+ * The ordered stages a candidate actually progresses through. `Hold` and `Offer` are
+ * side branches, not sequential steps, so they are excluded from the pipeline order.
+ */
+export const PIPELINE_ROUNDS = INTERVIEW_ROUNDS.filter(r => r.id !== 'Hold' && r.id !== 'Offer');
+
+/** Zero-based position of a round within the ordered pipeline (unknown → first stage). */
+export const roundIndex = (interviewRound?: string | null): number => {
+    const idx = PIPELINE_ROUNDS.findIndex(r => r.id === roundOf(interviewRound));
+    return idx === -1 ? 0 : idx;
+};
+
+/** Human-readable title for a round id (falls back to the resolved id). */
+export const roundTitle = (interviewRound?: string | null): string =>
+    PIPELINE_ROUNDS.find(r => r.id === roundOf(interviewRound))?.title ?? roundOf(interviewRound);
+
+/** The next stage after `interviewRound`, or `null` if already at the final stage. */
+export const nextRound = (interviewRound?: string | null): InterviewRoundDef | null =>
+    PIPELINE_ROUNDS[roundIndex(interviewRound) + 1] ?? null;
+
+/**
+ * FSM rule (FR-401 / BR-05): interview stages cannot be skipped. A candidate may only
+ * move to an ADJACENT stage — the same round, or exactly one step forward/back. Jumping
+ * ahead (e.g. Technical Round 1 → Manager Round) is not a legal transition.
+ */
+export const isAdjacentRound = (fromRound: string | null | undefined, toRound: string): boolean =>
+    Math.abs(roundIndex(toRound) - roundIndex(fromRound)) <= 1;

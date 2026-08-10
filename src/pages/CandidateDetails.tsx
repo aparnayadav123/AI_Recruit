@@ -18,7 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import { formatUserDisplayName, formatCandidateId } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
-import { INTERVIEW_ROUNDS } from '../constants/interviewRounds';
+import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isAdjacentRound } from '../constants/interviewRounds';
 
 // Only the actual interview rounds are schedulable as a meeting (Hold / Offer
 // are pipeline outcomes, not interviews).
@@ -1636,6 +1636,19 @@ const CandidateDetails: React.FC = () => {
                             alert(`${candidate.name} is BLOCKED — this candidate is not eligible for interview.${candidate.blockReason ? `\n\nReason: ${candidate.blockReason}` : ''}`);
                             return;
                         }
+                        // FSM rule (FR-401 / BR-05): stages cannot be skipped. Scheduling a
+                        // non-adjacent round (e.g. Technical Round 1 → Manager Round) is blocked.
+                        const targetRound = MEETING_ROUNDS.find(r => r.id === meetingData.title);
+                        if (targetRound && !isAdjacentRound(candidate.interviewRound, targetRound.id)) {
+                            const next = nextRound(candidate.interviewRound);
+                            alert(
+                                `Interview stages can't be skipped.\n\n` +
+                                `${candidate.name} is at "${roundTitle(candidate.interviewRound)}". ` +
+                                `The next allowed stage is "${next ? next.title : roundTitle(candidate.interviewRound)}" — ` +
+                                `you can't jump straight to "${targetRound.title}".`
+                            );
+                            return;
+                        }
                         setIsAddingMeeting(true);
                         try {
                             const interviewRequest: Interview = {
@@ -2043,7 +2056,9 @@ const MeetingSchedulerModal: React.FC<{
     })();
     const defaultEndIdx = Math.min(TIME_SLOTS.indexOf(defaultSlot) + 1, TIME_SLOTS.length - 1);
 
-    const [title, setTitle] = useState(MEETING_ROUNDS[0].id);
+    // Start on the candidate's CURRENT stage — the FSM (BR-05) only permits scheduling
+    // the current or the immediately next round; skipping ahead is disabled below.
+    const [title, setTitle] = useState(roundOf(candidate.interviewRound));
     const [location, setLocation] = useState('');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [startTime, setStartTime] = useState(defaultSlot);
@@ -2199,10 +2214,22 @@ const MeetingSchedulerModal: React.FC<{
                                 onChange={(e) => setTitle(e.target.value)}
                                 className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 outline-none"
                             >
-                                {MEETING_ROUNDS.map(r => (
-                                    <option key={r.id} value={r.id}>{r.title}</option>
-                                ))}
+                                {/* FSM (BR-05): only the current and adjacent rounds are selectable —
+                                    non-adjacent stages are locked so a stage can't be skipped. */}
+                                {MEETING_ROUNDS.map(r => {
+                                    const locked = !isAdjacentRound(candidate.interviewRound, r.id);
+                                    return (
+                                        <option key={r.id} value={r.id} disabled={locked}>
+                                            {r.title}{locked ? ' — locked (finish previous rounds first)' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
+                            <p className="text-[9px] font-bold text-slate-400">
+                                Current stage: <span className="text-slate-600">{roundTitle(candidate.interviewRound)}</span>
+                                {nextRound(candidate.interviewRound) ? <> · Next: <span className="text-slate-600">{nextRound(candidate.interviewRound)!.title}</span></> : <> · Final stage</>}
+                                . Stages can't be skipped.
+                            </p>
                         </div>
 
                         <div className="space-y-3">

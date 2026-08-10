@@ -385,13 +385,23 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     }
   };
 
+  // Keep the UI limits in step with the server (@Size on Candidate/CandidateDto).
+  const NAME_MAX = 100;
+  const EMAIL_MAX = 254;
+
   const handleSaveCandidate = async () => {
     const problems: string[] = [];
-    if (!formData.name || !formData.name.trim()) {
+    const name = (formData.name || '').trim();
+    const email = (formData.email || '').trim();
+    if (!name) {
       problems.push('Name is required.');
+    } else if (name.length > NAME_MAX) {
+      problems.push(`Name must not exceed ${NAME_MAX} characters (currently ${name.length}).`);
     }
-    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       problems.push('A valid email is required.');
+    } else if (email.length > EMAIL_MAX) {
+      problems.push(`Email must not exceed ${EMAIL_MAX} characters.`);
     }
     if (problems.length > 0) {
       alert('Please fix:\n' + problems.join('\n'));
@@ -425,7 +435,16 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
       fetchCandidates();
     } catch (error: any) {
       console.error("Save failed:", error);
-      alert(`Failed to save candidate: ${error?.response?.data?.message || error?.response?.data?.error || 'Unknown error'}`);
+      // Surface the exact field reason the server sent (e.g. "Name must not exceed 100
+      // characters") instead of the generic "Validation failed" envelope.
+      const data = error?.response?.data;
+      let reason = data?.message || data?.error || 'Unknown error';
+      if (data?.details && typeof data.details === 'object') {
+        reason = Object.values(data.details).join('\n');
+      } else if (Array.isArray(data?.errors) && data.errors.length) {
+        reason = data.errors.join('\n');
+      }
+      alert(`Failed to save candidate:\n${reason}`);
       fetchCandidates();
     }
   };
