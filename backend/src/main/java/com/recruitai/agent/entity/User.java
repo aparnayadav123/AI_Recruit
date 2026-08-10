@@ -33,6 +33,14 @@ public class User {
     @Field("profile_picture")
     private String profilePicture;
 
+    /**
+     * Stable anchor for the built-in demo/QA bypass accounts (e.g. "admin", "hr", "manager").
+     * Null for real users. Lets the demo login find its account even after a profile-edit test
+     * changes the email, so the shared demo account can't be corrupted (see AuthController).
+     */
+    @Field("demo_id")
+    private String demoId;
+
     @Field("notification_preferences")
     private NotificationPreferences notificationPreferences = new NotificationPreferences();
 
@@ -127,6 +135,14 @@ public class User {
 
     public void setProfilePicture(String profilePicture) {
         this.profilePicture = profilePicture;
+    }
+
+    public String getDemoId() {
+        return demoId;
+    }
+
+    public void setDemoId(String demoId) {
+        this.demoId = demoId;
     }
 
     public Map<String, Boolean> getIntegrations() {

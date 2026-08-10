@@ -96,18 +96,18 @@ public class AuthController {
             // MASTER BYPASS: Always allow demo login. Name + avatar come from the seeded DB
             // row so profile edits (FR-902) survive a re-login instead of resetting to defaults.
             if ("demo@recruitai.com".equals(email) && "admin123".equals(request.getPassword())) {
-                return demoLogin("demo@recruitai.com", "ADMIN", "Demo User");
+                return demoLogin("admin", "demo@recruitai.com", "ADMIN", "Demo User", "admin123");
             }
 
             // Demo HR account — same shape as the demo bypass above, so testing the
             // deletion-request workflow doesn't require seeding a real user.
             if ("hr@recruitai.com".equals(email) && "hr1234".equals(request.getPassword())) {
-                return demoLogin("hr@recruitai.com", "HR", "HR Demo");
+                return demoLogin("hr", "hr@recruitai.com", "HR", "HR Demo", "hr1234");
             }
 
             // Demo Manager account
             if ("manager@recruitai.com".equals(email) && "manager1234".equals(request.getPassword())) {
-                return demoLogin("manager@recruitai.com", "MANAGER", "Manager Demo");
+                return demoLogin("manager", "manager@recruitai.com", "MANAGER", "Manager Demo", "manager1234");
             }
 
             Optional<User> userOpt = userRepository.findByEmail(email);
@@ -128,16 +128,31 @@ public class AuthController {
     }
 
     /**
-     * Build the auth response for a demo bypass account, preferring the seeded DB row's
-     * saved name + profile picture so profile edits (FR-902) persist across re-login. Role
-     * and the email identifier stay fixed to what the bypass grants.
+     * Log in a built-in demo/QA bypass account, anchored by a stable {@code demoId} so it can
+     * never be corrupted by a profile-edit test (SET-001/FR-902). The account is located by
+     * demoId (falling back to the canonical email for not-yet-migrated rows), and its login
+     * EMAIL is reset to the canonical value on every login. That guarantees the bypass
+     * credential always maps to the row, so subsequent profile saves can't 404 and repeated
+     * test runs stay clean. Saved name + avatar are preserved.
      */
-    private ResponseEntity<?> demoLogin(String email, String role, String fallbackName) {
-        User u = userRepository.findByEmail(email).orElse(null);
-        String name = (u != null && u.getName() != null && !u.getName().isBlank())
-                ? u.getName() : fallbackName;
-        String profilePicture = (u != null) ? u.getProfilePicture() : null;
-        String token = jwtUtils.generateToken(email, role);
-        return ResponseEntity.ok(new AuthResponse(token, role, email, name, profilePicture));
+    private ResponseEntity<?> demoLogin(String demoId, String canonicalEmail, String role,
+            String fallbackName, String rawPassword) {
+        User u = userRepository.findByDemoId(demoId)
+                .or(() -> userRepository.findByEmail(canonicalEmail))
+                .orElseGet(User::new);
+
+        u.setDemoId(demoId);
+        u.setEmail(canonicalEmail);   // self-heal: the demo credential is always this email
+        u.setRole(role);
+        if (u.getName() == null || u.getName().isBlank()) {
+            u.setName(fallbackName);
+        }
+        if (u.getPassword() == null || u.getPassword().isBlank()) {
+            u.setPassword(passwordEncoder.encode(rawPassword));
+        }
+        userRepository.save(u);
+
+        String token = jwtUtils.generateToken(canonicalEmail, role);
+        return ResponseEntity.ok(new AuthResponse(token, role, canonicalEmail, u.getName(), u.getProfilePicture()));
     }
 }
