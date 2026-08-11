@@ -148,4 +148,33 @@ class RecruitmentAnalyticsServiceTest {
         assertThat(overview.get("interviewed")).isEqualTo(2L);
         assertThat(overview.get("interviewConversionRate")).isEqualTo(100.0);
     }
+
+    @Test
+    @DisplayName("REP-001 via status: 4 INTERVIEW, 1 REJECTED, 5 pre-interview -> 40/0/10")
+    void rep001ViaStatus() {
+        // How QA naturally builds the known dataset: set 4 candidates to Interview (no
+        // stage records). Status alone must count them as interviewed.
+        List<JobApplication> apps = new ArrayList<>();
+        for (int i = 0; i < 4; i++) apps.add(app(ApplicationStatus.INTERVIEW));
+        JobApplication rejected = app(ApplicationStatus.REJECTED, stage("Screening", "FAIL"));
+        rejected.setRejectionReason("Screened out");
+        apps.add(rejected);
+        for (int i = 0; i < 3; i++) apps.add(app(ApplicationStatus.PENDING));
+        apps.add(app(ApplicationStatus.UNDER_REVIEW, stage("Screening", "PASS")));
+        apps.add(app(ApplicationStatus.SHORTLISTED)); // selected but not yet interviewed
+
+        lenient().when(applicationRepository.findAll()).thenReturn(apps);
+        lenient().when(jobRepository.findAll()).thenReturn(new ArrayList<>());
+        lenient().when(jobRepository.count()).thenReturn(3L);
+
+        Map<String, Object> overview = service.getOverview();
+
+        assertThat(overview.get("totalApplications")).isEqualTo(10L);
+        assertThat(overview.get("interviewed")).isEqualTo(4L);
+        assertThat(overview.get("rejected")).isEqualTo(1L);
+        assertThat(overview.get("hired")).isEqualTo(0L);
+        assertThat(overview.get("interviewConversionRate")).isEqualTo(40.0);
+        assertThat(overview.get("hiringConversionRate")).isEqualTo(0.0);
+        assertThat(overview.get("rejectionRate")).isEqualTo(10.0);
+    }
 }

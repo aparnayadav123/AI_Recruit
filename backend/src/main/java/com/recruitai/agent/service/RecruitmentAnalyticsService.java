@@ -54,13 +54,15 @@ public class RecruitmentAnalyticsService {
     }
 
     private boolean reachedInterview(JobApplication a) {
-        // A candidate has "reached interview" only once they progress past the initial
-        // Screening / resume-review step into an actual interview round. UNDER_REVIEW and
-        // SHORTLISTED are reached by screening alone (see JobApplicationService
-        // .deriveStatusFromStages) and must NOT be counted here, otherwise the Interview
-        // Rate over-reports vs. the manual interviewed/total calculation.
-        if (a.getStatus() == ApplicationStatus.HIRED) {
-            return true; // cannot be hired without having been interviewed
+        // A candidate has "reached interview" once they are AT or PAST the interview stage —
+        // either the application status says so (INTERVIEW / OFFER / HIRED), or a real
+        // interview round (past Screening) was actually conducted. Pre-interview states
+        // (PENDING, SCREENING, UNDER_REVIEW, SHORTLISTED) are reached by screening/selection
+        // alone and are NOT counted, so the Interview Rate matches the manual
+        // interviewed/total calculation (FR-701 / REP-001).
+        ApplicationStatus s = a.getStatus();
+        if (s == ApplicationStatus.INTERVIEW || s == ApplicationStatus.OFFER || s == ApplicationStatus.HIRED) {
+            return true;
         }
         return a.getStages() != null && a.getStages().stream().anyMatch(this::isConductedInterviewRound);
     }
