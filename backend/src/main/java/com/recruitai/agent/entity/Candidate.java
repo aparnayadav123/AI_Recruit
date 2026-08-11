@@ -21,7 +21,7 @@ public class Candidate {
     private String id;
 
     @NotBlank(message = "Name is required")
-    @Size(max = 100, message = "Name must not exceed 100 characters")
+    @Size(max = 255, message = "Name must not exceed 255 characters")
     @Field("name")
     private String name; // Combined first/last name for simplicity matching frontend
 

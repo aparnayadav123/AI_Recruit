@@ -10,7 +10,7 @@ public class CandidateDto {
     private Long sequenceId;
 
     @NotBlank(message = "Name is required")
-    @Size(max = 100, message = "Name must not exceed 100 characters")
+    @Size(max = 255, message = "Name must not exceed 255 characters")
     private String name;
 
     @Email(message = "Email should be valid")

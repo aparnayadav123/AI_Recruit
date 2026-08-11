@@ -101,6 +101,9 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   const [formData, setFormData] = useState<Partial<Candidate>>({
     name: '', email: '', role: '', experience: 0, skills: [], status: 'New',
   });
+  // Inline (field-level) validation errors for the Add/Edit Candidate form.
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   // Role-gated UI: HR users can only *request* a deletion (Manager approves);
   // Manager/Admin can delete directly.
@@ -386,27 +389,26 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   // Keep the UI limits in step with the server (@Size on Candidate/CandidateDto).
-  const NAME_MAX = 100;
+  // Full Name accepts up to 255 chars and rejects 256 (FR-202 / CDB-004).
+  const NAME_MAX = 255;
   const EMAIL_MAX = 254;
 
   const handleSaveCandidate = async () => {
-    const problems: string[] = [];
     const name = (formData.name || '').trim();
     const email = (formData.email || '').trim();
-    if (!name) {
-      problems.push('Name is required.');
-    } else if (name.length > NAME_MAX) {
-      problems.push(`Name must not exceed ${NAME_MAX} characters (currently ${name.length}).`);
-    }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      problems.push('A valid email is required.');
-    } else if (email.length > EMAIL_MAX) {
-      problems.push(`Email must not exceed ${EMAIL_MAX} characters.`);
-    }
-    if (problems.length > 0) {
-      alert('Please fix:\n' + problems.join('\n'));
-      return;
-    }
+
+    // Field-level validation — shown inline under each input (not a blocking alert).
+    let nameErr = '';
+    if (!name) nameErr = 'Name is required.';
+    else if (name.length > NAME_MAX) nameErr = `Name must not exceed ${NAME_MAX} characters (currently ${name.length}).`;
+
+    let emailErr = '';
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) emailErr = 'A valid email is required.';
+    else if (email.length > EMAIL_MAX) emailErr = `Email must not exceed ${EMAIL_MAX} characters.`;
+
+    setNameError(nameErr);
+    setEmailError(emailErr);
+    if (nameErr || emailErr) return;
     try {
       const userStr = localStorage.getItem('user');
       let uploaderName = 'System';
@@ -619,6 +621,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
               onClick={() => {
                 setModalMode('add');
                 setFormData({ name: '', email: '', role: '', experience: 0, skills: [], status: 'New' });
+                setNameError('');
+                setEmailError('');
                 setIsCandidateModalOpen(true);
               }}
               className="flex items-center gap-1.5 bg-blue-600 px-4 py-2 rounded-lg shadow-lg shadow-blue-100 text-[11px] font-bold text-white hover:bg-blue-700 transition active:scale-95"
@@ -875,6 +879,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                               setSelectedCandidate(candidate);
                               setModalMode('edit');
                               setFormData({ ...candidate });
+                              setNameError('');
+                              setEmailError('');
                               setIsCandidateModalOpen(true);
                             }}
                             className="p-1 text-slate-400 hover:text-blue-600 transition"
@@ -973,19 +979,23 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={formData.name || ''}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    aria-invalid={!!nameError}
+                    onChange={e => { setFormData({ ...formData, name: e.target.value }); if (nameError) setNameError(''); }}
                     placeholder="e.g. John Doe"
-                    className={inputClass}
+                    className={`${inputClass} ${nameError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
+                  {nameError && <p className="mt-1 text-[10px] font-bold text-rose-600">{nameError}</p>}
                 </Field>
                 <Field label="Email" required>
                   <input
                     type="email"
                     value={formData.email || ''}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    aria-invalid={!!emailError}
+                    onChange={e => { setFormData({ ...formData, email: e.target.value }); if (emailError) setEmailError(''); }}
                     placeholder="john@example.com"
-                    className={inputClass}
+                    className={`${inputClass} ${emailError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
+                  {emailError && <p className="mt-1 text-[10px] font-bold text-rose-600">{emailError}</p>}
                 </Field>
               </div>
 
