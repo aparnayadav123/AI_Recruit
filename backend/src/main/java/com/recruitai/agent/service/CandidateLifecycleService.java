@@ -97,17 +97,21 @@ public class CandidateLifecycleService {
         if (status == null) {
             return ApplicationStatus.PENDING;
         }
+        // Map the Candidate.status vocabulary 1:1 onto the application status so the
+        // Application Tracker faithfully reflects the candidate's status (FR-201 / CDB-017).
         switch (status.trim().toLowerCase()) {
             case "rejected":
                 return ApplicationStatus.REJECTED;
             case "hired":
                 return ApplicationStatus.HIRED;
             case "offer":
+                return ApplicationStatus.OFFER;
             case "shortlisted":
                 return ApplicationStatus.SHORTLISTED;
             case "interview":
+                return ApplicationStatus.INTERVIEW;
             case "screening":
-                return ApplicationStatus.UNDER_REVIEW;
+                return ApplicationStatus.SCREENING;
             case "withdrawn":
                 return ApplicationStatus.WITHDRAWN;
             case "new":

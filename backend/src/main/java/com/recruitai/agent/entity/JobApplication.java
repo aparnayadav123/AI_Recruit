@@ -105,8 +105,11 @@ public class JobApplication {
 
     public enum ApplicationStatus {
         PENDING,
+        SCREENING,
         UNDER_REVIEW,
         SHORTLISTED,
+        INTERVIEW,
+        OFFER,
         REJECTED,
         HIRED,
         WITHDRAWN,
