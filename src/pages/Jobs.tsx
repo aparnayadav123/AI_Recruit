@@ -931,7 +931,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       Details
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); navigate('/candidates'); }}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/suggested-candidates?jobId=${encodeURIComponent(job.id)}`); }}
                       className="flex-1 bg-blue-600 text-white py-1.5 rounded-lg text-[9px] font-black hover:bg-blue-700 transition uppercase tracking-widest shadow-md shadow-blue-100"
                     >
                       Sourcing

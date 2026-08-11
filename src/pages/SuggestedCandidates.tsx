@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
 import { Job } from '../types';
 import { Loader2, Sparkles, TrendingUp, RotateCcw, Star } from 'lucide-react';
@@ -25,8 +25,11 @@ const currentActor = (): string => {
 
 const SuggestedCandidates: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    // Pre-select the job passed from the Jobs page "Sourcing" button (?jobId=…) so the
+    // view opens filtered/ranked for that role (JOB-009). Falls back to the first job.
     const [jobs, setJobs] = useState<Job[]>([]);
-    const [jobId, setJobId] = useState('');
+    const [jobId, setJobId] = useState(searchParams.get('jobId') || '');
     const [list, setList] = useState<Suggestion[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +41,8 @@ const SuggestedCandidates: React.FC = () => {
                 const res = await api.get('/jobs?size=200');
                 const content: Job[] = res.data?.content || res.data || [];
                 setJobs(content);
-                if (content.length) setJobId(content[0].id);
+                // Keep the job passed in via ?jobId=…; only auto-pick the first when none set.
+                setJobId(prev => prev || (content.length ? content[0].id : ''));
             } catch { setJobs([]); }
         })();
     }, []);
