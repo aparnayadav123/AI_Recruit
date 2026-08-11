@@ -464,9 +464,12 @@ public class CandidateController {
         dto.setBlockedDate(candidate.getBlockedDate());
         if (candidate.getCreatedAt() != null) {
             dto.setAppliedDate(candidate.getCreatedAt().toLocalDate().toString());
-            // Full ISO timestamp (e.g. "2026-05-14T20:11:57.136") for client-side
-            // relative-time formatting in the Recent Activity feed.
-            dto.setCreatedAt(candidate.getCreatedAt().toString());
+            // Full ISO timestamp WITH the server's zone offset (e.g. "…Z" / "…+05:30") for
+            // client-side relative-time formatting. A zone-less string is read by the browser
+            // as its own local time, making a just-added candidate show as "6 hours ago" when
+            // the server (UTC) and viewer (e.g. IST) differ.
+            dto.setCreatedAt(candidate.getCreatedAt()
+                    .atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime().toString());
         }
         return dto;
     }
