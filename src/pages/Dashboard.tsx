@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatRecentActivityTime } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
-import { INTERVIEW_ROUNDS } from '../constants/interviewRounds';
+import { INTERVIEW_ROUNDS, roundOf } from '../constants/interviewRounds';
 
 interface DashboardStats {
   total: number;
@@ -81,14 +81,14 @@ const Dashboard: React.FC = () => {
       const allCandidates: any[] = Array.isArray(allCandRes.data)
         ? allCandRes.data
         : (allCandRes.data?.content || []);
-      // Count only candidates explicitly placed in a round — unassigned ones
-      // are not force-bucketed (so the stages start at 0 and fill as candidates
-      // are moved through the pipeline).
+      // Bucket the active pipeline (status === 'Interview') by roundOf() so every such
+      // candidate lands in exactly one of the six stages — matching the Interview Pipeline
+      // page and keeping the per-stage counts summing to the pipeline total (NFRU05).
       const roundCounts: Record<string, number> = {};
       INTERVIEW_ROUNDS.forEach(r => { roundCounts[r.id] = 0; });
       for (const c of allCandidates) {
-        if (c.interviewRound && roundCounts[c.interviewRound] !== undefined) {
-          roundCounts[c.interviewRound] += 1;
+        if (c.status === 'Interview') {
+          roundCounts[roundOf(c.interviewRound)] += 1;
         }
       }
 

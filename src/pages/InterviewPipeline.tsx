@@ -66,8 +66,11 @@ const InterviewPipeline: React.FC = () => {
     };
 
     const getCandidatesByRound = (roundId: string) => {
-        // Exact match — only candidates explicitly placed in this round.
-        return candidates.filter(c => c.interviewRound === roundId);
+        // Bucket by roundOf() so EVERY active-pipeline candidate — including any with an
+        // unset or legacy interviewRound — lands in exactly one of the six stages. This
+        // guarantees the per-stage counts always sum to the total active-pipeline count
+        // (NFRU05); an exact-match filter would silently drop unmapped candidates.
+        return candidates.filter(c => roundOf(c.interviewRound) === roundId);
     };
 
     const filteredCandidates = useMemo(() => {
