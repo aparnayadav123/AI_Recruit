@@ -8,7 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 @Document(collection = "candidates")
 public class Candidate {
@@ -75,11 +76,13 @@ public class Candidate {
     private String status = "New"; // "New", "Screening", "Interview", "Offer", "Rejected"
 
     @Field("created_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][.SS][.S]")
+    @JsonSerialize(using = JsonTimestamp.Serializer.class)
+    @JsonDeserialize(using = JsonTimestamp.Deserializer.class)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Field("updated_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][.SS][.S]")
+    @JsonSerialize(using = JsonTimestamp.Serializer.class)
+    @JsonDeserialize(using = JsonTimestamp.Deserializer.class)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @Field("match_reason")
