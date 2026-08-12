@@ -18,11 +18,12 @@ import ReactMarkdown from 'react-markdown';
 import { formatUserDisplayName, formatCandidateId } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
-import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isAdjacentRound } from '../constants/interviewRounds';
+import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isAdjacentRound, isSideBranchRound } from '../constants/interviewRounds';
 
-// Only the actual interview rounds are schedulable as a meeting (Hold / Offer
-// are pipeline outcomes, not interviews).
-const MEETING_ROUNDS = INTERVIEW_ROUNDS.filter(r => r.id !== 'Hold' && r.id !== 'Offer');
+// All six pipeline stages are selectable when scheduling. The ordered interview
+// rounds obey the "can't skip stages" adjacency rule; Hold / Offer are side
+// branches that can be chosen from any stage (see isSideBranchRound).
+const MEETING_ROUNDS = INTERVIEW_ROUNDS;
 
 const AttributeRow: React.FC<{ label: string; value: React.ReactNode; isLong?: boolean }> = ({ label, value, isLong }) => (
     <div className="flex items-start text-[10px] font-bold">
@@ -1639,7 +1640,7 @@ const CandidateDetails: React.FC = () => {
                         // FSM rule (FR-401 / BR-05): stages cannot be skipped. Scheduling a
                         // non-adjacent round (e.g. Technical Round 1 → Manager Round) is blocked.
                         const targetRound = MEETING_ROUNDS.find(r => r.id === meetingData.title);
-                        if (targetRound && !isAdjacentRound(candidate.interviewRound, targetRound.id)) {
+                        if (targetRound && !isSideBranchRound(targetRound.id) && !isAdjacentRound(candidate.interviewRound, targetRound.id)) {
                             const next = nextRound(candidate.interviewRound);
                             alert(
                                 `Interview stages can't be skipped.\n\n` +
@@ -2215,9 +2216,10 @@ const MeetingSchedulerModal: React.FC<{
                                 className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 outline-none"
                             >
                                 {/* FSM (BR-05): only the current and adjacent rounds are selectable —
-                                    non-adjacent stages are locked so a stage can't be skipped. */}
+                                    non-adjacent stages are locked so a stage can't be skipped. Hold /
+                                    Offer are side branches and stay selectable from any stage. */}
                                 {MEETING_ROUNDS.map(r => {
-                                    const locked = !isAdjacentRound(candidate.interviewRound, r.id);
+                                    const locked = !isSideBranchRound(r.id) && !isAdjacentRound(candidate.interviewRound, r.id);
                                     return (
                                         <option key={r.id} value={r.id} disabled={locked}>
                                             {r.title}{locked ? ' — locked (finish previous rounds first)' : ''}

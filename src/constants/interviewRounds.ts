@@ -60,6 +60,14 @@ export const roundOf = (interviewRound?: string | null): string =>
  */
 export const PIPELINE_ROUNDS = INTERVIEW_ROUNDS.filter(r => r.id !== 'Hold' && r.id !== 'Offer');
 
+/**
+ * `Hold` and `Offer` are side branches, not sequential interview rounds. They can be
+ * chosen from any stage, so the "stages can't be skipped" adjacency rule does NOT apply
+ * to them (unlike the ordered PIPELINE_ROUNDS).
+ */
+export const isSideBranchRound = (interviewRound?: string | null): boolean =>
+    interviewRound === 'Hold' || interviewRound === 'Offer';
+
 /** Zero-based position of a round within the ordered pipeline (unknown → first stage). */
 export const roundIndex = (interviewRound?: string | null): number => {
     const idx = PIPELINE_ROUNDS.findIndex(r => r.id === roundOf(interviewRound));
