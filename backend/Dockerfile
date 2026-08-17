@@ -16,6 +16,14 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/agent-0.0.1-SNAPSHOT.jar app.jar
 # Render sets $PORT and the app binds to it (see application.properties: server.port=${PORT:8089}).
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
+# Render's free tier caps the container at 512 MB RAM. The previous "-XX:MaxRAMPercentage=75"
+# let the heap grow to ~384 MB, and with the default G1 GC plus an uncapped metaspace the
+# total RSS blew past 512 MB — the kernel OOM-killed the process (Render event: "Exited with
+# status 137"). Fit comfortably under 512 MB instead:
+#   * heap capped at ~50% (~256 MB),
+#   * SerialGC — lowest memory/CPU overhead, ideal for the single shared CPU of the free tier,
+#   * metaspace + thread stacks bounded so native memory can't creep over the limit,
+#   * exit on a true heap OOM so Render restarts cleanly instead of thrashing.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=50.0 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -Xss512k -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8089
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
