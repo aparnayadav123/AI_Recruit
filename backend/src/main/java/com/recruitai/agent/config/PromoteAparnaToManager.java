@@ -42,25 +42,31 @@ public class PromoteAparnaToManager implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (mongoTemplate.exists(Query.query(Criteria.where("_id").is(MIGRATION_ID)), META_COLLECTION)) {
-            return;
-        }
-        int promoted = 0;
-        for (String email : OWNER_EMAILS) {
-            Optional<User> opt = userRepository.findByEmail(email);
-            if (opt.isPresent()) {
-                User u = opt.get();
-                String r = u.getRole();
-                if (!"MANAGER".equalsIgnoreCase(r) && !"ADMIN".equalsIgnoreCase(r)) {
-                    u.setRole("MANAGER");
-                    userRepository.save(u);
-                    log.info("Promoted {} from {} to MANAGER.", email, r);
-                    promoted++;
+        // Wrapped so a transient MongoDB outage at boot can never abort startup
+        // (an unhandled exception here would crash-loop the whole backend).
+        try {
+            if (mongoTemplate.exists(Query.query(Criteria.where("_id").is(MIGRATION_ID)), META_COLLECTION)) {
+                return;
+            }
+            int promoted = 0;
+            for (String email : OWNER_EMAILS) {
+                Optional<User> opt = userRepository.findByEmail(email);
+                if (opt.isPresent()) {
+                    User u = opt.get();
+                    String r = u.getRole();
+                    if (!"MANAGER".equalsIgnoreCase(r) && !"ADMIN".equalsIgnoreCase(r)) {
+                        u.setRole("MANAGER");
+                        userRepository.save(u);
+                        log.info("Promoted {} from {} to MANAGER.", email, r);
+                        promoted++;
+                    }
                 }
             }
+            mongoTemplate.getCollection(META_COLLECTION).insertOne(new Document("_id", MIGRATION_ID)
+                    .append("appliedAt", new Date())
+                    .append("promoted", promoted));
+        } catch (Exception e) {
+            log.warn("{} skipped: {}", MIGRATION_ID, e.getMessage());
         }
-        mongoTemplate.getCollection(META_COLLECTION).insertOne(new Document("_id", MIGRATION_ID)
-                .append("appliedAt", new Date())
-                .append("promoted", promoted));
     }
 }

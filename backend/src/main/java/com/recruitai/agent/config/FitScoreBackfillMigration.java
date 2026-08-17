@@ -37,24 +37,25 @@ public class FitScoreBackfillMigration implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        Query check = Query.query(Criteria.where("_id").is(MIGRATION_ID));
-        if (mongoTemplate.exists(check, META_COLLECTION)) {
-            return;
-        }
-
-        int updated;
+        // Whole body wrapped so a transient MongoDB outage at boot (including the
+        // exists() marker check) can never abort startup and crash-loop the backend.
         try {
-            updated = candidateService.backfillFitScores();
+            Query check = Query.query(Criteria.where("_id").is(MIGRATION_ID));
+            if (mongoTemplate.exists(check, META_COLLECTION)) {
+                return;
+            }
+
+            int updated = candidateService.backfillFitScores();
+
+            Document marker = new Document("_id", MIGRATION_ID)
+                    .append("appliedAt", new Date())
+                    .append("updated", updated);
+            mongoTemplate.getCollection(META_COLLECTION).insertOne(marker);
+
+            System.out.println("[migration] " + MIGRATION_ID + " applied — updated " + updated + " candidates");
         } catch (Exception e) {
-            System.err.println("[migration] " + MIGRATION_ID + " failed: " + e.getMessage());
-            return; // don't write the marker — let it retry next boot
+            // don't write the marker — let it retry next boot
+            System.err.println("[migration] " + MIGRATION_ID + " skipped: " + e.getMessage());
         }
-
-        Document marker = new Document("_id", MIGRATION_ID)
-                .append("appliedAt", new Date())
-                .append("updated", updated);
-        mongoTemplate.getCollection(META_COLLECTION).insertOne(marker);
-
-        System.out.println("[migration] " + MIGRATION_ID + " applied — updated " + updated + " candidates");
     }
 }

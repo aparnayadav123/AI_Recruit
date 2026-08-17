@@ -32,23 +32,29 @@ public class JobsPublishMigration implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        Query alreadyApplied = Query.query(Criteria.where("_id").is(MIGRATION_ID));
-        if (mongoTemplate.exists(alreadyApplied, META_COLLECTION)) {
-            return;
+        // Wrapped so a transient MongoDB outage at boot can never abort startup
+        // (an unhandled exception here would crash-loop the whole backend).
+        try {
+            Query alreadyApplied = Query.query(Criteria.where("_id").is(MIGRATION_ID));
+            if (mongoTemplate.exists(alreadyApplied, META_COLLECTION)) {
+                return;
+            }
+
+            Query openJobs = Query.query(Criteria.where("status").is("Open"));
+            Update markPublished = Update.update("published_to_careers", true);
+            UpdateResult result = mongoTemplate.updateMulti(openJobs, markPublished, Job.class);
+
+            Document marker = new Document("_id", MIGRATION_ID)
+                    .append("appliedAt", new Date())
+                    .append("matched", result.getMatchedCount())
+                    .append("modified", result.getModifiedCount());
+            mongoTemplate.getCollection(META_COLLECTION).insertOne(marker);
+
+            System.out.println("[migration] " + MIGRATION_ID
+                    + " applied — matched=" + result.getMatchedCount()
+                    + " modified=" + result.getModifiedCount());
+        } catch (Exception e) {
+            System.err.println("[migration] " + MIGRATION_ID + " skipped: " + e.getMessage());
         }
-
-        Query openJobs = Query.query(Criteria.where("status").is("Open"));
-        Update markPublished = Update.update("published_to_careers", true);
-        UpdateResult result = mongoTemplate.updateMulti(openJobs, markPublished, Job.class);
-
-        Document marker = new Document("_id", MIGRATION_ID)
-                .append("appliedAt", new Date())
-                .append("matched", result.getMatchedCount())
-                .append("modified", result.getModifiedCount());
-        mongoTemplate.getCollection(META_COLLECTION).insertOne(marker);
-
-        System.out.println("[migration] " + MIGRATION_ID
-                + " applied — matched=" + result.getMatchedCount()
-                + " modified=" + result.getModifiedCount());
     }
 }
