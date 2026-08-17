@@ -508,8 +508,24 @@ public class CandidateService {
                     candidate.setRejectionReason(candidateDetails.getRejectionReason());
                     // Preserve-on-null: the generic edit form may PUT these as null, which
                     // would otherwise wipe a round set when scheduling an interview.
-                    if (isFilled(candidateDetails.getInterviewRound())) candidate.setInterviewRound(candidateDetails.getInterviewRound());
-                    if (isFilled(candidateDetails.getRoundStatus())) candidate.setRoundStatus(candidateDetails.getRoundStatus());
+                    //
+                    // interviewRound + roundStatus are a per-round pair: a round's outcome
+                    // ("Passed"/"Rejected") belongs ONLY to that round. When a candidate MOVES
+                    // to a different round, the previous outcome must NOT carry over — the new
+                    // round starts fresh as "Scheduled" (Waiting) until it is evaluated.
+                    // Clients save by spreading the whole candidate object, so the stale
+                    // roundStatus rides along in the payload; reset it here on any round change.
+                    // (Without this, a candidate passed in Round 1 shows "Passed" in every
+                    // later stage without the reviewer ever clicking it.)
+                    String incomingRound = candidateDetails.getInterviewRound();
+                    boolean roundChanged = isFilled(incomingRound)
+                            && !incomingRound.equals(candidate.getInterviewRound());
+                    if (isFilled(incomingRound)) candidate.setInterviewRound(incomingRound);
+                    if (roundChanged) {
+                        candidate.setRoundStatus("Scheduled");
+                    } else if (isFilled(candidateDetails.getRoundStatus())) {
+                        candidate.setRoundStatus(candidateDetails.getRoundStatus());
+                    }
 
                     // Preserve-on-null behaviour for LinkedIn-fillable fields — the
                     // generic candidate-edit form on the admin page may PUT the
