@@ -18,11 +18,12 @@ import ReactMarkdown from 'react-markdown';
 import { formatUserDisplayName, formatCandidateId } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
-import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isAdjacentRound, isSideBranchRound } from '../constants/interviewRounds';
+import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isRoundUnlocked } from '../constants/interviewRounds';
 
-// All six pipeline stages are selectable when scheduling. The ordered interview
-// rounds obey the "can't skip stages" adjacency rule; Hold / Offer are side
-// branches that can be chosen from any stage (see isSideBranchRound).
+// All six pipeline stages appear in the scheduling dropdown, but the ordered
+// interview rounds are pass-gated: only the current round is enabled, and the
+// next round unlocks once the current one is marked "Passed" (see isRoundUnlocked).
+// Hold / Offer are side branches that can be chosen from any stage.
 const MEETING_ROUNDS = INTERVIEW_ROUNDS;
 
 const AttributeRow: React.FC<{ label: string; value: React.ReactNode; isLong?: boolean }> = ({ label, value, isLong }) => (
@@ -1637,15 +1638,16 @@ const CandidateDetails: React.FC = () => {
                             alert(`${candidate.name} is BLOCKED — this candidate is not eligible for interview.${candidate.blockReason ? `\n\nReason: ${candidate.blockReason}` : ''}`);
                             return;
                         }
-                        // FSM rule (FR-401 / BR-05): stages cannot be skipped. Scheduling a
-                        // non-adjacent round (e.g. Technical Round 1 → Manager Round) is blocked.
+                        // FSM rule (FR-401 / BR-05): pass-gated progression. A future round can
+                        // only be scheduled once the current round has been marked "Passed".
                         const targetRound = MEETING_ROUNDS.find(r => r.id === meetingData.title);
-                        if (targetRound && !isSideBranchRound(targetRound.id) && !isAdjacentRound(candidate.interviewRound, targetRound.id)) {
+                        if (targetRound && !isRoundUnlocked(candidate.interviewRound, candidate.roundStatus, targetRound.id)) {
                             const next = nextRound(candidate.interviewRound);
                             alert(
                                 `Interview stages can't be skipped.\n\n` +
-                                `${candidate.name} is at "${roundTitle(candidate.interviewRound)}". ` +
-                                `The next allowed stage is "${next ? next.title : roundTitle(candidate.interviewRound)}" — ` +
+                                `${candidate.name} is at "${roundTitle(candidate.interviewRound)}" ` +
+                                `(${candidate.roundStatus || 'Scheduled'}). Mark the current round as ` +
+                                `"Passed" before scheduling "${next ? next.title : targetRound.title}" — ` +
                                 `you can't jump straight to "${targetRound.title}".`
                             );
                             return;
@@ -2215,14 +2217,14 @@ const MeetingSchedulerModal: React.FC<{
                                 onChange={(e) => setTitle(e.target.value)}
                                 className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 outline-none"
                             >
-                                {/* FSM (BR-05): only the current and adjacent rounds are selectable —
-                                    non-adjacent stages are locked so a stage can't be skipped. Hold /
-                                    Offer are side branches and stay selectable from any stage. */}
+                                {/* FSM (BR-05): pass-gated progression. Only the current round is
+                                    enabled at first; the next round unlocks once the current one is
+                                    marked "Passed". Hold / Offer are side branches, always selectable. */}
                                 {MEETING_ROUNDS.map(r => {
-                                    const locked = !isSideBranchRound(r.id) && !isAdjacentRound(candidate.interviewRound, r.id);
+                                    const locked = !isRoundUnlocked(candidate.interviewRound, candidate.roundStatus, r.id);
                                     return (
                                         <option key={r.id} value={r.id} disabled={locked}>
-                                            {r.title}{locked ? ' — locked (finish previous rounds first)' : ''}
+                                            {r.title}{locked ? ' — locked (pass the current round first)' : ''}
                                         </option>
                                     );
                                 })}
@@ -2230,7 +2232,9 @@ const MeetingSchedulerModal: React.FC<{
                             <p className="text-[9px] font-bold text-slate-400">
                                 Current stage: <span className="text-slate-600">{roundTitle(candidate.interviewRound)}</span>
                                 {nextRound(candidate.interviewRound) ? <> · Next: <span className="text-slate-600">{nextRound(candidate.interviewRound)!.title}</span></> : <> · Final stage</>}
-                                . Stages can't be skipped.
+                                . {candidate.roundStatus === 'Passed'
+                                    ? 'Current round passed — the next round is unlocked.'
+                                    : 'Mark the current round as “Passed” to unlock the next.'}
                             </p>
                         </div>
 

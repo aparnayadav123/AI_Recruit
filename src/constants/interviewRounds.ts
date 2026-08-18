@@ -89,3 +89,26 @@ export const nextRound = (interviewRound?: string | null): InterviewRoundDef | n
  */
 export const isAdjacentRound = (fromRound: string | null | undefined, toRound: string): boolean =>
     Math.abs(roundIndex(toRound) - roundIndex(fromRound)) <= 1;
+
+/**
+ * Pass-gated progression for scheduling (FR-401 / BR-05, stricter than adjacency):
+ * a round is selectable only when the candidate has actually earned their way to it.
+ *   • The current round and any earlier round are always selectable.
+ *   • The NEXT round unlocks ONLY once the current round has been marked "Passed".
+ *   • Every round beyond the next stays locked.
+ *   • Hold / Offer are side branches and are always selectable.
+ * So a fresh candidate at Technical Round 1 sees only Technical Round 1 enabled; passing
+ * it unlocks Technical Round 2; passing that unlocks Manager Round; and so on.
+ */
+export const isRoundUnlocked = (
+    currentRound: string | null | undefined,
+    roundStatus: string | null | undefined,
+    targetRound: string,
+): boolean => {
+    if (isSideBranchRound(targetRound)) return true;
+    const curIdx = roundIndex(currentRound);
+    const tgtIdx = roundIndex(targetRound);
+    if (tgtIdx <= curIdx) return true;                     // current or an earlier round
+    if (tgtIdx === curIdx + 1) return roundStatus === 'Passed'; // next: only after a pass
+    return false;                                          // anything further ahead is locked
+};
