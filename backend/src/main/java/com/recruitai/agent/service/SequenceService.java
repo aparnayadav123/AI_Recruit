@@ -118,10 +118,37 @@ public class SequenceService {
             return String.valueOf(a.getId()).compareTo(String.valueOf(b.getId()));
         });
 
-        long n = 0L;
+        long n = all.size();
+
+        // sequenceId carries a UNIQUE index, so we CANNOT assign the final 1..n one row
+        // at a time: the target range overlaps the values other rows still hold, and the
+        // first clash (e.g. setting a row to 1 while another row still has 1) throws
+        // E11000 duplicate key and aborts the whole request with a 500.
+        //
+        // Renumber in two passes through a temporary range that can't overlap either the
+        // existing values or the final values:
+        //   Pass 1 — park every row at a unique temp value ABOVE the current max.
+        //   Pass 2 — assign the clean 1..n; nothing holds those values anymore.
+        // As a bonus this also heals any pre-existing duplicate sequenceIds, since pass 1
+        // spreads every row onto a distinct temp value first.
+        long maxExisting = all.stream()
+                .map(Candidate::getSequenceId)
+                .filter(java.util.Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .max().orElse(0L);
+        long base = maxExisting + 1; // temp range starts safely above every existing value
+
+        // Pass 1: park each row at a unique temporary sequenceId (base, base+1, ...).
+        long temp = base;
         for (Candidate c : all) {
-            n++;
-            c.setSequenceId(n);
+            c.setSequenceId(temp++);
+            candidateRepository.save(c);
+        }
+
+        // Pass 2: assign the final, gap-free 1..n sequence.
+        long seq = 0L;
+        for (Candidate c : all) {
+            c.setSequenceId(++seq);
             candidateRepository.save(c);
         }
 
@@ -131,7 +158,7 @@ public class SequenceService {
             new Update().set("value", n),
             META_COLLECTION);
 
-        log.info("Renumbered {} candidate(s) starting at 1; counter reset to {}.", n, n);
+        log.info("Renumbered {} candidate(s) starting at 1 (two-pass); counter reset to {}.", n, n);
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("renumbered", n);
         result.put("counter", n);
