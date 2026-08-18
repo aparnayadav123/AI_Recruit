@@ -23,7 +23,8 @@ import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isRoundUnlocked } fro
 // All six pipeline stages appear in the scheduling dropdown, but the ordered
 // interview rounds are pass-gated: only the current round is enabled, and the
 // next round unlocks once the current one is marked "Passed" (see isRoundUnlocked).
-// Hold / Offer are side branches that can be chosen from any stage.
+// Hold is available from any stage; Offer unlocks only after the final interview
+// round is passed.
 const MEETING_ROUNDS = INTERVIEW_ROUNDS;
 
 const AttributeRow: React.FC<{ label: string; value: React.ReactNode; isLong?: boolean }> = ({ label, value, isLong }) => (

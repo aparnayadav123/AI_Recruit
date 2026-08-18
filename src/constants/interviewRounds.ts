@@ -96,16 +96,26 @@ export const isAdjacentRound = (fromRound: string | null | undefined, toRound: s
  *   • The current round and any earlier round are always selectable.
  *   • The NEXT round unlocks ONLY once the current round has been marked "Passed".
  *   • Every round beyond the next stays locked.
- *   • Hold / Offer are side branches and are always selectable.
+ *   • Hold is a side branch — a candidate can be put on hold from any stage.
+ *   • Offer is the TERMINAL step: it unlocks only after every interview round has been
+ *     completed successfully, i.e. the candidate has passed the LAST pipeline round.
  * So a fresh candidate at Technical Round 1 sees only Technical Round 1 enabled; passing
- * it unlocks Technical Round 2; passing that unlocks Manager Round; and so on.
+ * it unlocks Technical Round 2; passing that unlocks Manager Round; … and passing the
+ * final round (HR Round) unlocks Offer.
  */
 export const isRoundUnlocked = (
     currentRound: string | null | undefined,
     roundStatus: string | null | undefined,
     targetRound: string,
 ): boolean => {
-    if (isSideBranchRound(targetRound)) return true;
+    // Re-selecting the round the candidate is already in is always allowed.
+    if (targetRound === roundOf(currentRound)) return true;
+    // Hold — side branch, available from any stage.
+    if (targetRound === 'Hold') return true;
+    // Offer — only after the last interview round has been passed.
+    if (targetRound === 'Offer') {
+        return roundIndex(currentRound) === PIPELINE_ROUNDS.length - 1 && roundStatus === 'Passed';
+    }
     const curIdx = roundIndex(currentRound);
     const tgtIdx = roundIndex(targetRound);
     if (tgtIdx <= curIdx) return true;                     // current or an earlier round
