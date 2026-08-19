@@ -56,8 +56,33 @@ public class CandidateLifecycleService {
             return null;
         }
         String jobId = c.getJobId();
+        boolean rejected = "rejected".equalsIgnoreCase(c.getStatus() == null ? "" : c.getStatus().trim());
         if (jobId == null || jobId.isBlank()) {
-            return null;
+            // No job assigned — normally there is nothing to track. EXCEPT a rejection must
+            // NEVER be lost: every rejected candidate has to appear in the Rejected Candidates
+            // list with full metadata (FR-601 / BR-01). For a jobless rejection, record it on a
+            // jobless application row (reuse an existing one so repeated rejects don't duplicate).
+            if (!rejected) {
+                return null;
+            }
+            JobApplication joblessApp = applicationRepository.findByCandidateId(c.getId()).stream()
+                    .filter(a -> a.getJobId() == null || a.getJobId().isBlank())
+                    .findFirst()
+                    .orElseGet(() -> new JobApplication(c.getId(), null));
+            joblessApp.setCandidateName(c.getName());
+            joblessApp.setSource(c.getSource());
+            if (joblessApp.getExperienceAtApply() == null) {
+                joblessApp.setExperienceAtApply(c.getExperience());
+            }
+            joblessApp.setStatus(ApplicationStatus.REJECTED);
+            if (joblessApp.getRejectionReason() == null) {
+                joblessApp.setRejectionReason(c.getRejectionReason());
+            }
+            if (joblessApp.getRejectedDate() == null) {
+                joblessApp.setRejectedDate(LocalDateTime.now());
+            }
+            joblessApp.setUpdatedAt(LocalDateTime.now());
+            return applicationRepository.save(joblessApp);
         }
 
         JobApplication app = applicationRepository
