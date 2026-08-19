@@ -1938,6 +1938,22 @@ const UpdateStageModal: React.FC<{
         'HIRED'
     ];
 
+    // FSM rule (FR-401 / BR-05): hiring stages progress one step at a time and
+    // CANNOT be skipped. The candidate's current stage plus its immediate
+    // neighbours (±1) are selectable; anything further ahead is locked. "Rejected"
+    // is a terminal outcome reachable from any stage. This mirrors the no-skip gate
+    // on the interview-round scheduling dropdown so a stage can't be jumped here.
+    const STAGE_ORDER = ['Screening', 'Technical Interview', 'Managerial Interview', 'HR Round', 'Offer Phase', 'Hired'];
+    const currentStage = application.stage || 'Technical Interview';
+    const currentStageIdx = Math.max(0, STAGE_ORDER.indexOf(currentStage));
+    const isStageAllowed = (target: string): boolean => {
+        if (target === 'Rejected') return true;          // terminal — reject anytime
+        const idx = STAGE_ORDER.indexOf(target);
+        if (idx === -1) return true;                     // unknown label — don't over-block
+        return Math.abs(idx - currentStageIdx) <= 1;     // only current or an adjacent stage
+    };
+    const nextStageLabel = STAGE_ORDER[Math.min(currentStageIdx + 1, STAGE_ORDER.length - 1)];
+
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-300">
@@ -1968,7 +1984,11 @@ const UpdateStageModal: React.FC<{
                                     onChange={(e) => setStage(e.target.value)}
                                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 outline-none"
                                 >
-                                    {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                                    {/* FSM (BR-05): non-adjacent stages are disabled so a stage can't be skipped. */}
+                                    {stages.map(s => {
+                                        const locked = !isStageAllowed(s);
+                                        return <option key={s} value={s} disabled={locked}>{s}{locked ? ' — locked (no skipping)' : ''}</option>;
+                                    })}
                                 </select>
                             </div>
                         </div>
@@ -1987,7 +2007,18 @@ const UpdateStageModal: React.FC<{
 
                     <div className="flex gap-3 pt-2">
                         <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition-all">Close</button>
-                        <button disabled={isSubmitting} onClick={() => onSubmit(status, stage, remarks, stageDate)} className="flex-[2] px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                        <button disabled={isSubmitting} onClick={() => {
+                            // FSM (BR-05): block a skipped stage even if one is somehow selected.
+                            if (!isStageAllowed(stage)) {
+                                alert(
+                                    `Interview stages can't be skipped (BR-05).\n\n` +
+                                    `This candidate is at "${currentStage}". You can move to the next stage ` +
+                                    `("${nextStageLabel}"), stay, or step back one — you can't jump straight to "${stage}".`
+                                );
+                                return;
+                            }
+                            onSubmit(status, stage, remarks, stageDate);
+                        }} className="flex-[2] px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
                             {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Submit'}
                         </button>
                     </div>
