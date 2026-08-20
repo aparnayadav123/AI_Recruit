@@ -25,11 +25,11 @@ public class Job {
     @Field("title")
     private String title;
 
-    @NotBlank(message = "Description is required")
+    // FR-101: mandatory fields are Title, Department, Location, Employment Type only.
+    // Description and Company are optional at creation (can be filled in later).
     @Field("description")
     private String description;
 
-    @NotBlank
     @Field("company")
     private String company;
 

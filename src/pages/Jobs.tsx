@@ -503,31 +503,34 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     const newErrors: Partial<Record<keyof JobFormData, string>> = {};
     const trim = (v: string) => (v || '').trim();
 
+    // FR-101: only Title, Department, Location (and Employment Type, which always has a
+    // default) are mandatory. Company, Industry, Description, Salary, Skills and Deadline
+    // are OPTIONAL — but still length/format-checked WHEN the user provides a value.
+    const REQUIRED: Array<keyof typeof FIELD_RULES> = ['title', 'department', 'location'];
+
     (Object.keys(FIELD_RULES) as Array<keyof typeof FIELD_RULES>).forEach(key => {
       const rule = FIELD_RULES[key];
       const value = trim(formData[key] as string);
       if (!value) {
-        newErrors[key] = `${rule.label} is required`;
-      } else if (value.length < rule.min) {
+        if (REQUIRED.includes(key)) newErrors[key] = `${rule.label} is required`;
+        return; // optional + empty → no error
+      }
+      if (value.length < rule.min) {
         newErrors[key] = `${rule.label} must be at least ${rule.min} characters`;
       } else if (value.length > rule.max) {
         newErrors[key] = `${rule.label} must be at most ${rule.max} characters`;
       }
     });
 
-    if (!trim(formData.location)) newErrors.location = 'Location is required';
-
-    if (!trim(formData.salary)) {
-      newErrors.salary = 'Salary is required (in rupees, e.g. ₹50,000 - ₹1,00,000)';
-    } else if (!SALARY_RUPEE_PATTERN.test(trim(formData.salary))) {
+    // Salary optional — validate the rupee format only when provided.
+    if (trim(formData.salary) && !SALARY_RUPEE_PATTERN.test(trim(formData.salary))) {
       newErrors.salary = 'Salary must be in rupees (e.g. ₹50,000 - ₹1,00,000 or ₹5L - ₹10L)';
     }
 
-    if (formData.skills.length === 0) newErrors.skills = 'At least one required skill must be added';
+    // Skills optional (FR-101) — no minimum.
 
-    if (!formData.deadline) {
-      newErrors.deadline = 'Application deadline is required';
-    } else {
+    // Deadline optional — validate it's a valid, non-past date only when provided.
+    if (formData.deadline) {
       const today = new Date(); today.setHours(0,0,0,0);
       const dl = new Date(formData.deadline);
       if (isNaN(dl.getTime())) {
