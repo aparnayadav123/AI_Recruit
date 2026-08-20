@@ -474,5 +474,18 @@ public class DataSeedingService {
             userRepository.save(manager);
             logger.info("Demo Manager user created with password: manager1234");
         }
+
+        // Demo Recruiter account — backing row for the Recruiter-role QA tests (SET-001 etc.),
+        // so profile save/reload has a real user to update instead of 404ing.
+        if (userRepository.findByEmail("recruiter@recruitai.com").isEmpty()) {
+            User recruiter = new User();
+            recruiter.setEmail("recruiter@recruitai.com");
+            recruiter.setName("Recruiter Demo");
+            recruiter.setPassword(passwordEncoder.encode("recruiter1234"));
+            recruiter.setRole("RECRUITER");
+            recruiter.setCreatedAt(LocalDateTime.now());
+            userRepository.save(recruiter);
+            logger.info("Demo Recruiter user created with password: recruiter1234");
+        }
     }
 }
