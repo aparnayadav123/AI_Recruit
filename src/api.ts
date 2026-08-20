@@ -16,10 +16,19 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         // EXC-006 / NFRS01 — session expiry. Once the session has been idle past the
-        // configured timeout, BLOCK the request (so an unsaved in-progress edit is NOT
-        // persisted) and send the user to re-authenticate. Server-committed data is
+        // configured timeout, BLOCK a SAVE (so an unsaved in-progress edit is NOT
+        // persisted) and send the user to re-authenticate; server-committed data is
         // untouched. See src/session.ts.
-        if (isSessionExpired()) {
+        //
+        // Only WRITE requests (POST/PUT/PATCH/DELETE) trigger this — never GETs. That
+        // way background polling and just viewing the dashboard can't bounce an
+        // idle-but-present user to the login page; the re-auth prompt appears only when
+        // they actually try to save something after the idle window. Auth calls are
+        // exempt so the user can log back in.
+        const method = (config.method || 'get').toLowerCase();
+        const isMutation = method === 'post' || method === 'put' || method === 'patch' || method === 'delete';
+        const isAuthCall = (config.url || '').includes('/auth/');
+        if (isMutation && !isAuthCall && isSessionExpired()) {
             clearSession();
             if (!window.location.pathname.startsWith('/login')) {
                 window.location.href = '/login?expired=1';

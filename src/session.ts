@@ -61,7 +61,11 @@ export const startActivityTracking = (): (() => void) => {
     // Fresh baseline: the authenticated app just loaded / mounted.
     lastWrite = 0;
     markActivity();
-    const events: (keyof WindowEventMap)[] = ['mousedown', 'keydown', 'mousemove', 'scroll', 'touchstart', 'click'];
+    // Genuine-presence signals only. Deliberately EXCLUDES 'mousedown'/'click' so the
+    // single click on the Save button after an idle period doesn't reset the timer and
+    // mask an expired session — otherwise the save-after-idle case (EXC-006) could never
+    // be blocked. Moving/typing/scrolling still keeps an active user signed in.
+    const events: (keyof WindowEventMap)[] = ['keydown', 'mousemove', 'scroll', 'touchstart', 'wheel'];
     const handler = () => markActivity();
     events.forEach(e => window.addEventListener(e, handler, { passive: true }));
     return () => events.forEach(e => window.removeEventListener(e, handler));
