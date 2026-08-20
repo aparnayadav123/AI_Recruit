@@ -4,6 +4,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { msalInstance, initializeMsal } from '../services/msal';
 import { loginRequest } from '../authConfig';
 import api from '../api';
+import { markActivity } from '../session';
 import axios from 'axios';
 import {
     Mail,
@@ -33,6 +34,15 @@ const SignIn: React.FC = () => {
         }
     }, [location]);
 
+    // EXC-006 / NFRS01 — the api interceptor redirects here with ?expired=1 when the
+    // session idle-times out mid-workflow. Show a clear re-authentication prompt.
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('expired') === '1') {
+            setError('Your session expired due to inactivity. Please sign in again to continue — your already-saved changes are safe.');
+        }
+    }, [location.search]);
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -42,6 +52,7 @@ const SignIn: React.FC = () => {
             if (response.data && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data));
+                markActivity(); // fresh idle baseline so a stale timestamp can't insta-expire
                 navigate('/dashboard');
             }
         } catch (err: any) {
@@ -63,6 +74,7 @@ const SignIn: React.FC = () => {
             if (response.data && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data));
+                markActivity(); // fresh idle baseline so a stale timestamp can't insta-expire
                 navigate('/dashboard');
             }
         } catch (err: any) {

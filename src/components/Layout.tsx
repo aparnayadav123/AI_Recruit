@@ -38,6 +38,7 @@ import {
     User as UserIcon,
 } from 'lucide-react';
 import { formatUserDisplayName, formatRelativeTime, notificationDayBucket } from '../utils';
+import { startActivityTracking } from '../session';
 import InterviewAlert from './InterviewAlert';
 import Chatbot from './Chatbot';
 import GlobalSearchBar from './GlobalSearchBar';
@@ -58,6 +59,14 @@ const Layout: React.FC = () => {
     useEffect(() => {
         // Initialize notification sound
         audioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    }, []);
+
+    // EXC-006 / NFRS01 — track real user activity so the session can idle-expire.
+    // The api interceptor blocks requests once idle exceeds the configured timeout
+    // and redirects to /login for re-authentication (see src/session.ts).
+    useEffect(() => {
+        const stopTracking = startActivityTracking();
+        return stopTracking;
     }, []);
 
     useEffect(() => {

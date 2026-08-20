@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isSessionExpired, clearSession } from "./session";
 
 // Best Practice: Centralized API Configuration
 //
@@ -14,6 +15,17 @@ const api = axios.create({
 // Add a request interceptor to attach JWT token
 api.interceptors.request.use(
     (config) => {
+        // EXC-006 / NFRS01 — session expiry. Once the session has been idle past the
+        // configured timeout, BLOCK the request (so an unsaved in-progress edit is NOT
+        // persisted) and send the user to re-authenticate. Server-committed data is
+        // untouched. See src/session.ts.
+        if (isSessionExpired()) {
+            clearSession();
+            if (!window.location.pathname.startsWith('/login')) {
+                window.location.href = '/login?expired=1';
+            }
+            return Promise.reject(new axios.Cancel('Session expired — please sign in again.'));
+        }
         const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
