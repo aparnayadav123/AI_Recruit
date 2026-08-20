@@ -110,12 +110,6 @@ public class AuthController {
                 return demoLogin("manager", "manager@recruitai.com", "MANAGER", "Manager Demo", "manager1234");
             }
 
-            // Demo Recruiter account — same shape as the others so the Recruiter-role tests
-            // (e.g. SET-001 profile save/reload, FR-902) have a real backing row and don't 404.
-            if ("recruiter@recruitai.com".equals(email) && "recruiter1234".equals(request.getPassword())) {
-                return demoLogin("recruiter", "recruiter@recruitai.com", "RECRUITER", "Recruiter Demo", "recruiter1234");
-            }
-
             Optional<User> userOpt = userRepository.findByEmail(email);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
