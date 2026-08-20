@@ -342,7 +342,7 @@ const CandidateDetails: React.FC = () => {
     const [isHotlistModalOpen, setIsHotlistModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-    const [rejectReason, setRejectReason] = useState('Experience Less');
+    const [rejectReason, setRejectReason] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
     const [isHiring, setIsHiring] = useState(false);
     // Candidate notes (Call Discussion / Face-to-Face Meeting)
@@ -521,8 +521,16 @@ const CandidateDetails: React.FC = () => {
         'Communication Issue', 'Salary Expectation High', 'Position Closed',
         'Candidate Not Interested', 'Other',
     ];
+    // Always open the Reject dialog with NO reason pre-selected — the reviewer must
+    // actively pick one. Prevents an accidental default (e.g. "Experience Less") from
+    // being applied just by clicking Confirm.
+    useEffect(() => {
+        if (isRejectModalOpen) setRejectReason('');
+    }, [isRejectModalOpen]);
+
     const handleReject = async () => {
         if (!id) return;
+        if (!rejectReason) { alert('Please select a rejection reason before confirming.'); return; }
         setIsRejecting(true);
         try {
             let by = 'HR';
@@ -1590,12 +1598,13 @@ const CandidateDetails: React.FC = () => {
                             onChange={e => setRejectReason(e.target.value)}
                             className="mt-1 mb-5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
                         >
+                            <option value="" disabled>Select a reason…</option>
                             {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setIsRejectModalOpen(false)} disabled={isRejecting}
                                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                            <button onClick={handleReject} disabled={isRejecting}
+                            <button onClick={handleReject} disabled={isRejecting || !rejectReason}
                                 className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
                                 {isRejecting ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
                                 Confirm Reject
