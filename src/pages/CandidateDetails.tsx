@@ -15,7 +15,7 @@ import {
     Building2, ChevronDown, Send, RotateCcw, Archive, Menu, Ban
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { formatUserDisplayName, formatCandidateId } from '../utils';
+import { formatUserDisplayName, formatCandidateId, getCandidateHotlists } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
 import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isRoundUnlocked } from '../constants/interviewRounds';
@@ -1286,9 +1286,12 @@ const CandidateDetails: React.FC = () => {
                         })()}
                         {activeTab === 'Hotlists' && (
                             <div className="flex-1 flex flex-col pt-4">
-                                {candidate.hotlist ? (
+                                {getCandidateHotlists(candidate).length > 0 ? (
                                     <div className="space-y-4">
-                                        <div className="flex justify-end mb-6">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <p className="text-[11px] font-bold text-slate-500">
+                                                In <span className="text-slate-800 font-black">{getCandidateHotlists(candidate).length}</span> hotlist{getCandidateHotlists(candidate).length > 1 ? 's' : ''}
+                                            </p>
                                             <button
                                                 onClick={() => setIsHotlistModalOpen(true)}
                                                 className="px-6 py-2 bg-[#52C41A] text-white font-bold rounded text-xs hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
@@ -1296,36 +1299,41 @@ const CandidateDetails: React.FC = () => {
                                             </button>
                                         </div>
 
-                                        <div className="p-3 border border-slate-300 rounded-xl bg-white flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
-                                                    <Flame className="w-5 h-5" />
+                                        {/* Every hotlist the candidate belongs to (FR-204) — shown simultaneously. */}
+                                        {getCandidateHotlists(candidate).map(name => (
+                                            <div key={name} className="p-3 border border-slate-300 rounded-xl bg-white flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
+                                                        <Flame className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-slate-800 tracking-tight leading-none">{name}</h4>
+                                                        <p className="text-[9px] font-bold text-slate-600 uppercase mt-1 leading-none">Talent Pool</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-sm font-black text-slate-800 tracking-tight leading-none">{candidate.hotlist}</h4>
-                                                    <p className="text-[9px] font-bold text-slate-600 uppercase mt-1 leading-none">Talent Pool</p>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-100">
+                                                        Active
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (confirm(`Remove ${candidate.name} from "${name}"?`)) {
+                                                                const next = getCandidateHotlists(candidate).filter(h => h !== name);
+                                                                // hotlists is now the source of truth; clear the legacy single field.
+                                                                const updated = { ...candidate, hotlists: next, hotlist: '' };
+                                                                await api.put(`/candidates/${candidate.id}`, updated);
+                                                                setCandidate(updated as any);
+                                                            }
+                                                        }}
+                                                        className="p-2 text-slate-400 hover:text-rose-500 transition-all">
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-100">
-                                                    Active
-                                                </div>
-                                                <button 
-                                                    onClick={async () => {
-                                                        if(confirm('Remove?')) {
-                                                            const updated = { ...candidate, hotlist: '' };
-                                                            await api.put(`/candidates/${candidate.id}`, updated);
-                                                            setCandidate(updated as any);
-                                                        }
-                                                    }}
-                                                    className="p-2 text-slate-400 hover:text-rose-500 transition-all">
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        ))}
 
                                         <div className="mt-8 text-center bg-slate-50/50 py-4 rounded-2xl border border-slate-300/50">
-                                            <p className="text-xs font-bold text-slate-600 italic">This candidate is part of your premium talent pool! ðŸš€</p>
+                                            <p className="text-xs font-bold text-slate-600 italic">This candidate is part of your premium talent pool!</p>
                                         </div>
                                     </div>
                                 ) : (
@@ -1797,13 +1805,22 @@ const CandidateDetails: React.FC = () => {
                 <AddToHotlistModal 
                     onClose={() => setIsHotlistModalOpen(false)}
                     onSubmit={async (data) => {
-                        const hotlistName = data.newHotlist || data.hotlist;
+                        const hotlistName = (data.newHotlist || data.hotlist || '').trim();
                         if (!hotlistName) {
                             alert("Please select or enter a hotlist name.");
                             return;
                         }
+                        // Append to the candidate's existing hotlists (FR-204 — multiple at once)
+                        // instead of overwriting, de-duped case-insensitively.
+                        const current = getCandidateHotlists(candidate);
+                        if (current.some(h => h.toLowerCase() === hotlistName.toLowerCase())) {
+                            alert(`${candidate.name} is already in "${hotlistName}".`);
+                            return;
+                        }
                         try {
-                            const updated = { ...candidate, hotlist: hotlistName };
+                            const next = [...current, hotlistName];
+                            // hotlists is the source of truth now; clear the legacy single field.
+                            const updated = { ...candidate, hotlists: next, hotlist: '' };
                             await api.put(`/candidates/${candidate.id}`, updated);
                             setCandidate(updated as any);
                             setIsHotlistModalOpen(false);

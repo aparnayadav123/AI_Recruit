@@ -75,6 +75,32 @@ export const notificationDayBucket = (input?: string | Date | null): 'Today' | '
   return 'Older';
 };
 
+/** A real hotlist name — not blank and not boolean-coerced junk ("true"/"false"). */
+export const isRealHotlistName = (h?: string | null): boolean => {
+  const t = (h || '').trim().toLowerCase();
+  return t !== '' && t !== 'true' && t !== 'false';
+};
+
+/**
+ * The full set of hotlists a candidate belongs to (FR-204). Merges the multi-value
+ * `hotlists` list with the legacy single `hotlist` field, de-duped case-insensitively
+ * and filtered to real names, so a candidate can be shown in many hotlists at once.
+ */
+export const getCandidateHotlists = (
+  c?: { hotlists?: string[] | null; hotlist?: string | null } | null
+): string[] => {
+  if (!c) return [];
+  const seen = new Map<string, string>();
+  (c.hotlists || []).forEach(h => {
+    if (isRealHotlistName(h)) seen.set(h.trim().toLowerCase(), h.trim());
+  });
+  if (isRealHotlistName(c.hotlist)) {
+    const t = (c.hotlist as string).trim();
+    seen.set(t.toLowerCase(), t);
+  }
+  return Array.from(seen.values());
+};
+
 export const formatCandidateId = (sequenceId?: number | null): string => {
   const n = typeof sequenceId === 'number' && sequenceId > 0 ? sequenceId : 1;
   return `CAN${String(n).padStart(3, '0')}`;

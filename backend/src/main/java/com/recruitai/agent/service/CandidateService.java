@@ -554,6 +554,12 @@ public class CandidateService {
                         candidate.setLinkedinUrl(candidateDetails.getLinkedinUrl());
                     }
                     candidate.setHotlist(candidateDetails.getHotlist());
+                    // Multi-hotlist (FR-204). Preserve-on-null: only overwrite the list when the
+                    // caller actually sends one, so a generic edit form that omits it can't wipe
+                    // a candidate's hotlist memberships.
+                    if (candidateDetails.getHotlists() != null) {
+                        candidate.setHotlists(candidateDetails.getHotlists());
+                    }
                     candidate.setAssignedBy(candidateDetails.getAssignedBy());
                     candidate.setAssignedTo(candidateDetails.getAssignedTo());
                     candidate.setUploadedBy(candidateDetails.getUploadedBy());

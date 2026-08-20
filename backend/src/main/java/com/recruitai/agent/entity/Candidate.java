@@ -174,6 +174,12 @@ public class Candidate {
     @Field("hotlist")
     private String hotlist;
 
+    // A candidate can belong to MULTIPLE hotlists at once (FR-204). This is the
+    // source of truth going forward; the legacy single `hotlist` above is kept for
+    // backward-compatibility with older rows and merged in on read.
+    @Field("hotlists")
+    private java.util.List<String> hotlists = new java.util.ArrayList<>();
+
     @Field("assigned_by")
     private String assignedBy;
 
@@ -386,6 +392,25 @@ public class Candidate {
         this.hotlist = (t.isEmpty() || t.equalsIgnoreCase("true") || t.equalsIgnoreCase("false"))
                 ? null
                 : t;
+    }
+
+    public java.util.List<String> getHotlists() {
+        return hotlists;
+    }
+
+    public void setHotlists(java.util.List<String> hotlists) {
+        // Sanitize like setHotlist: drop blanks and boolean-coerced junk, trim, de-dupe
+        // (case-insensitively) while preserving order.
+        java.util.LinkedHashMap<String, String> seen = new java.util.LinkedHashMap<>();
+        if (hotlists != null) {
+            for (String h : hotlists) {
+                if (h == null) continue;
+                String t = h.trim();
+                if (t.isEmpty() || t.equalsIgnoreCase("true") || t.equalsIgnoreCase("false")) continue;
+                seen.putIfAbsent(t.toLowerCase(), t);
+            }
+        }
+        this.hotlists = new java.util.ArrayList<>(seen.values());
     }
 
     public String getAssignedBy() {

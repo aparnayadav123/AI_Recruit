@@ -55,6 +55,7 @@ public class CandidateDto {
     private String summary;
     private String linkedinUrl;
     private String hotlist;
+    private java.util.List<String> hotlists;
     private String assignedBy;
     private String jobAssignedBy;
     private String assignedTo;
@@ -239,6 +240,14 @@ public class CandidateDto {
 
     public void setHotlist(String hotlist) {
         this.hotlist = hotlist;
+    }
+
+    public java.util.List<String> getHotlists() {
+        return hotlists;
+    }
+
+    public void setHotlists(java.util.List<String> hotlists) {
+        this.hotlists = hotlists;
     }
 
     public String getAssignedBy() {

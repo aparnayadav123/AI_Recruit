@@ -396,6 +396,7 @@ public class CandidateController {
         candidate.setReasonForChange(dto.getReasonForChange());
         candidate.setRecentlyAppliedCompanies(dto.getRecentlyAppliedCompanies());
         candidate.setHotlist(dto.getHotlist());
+        candidate.setHotlists(dto.getHotlists());
         candidate.setAssignedBy(dto.getAssignedBy());
         candidate.setJobAssignedBy(dto.getJobAssignedBy());
         candidate.setAssignedTo(dto.getAssignedTo());
@@ -424,6 +425,16 @@ public class CandidateController {
         dto.setResumeId(candidate.getResumeId());
         dto.setSource(candidate.getSource());
         dto.setHotlist(candidate.getHotlist());
+        // Multi-hotlist (FR-204): return the full set, merging the legacy single
+        // `hotlist` into the `hotlists` list so old rows still surface every membership.
+        java.util.LinkedHashSet<String> allHotlists = new java.util.LinkedHashSet<>();
+        if (candidate.getHotlists() != null) {
+            allHotlists.addAll(candidate.getHotlists());
+        }
+        if (candidate.getHotlist() != null && !candidate.getHotlist().isBlank()) {
+            allHotlists.add(candidate.getHotlist());
+        }
+        dto.setHotlists(new java.util.ArrayList<>(allHotlists));
         dto.setAssignedBy(candidate.getAssignedBy());
         dto.setAssignedTo(candidate.getAssignedTo());
         dto.setJobAssignedBy(candidate.getJobAssignedBy());

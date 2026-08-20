@@ -48,6 +48,7 @@ export interface Candidate {
   summary?: string;
   linkedinUrl?: string;
   hotlist?: string;
+  hotlists?: string[];
   assignedBy?: string;
   jobAssignedBy?: string;
   assignedTo?: string;

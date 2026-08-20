@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Candidate } from '../types';
-import { formatCandidateId } from '../utils';
+import { formatCandidateId, getCandidateHotlists } from '../utils';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
 import {
@@ -39,13 +39,6 @@ const statusStyles = (status: string) => {
     case 'Screening':   return 'bg-amber-50 text-amber-600 border-amber-100';
     default:            return 'bg-slate-50 text-slate-600 border-slate-300';
   }
-};
-
-// A real hotlist is a named group. Ignore blanks and boolean-coerced junk
-// ("true"/"false") so a polluted value never shows as a phantom hotlist.
-const isRealHotlist = (h?: string | null): boolean => {
-  const t = (h || '').trim().toLowerCase();
-  return t !== '' && t !== 'true' && t !== 'false';
 };
 
 const inputClass =
@@ -199,10 +192,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     } else if (selectedView === 'All Website Applicants') {
       filtered = filtered.filter(c => c.source === 'Website');
     } else if (selectedView === 'Not In Any Hotlist') {
-      filtered = filtered.filter(c => !isRealHotlist(c.hotlist));
+      filtered = filtered.filter(c => getCandidateHotlists(c).length === 0);
     }
     if (selectedHotlist) {
-      filtered = filtered.filter(c => c.hotlist === selectedHotlist);
+      // A candidate can be in many hotlists (FR-204) — match if the set includes it.
+      filtered = filtered.filter(c => getCandidateHotlists(c).includes(selectedHotlist));
     }
 
     const q = (localSearch || searchQuery).toLowerCase();
@@ -454,10 +448,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   // ============== DERIVED ==============
   const myCandidatesCount = candidates.filter(c => c.source === 'Manual' || c.source?.includes('Internal')).length;
   const websiteApplicantsCount = candidates.filter(c => c.source === 'Website').length;
-  const notInHotlistCount = candidates.filter(c => !isRealHotlist(c.hotlist)).length;
+  const notInHotlistCount = candidates.filter(c => getCandidateHotlists(c).length === 0).length;
 
+  // Count each candidate under EVERY hotlist they belong to (FR-204).
   const hotlistCounts = candidates.reduce((acc, c) => {
-    if (isRealHotlist(c.hotlist)) acc[c.hotlist!] = (acc[c.hotlist!] || 0) + 1;
+    getCandidateHotlists(c).forEach(name => { acc[name] = (acc[name] || 0) + 1; });
     return acc;
   }, {} as Record<string, number>);
 
@@ -865,15 +860,20 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
 
                       <td className="px-3 py-2.5 align-top pt-3">
                         <div className="flex items-center justify-end gap-1">
-                          {isRealHotlist(candidate.hotlist) && (
-                            <span
-                              className="px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1 mr-1"
-                              title={`Hotlist: ${candidate.hotlist}`}
-                            >
-                              <Flame size={10} />
-                              <span className="truncate max-w-[60px]">{candidate.hotlist}</span>
-                            </span>
-                          )}
+                          {(() => {
+                            const hls = getCandidateHotlists(candidate);
+                            if (hls.length === 0) return null;
+                            return (
+                              <span
+                                className="px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1 mr-1"
+                                title={`Hotlists: ${hls.join(', ')}`}
+                              >
+                                <Flame size={10} />
+                                <span className="truncate max-w-[60px]">{hls[0]}</span>
+                                {hls.length > 1 && <span>+{hls.length - 1}</span>}
+                              </span>
+                            );
+                          })()}
                           <button
                             onClick={() => {
                               setSelectedCandidate(candidate);
