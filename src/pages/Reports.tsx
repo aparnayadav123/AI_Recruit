@@ -59,13 +59,25 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showApplications, setShowApplications] = useState(false);
     const [applications, setApplications] = useState<any[]>([]);
+    const [candidatesMap, setCandidatesMap] = useState<Record<string, {email?: string, phone?: string}>>({});
     const [loadingApps, setLoadingApps] = useState(false);
 
     const fetchApplications = async () => {
         setLoadingApps(true);
         try {
-            const res = await api.get('/applications?size=100&sort=appliedDate,desc');
-            setApplications(res.data?.content || []);
+            const [appsRes, candRes] = await Promise.all([
+                api.get('/applications?size=100&sort=appliedDate,desc'),
+                api.get('/candidates?size=1000')
+            ]);
+            setApplications(appsRes.data?.content || []);
+            
+            const candMap: Record<string, any> = {};
+            const candidatesList = Array.isArray(candRes.data) ? candRes.data : (candRes.data?.content || []);
+            candidatesList.forEach((c: any) => {
+                if (c.id) candMap[c.id] = { email: c.email, phone: c.phone };
+                if (c.name) candMap[c.name] = { email: c.email, phone: c.phone };
+            });
+            setCandidatesMap(candMap);
         } catch {
             setApplications([]);
         } finally {
@@ -144,11 +156,28 @@ const Reports: React.FC = () => {
                                                     acc[name].push(app);
                                                     return acc;
                                                 }, {} as Record<string, any[]>)
-                                            ).map(([candidateName, apps]: [string, any]) => (
+                                            ).map(([candidateName, apps]: [string, any]) => {
+                                                const firstApp = (apps as any[])[0];
+                                                const candInfo = firstApp ? (candidatesMap[firstApp.candidateId] || candidatesMap[candidateName]) : null;
+                                                return (
                                                 <tr key={candidateName} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-4 py-4 font-bold text-slate-800 align-top">{candidateName}</td>
+                                                    <td className="px-4 py-4 align-top">
+                                                        <div className="font-bold text-slate-800">{candidateName}</div>
+                                                        {candInfo && (
+                                                            <div className="mt-1 text-[11px] font-medium text-slate-500 space-y-0.5">
+                                                                {candInfo.email && <div className="text-indigo-600/80 truncate max-w-[150px]" title={candInfo.email}>{candInfo.email}</div>}
+                                                                {candInfo.phone && <div>{candInfo.phone}</div>}
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                     <td className="px-4 py-4">
                                                         <div className="flex flex-col gap-2">
+                                                            {/* Nested Header */}
+                                                            <div className="flex items-center gap-4 px-2.5 pb-2 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                <div className="flex-1">Applied Job</div>
+                                                                <div className="w-24 text-center">Status</div>
+                                                                <div className="w-20 text-right">Date</div>
+                                                            </div>
                                                             {(apps as any[]).map((app, i) => (
                                                                 <div key={i} className="flex items-center gap-4 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm hover:border-indigo-200 transition-colors">
                                                                     <div className="flex-1 text-indigo-600 font-bold text-sm truncate">{app.jobTitle || 'Unknown Job'}</div>
@@ -163,7 +192,8 @@ const Reports: React.FC = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
