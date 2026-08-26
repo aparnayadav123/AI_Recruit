@@ -336,7 +336,7 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
   );
 };
 
-const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
+const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -372,12 +372,39 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     skills: [],
     education: [],
     industry: '',
-    benefits: [],
+                    benefits: [],
     deadline: '',
     status: 'Hold',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
+
+  const [searchQuery, setSearchQuery] = useState(propSearchQuery);
+  useEffect(() => setSearchQuery(propSearchQuery), [propSearchQuery]);
+  const [departmentFilter, setDepartmentFilter] = useState('All');
+
+  const departments = ['All', ...Array.from(new Set(jobs.map(j => j.department).filter(Boolean)))];
+
+  const filteredJobs = jobs.filter(job => {
+    if (statusFilter !== 'all' && statusFilter !== 'All') {
+       if (statusFilter === 'Open') {
+          if (job.status !== 'Open' && job.status !== 'Active') return false;
+       } else {
+          if (job.status !== statusFilter) return false;
+       }
+    }
+    if (departmentFilter !== 'All' && job.department !== departmentFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (job.title || '').toLowerCase().includes(q) || 
+             (job.company || '').toLowerCase().includes(q) || 
+             (job.location || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const jobCardRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+
 
   // ... (rest of the component stays mostly the same, except for the view details integration)
 
