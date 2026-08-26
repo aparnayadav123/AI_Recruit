@@ -83,14 +83,14 @@ public class AtsOrchestratorService {
                 candidate.setStatus("New");
 
                 // Check for existing candidate by Email first
-                Optional<Candidate> existingByEmail = candidateRepository.findByEmail(candidate.getEmail());
+                java.util.Optional<Candidate> existingByEmail = candidateRepository.findByEmail(candidate.getEmail());
                 if (existingByEmail.isPresent()) {
                     return existingByEmail.get();
                 }
 
                 // Fallback check by LinkedIn URL if Email wasn't a match (or was dummy)
                 if (candidate.getLinkedinUrl() != null && !candidate.getLinkedinUrl().isBlank()) {
-                    Optional<Candidate> existingByLinkedin = candidateRepository.findByLinkedinUrl(candidate.getLinkedinUrl());
+                    java.util.Optional<Candidate> existingByLinkedin = candidateRepository.findByLinkedinUrl(candidate.getLinkedinUrl());
                     if (existingByLinkedin.isPresent()) {
                         return existingByLinkedin.get();
                     }
