@@ -132,21 +132,36 @@ const Reports: React.FC = () => {
                                     <table className="w-full text-left text-sm text-slate-600">
                                         <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                                             <tr>
-                                                <th className="px-4 py-3">Candidate</th>
-                                                <th className="px-4 py-3">Applied Job</th>
-                                                <th className="px-4 py-3">Status</th>
-                                                <th className="px-4 py-3">Date</th>
+                                                <th className="px-4 py-3 w-1/4">Candidate</th>
+                                                <th className="px-4 py-3 w-3/4">Job Applications</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {applications.map((app, i) => (
-                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-4 py-3 font-semibold text-slate-800">{app.candidateName || 'Unknown'}</td>
-                                                    <td className="px-4 py-3 text-indigo-600 font-medium">{app.jobTitle || 'Unknown Job'}</td>
-                                                    <td className="px-4 py-3">
-                                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-semibold">{app.status}</span>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {Object.entries(
+                                                applications.reduce((acc, app) => {
+                                                    const name = app.candidateName || 'Unknown';
+                                                    if (!acc[name]) acc[name] = [];
+                                                    acc[name].push(app);
+                                                    return acc;
+                                                }, {} as Record<string, any[]>)
+                                            ).map(([candidateName, apps]: [string, any]) => (
+                                                <tr key={candidateName} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-4 font-bold text-slate-800 align-top">{candidateName}</td>
+                                                    <td className="px-4 py-4">
+                                                        <div className="flex flex-col gap-2">
+                                                            {(apps as any[]).map((app, i) => (
+                                                                <div key={i} className="flex items-center gap-4 bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm hover:border-indigo-200 transition-colors">
+                                                                    <div className="flex-1 text-indigo-600 font-bold text-sm truncate">{app.jobTitle || 'Unknown Job'}</div>
+                                                                    <div className="w-24 shrink-0 text-center">
+                                                                        <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-widest">{app.status}</span>
+                                                                    </div>
+                                                                    <div className="w-20 shrink-0 text-xs font-medium text-slate-500 text-right">
+                                                                        {app.appliedDate || app.createdAt ? new Date(app.appliedDate || app.createdAt).toLocaleDateString() : 'N/A'}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </td>
-                                                    <td className="px-4 py-3 text-xs">{app.appliedDate || app.createdAt ? new Date(app.appliedDate || app.createdAt).toLocaleDateString() : 'N/A'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
