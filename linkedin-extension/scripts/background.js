@@ -54,7 +54,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .catch(error => sendResponse({ status: 'error', message: error.message }));
         return true;
     }
+
+    if (request.action === 'CHECK_DUPLICATE') {
+        checkDuplicate(request.linkedinUrl)
+            .then(result => sendResponse({ status: 'success', data: result }))
+            .catch(error => sendResponse({ status: 'error', message: error.message }));
+        return true;
+    }
 });
+
+async function checkDuplicate(linkedinUrl) {
+    const storage = await chrome.storage.local.get(['jwt_token']);
+    const token = storage.jwt_token || '';
+    const res = await fetchWithTimeout(`${API_BASE_URL}/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(linkedinUrl)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    }, 5000); // Fast timeout for duplicate check
+
+    if (!res.ok) {
+        if (res.status === 404) return null; // Not found, which is fine
+        throw new Error('Duplicate check failed');
+    }
+    return await res.json();
+}
 
 async function parseProfileAI(text) {
     const storage = await chrome.storage.local.get(['jwt_token']);
