@@ -271,25 +271,17 @@ function dataURLtoBlob(dataurl) {
     }
 }
 
-// Toggle Sidebar on Extension Icon Click
-chrome.action.onClicked.addListener((tab) => {
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-            const sidebar = document.getElementById('recruitai-sidebar');
-            const btn = document.getElementById('recruitai-toggle-btn');
-            if (sidebar) {
-                sidebar.classList.toggle('open');
-                if (sidebar.classList.contains('open')) {
-                    btn.style.right = '420px';
-                    // trigger population if needed
-                    // window.populateSidebar(); // if accessible
-                } else {
-                    btn.style.right = '0';
-                }
-            } else {
-                console.log('Sidebar not found. Refresh the page?');
-            }
-        }
-    });
+// GET_STATUS — popup uses this to check token and backend health
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'GET_STATUS') {
+        chrome.storage.local.get(['jwt_token', 'backend_url'], (r) => {
+            sendResponse({ hasToken: !!r.jwt_token, backendUrl: r.backend_url || null });
+        });
+        return true;
+    }
+    if (request.action === 'CLEAR_TOKEN') {
+        chrome.storage.local.remove(['jwt_token'], () => sendResponse({ status: 'cleared' }));
+        return true;
+    }
 });
+

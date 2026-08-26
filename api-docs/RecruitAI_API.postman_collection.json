@@ -1,0 +1,191 @@
+{
+  "info": {
+    "name": "RecruitAI REST API",
+    "description": "API contract for the RecruitAI applicant-tracking platform (Auth, Jobs, Candidates, Resumes, Applications, Interviews, Careers feed). Set {{baseUrl}} in the environment. Run 'Auth > Login' first — it auto-saves {{token}} for the other requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [ { "key": "token", "value": "{{token}}", "type": "string" } ]
+  },
+  "variable": [ { "key": "jobId", "value": "" }, { "key": "candidateId", "value": "" } ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const j = pm.response.json();",
+                  "if (j.token) { pm.environment.set('token', j.token); console.log('Saved token'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"demo@recruitai.com\",\n  \"password\": \"admin123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": [ "{{baseUrl}}" ], "path": [ "auth", "login" ] }
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"jane@oryfolks.com\",\n  \"password\": \"welcome1\",\n  \"name\": \"Jane Doe\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "auth", "register" ] }
+          }
+        },
+        {
+          "name": "Social Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"jane@gmail.com\",\n  \"name\": \"Jane Doe\",\n  \"provider\": \"google\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/social-login", "host": [ "{{baseUrl}}" ], "path": [ "auth", "social-login" ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/jobs?page=0&size=100&sortBy=createdAt&sortDir=desc",
+              "host": [ "{{baseUrl}}" ], "path": [ "jobs" ],
+              "query": [
+                { "key": "page", "value": "0" }, { "key": "size", "value": "100" },
+                { "key": "sortBy", "value": "createdAt" }, { "key": "sortDir", "value": "desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Job",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": [ "const j = pm.response.json(); if (j.id) pm.collectionVariables.set('jobId', j.id);" ], "type": "text/javascript" }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Senior Java Developer\",\n  \"department\": \"Engineering\",\n  \"location\": \"Hyderabad, India\",\n  \"employmentType\": \"Full-time\",\n  \"salary\": \"18L - 24L\",\n  \"experienceLevel\": \"5+ years\",\n  \"requirements\": [\"Spring Boot\", \"MongoDB\"],\n  \"responsibilities\": [\"Design APIs\", \"Mentor juniors\"],\n  \"status\": \"Open\"\n}" },
+            "url": { "raw": "{{baseUrl}}/jobs", "host": [ "{{baseUrl}}" ], "path": [ "jobs" ] }
+          }
+        },
+        {
+          "name": "Get Job by Id",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/jobs/{{jobId}}", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "{{jobId}}" ] } }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Senior Java Developer (Updated)\",\n  \"status\": \"Open\"\n}" },
+            "url": { "raw": "{{baseUrl}}/jobs/{{jobId}}", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "{{jobId}}" ] }
+          }
+        },
+        {
+          "name": "Publish to Careers",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/jobs/{{jobId}}/publish-to-careers", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "{{jobId}}", "publish-to-careers" ] } }
+        },
+        {
+          "name": "Unpublish from Careers",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/jobs/{{jobId}}/unpublish-from-careers", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "{{jobId}}", "unpublish-from-careers" ] } }
+        },
+        {
+          "name": "Public Careers Feed",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/jobs/public", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "public" ] } }
+        },
+        {
+          "name": "Job Statistics",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/jobs/statistics", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "statistics" ] } }
+        },
+        {
+          "name": "Delete Job",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/jobs/{{jobId}}", "host": [ "{{baseUrl}}" ], "path": [ "jobs", "{{jobId}}" ] } }
+        }
+      ]
+    },
+    {
+      "name": "Candidates",
+      "item": [
+        {
+          "name": "List Candidates",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/candidates", "host": [ "{{baseUrl}}" ], "path": [ "candidates" ] } }
+        },
+        {
+          "name": "Create Candidate",
+          "event": [ { "listen": "test", "script": { "exec": [ "const j = pm.response.json(); if (j.id) pm.collectionVariables.set('candidateId', j.id);" ], "type": "text/javascript" } } ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ravi Kumar\",\n  \"email\": \"ravi@example.com\",\n  \"phone\": \"+91 90000 00000\",\n  \"skills\": [\"Java\", \"Spring Boot\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/candidates", "host": [ "{{baseUrl}}" ], "path": [ "candidates" ] }
+          }
+        },
+        {
+          "name": "Get Candidate",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/candidates/{{candidateId}}", "host": [ "{{baseUrl}}" ], "path": [ "candidates", "{{candidateId}}" ] } }
+        },
+        {
+          "name": "Update Candidate Status",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Shortlisted\"\n}" },
+            "url": { "raw": "{{baseUrl}}/candidates/{{candidateId}}/status", "host": [ "{{baseUrl}}" ], "path": [ "candidates", "{{candidateId}}", "status" ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Applications",
+      "item": [
+        { "name": "List Applications", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/applications", "host": [ "{{baseUrl}}" ], "path": [ "applications" ] } } },
+        { "name": "Application Statistics", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/applications/statistics", "host": [ "{{baseUrl}}" ], "path": [ "applications", "statistics" ] } } }
+      ]
+    },
+    {
+      "name": "Interviews",
+      "item": [
+        { "name": "List Interviews", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/interviews", "host": [ "{{baseUrl}}" ], "path": [ "interviews" ] } } },
+        {
+          "name": "Generate Meeting Link",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"candidateId\": \"{{candidateId}}\",\n  \"jobId\": \"{{jobId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/interviews/generate-link", "host": [ "{{baseUrl}}" ], "path": [ "interviews", "generate-link" ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "item": [
+        { "name": "Health", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": { "raw": "{{baseUrl}}/health", "host": [ "{{baseUrl}}" ], "path": [ "health" ] } } },
+        { "name": "Analytics Overview", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/analytics/overview", "host": [ "{{baseUrl}}" ], "path": [ "analytics", "overview" ] } } },
+        { "name": "Global Search", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/global-search?q=java", "host": [ "{{baseUrl}}" ], "path": [ "global-search" ], "query": [ { "key": "q", "value": "java" } ] } } }
+      ]
+    }
+  ]
+}

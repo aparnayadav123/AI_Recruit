@@ -2,7 +2,7 @@
  * LinkedIn Profile Content Scraper
  */
 
-console.log('ðŸš€ RecruitAI Content Script Loaded');
+console.log('[RecruitAI] Content Script Loaded');
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -14,8 +14,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ status: 'error', message: error.message });
         }
     }
+    if (request.action === 'TOGGLE_SIDEBAR') {
+        const sidebar = document.getElementById('recruitai-sidebar');
+        const toggleBtn = document.getElementById('recruitai-toggle-btn');
+        if (sidebar) {
+            sidebar.classList.toggle('open');
+            if (toggleBtn) {
+                toggleBtn.style.right = sidebar.classList.contains('open') ? '420px' : '0';
+            }
+            sendResponse({ status: 'success', open: sidebar.classList.contains('open') });
+        } else {
+            sendResponse({ status: 'error', message: 'Sidebar not found. Refresh the page.' });
+        }
+    }
     return true; // Keep message channel open
 });
+
 
 // LinkedIn page text that EXCLUDES the injected RecruitAI panel. The panel lives in
 // <body> as a sibling of <main>, so reading <main> gives the profile content only â€”

@@ -26,14 +26,31 @@ public class UserController {
     public ResponseEntity<?> updateProfilePicture(@RequestParam("email") String email,
             @RequestParam("file") MultipartFile file) {
         try {
-            Optional<User> userOpt = userRepository.findByEmail(email);
+            String trimmedEmail = (email != null) ? email.trim() : "";
+            Optional<User> userOpt = userRepository.findByEmail(trimmedEmail)
+                    .or(() -> userRepository.findByEmailIgnoreCase(trimmedEmail));
             if (userOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
 
             User user = userOpt.get();
             byte[] bytes = file.getBytes();
-            String base64Image = "data:" + file.getContentType() + ";base64,"
+            String contentType = file.getContentType();
+            if (contentType == null || contentType.isBlank() || contentType.equals("application/octet-stream")) {
+                String name = file.getOriginalFilename();
+                if (name != null && (name.toLowerCase().endsWith(".jpg") || name.toLowerCase().endsWith(".jpeg"))) {
+                    contentType = "image/jpeg";
+                } else if (name != null && name.toLowerCase().endsWith(".png")) {
+                    contentType = "image/png";
+                } else if (name != null && name.toLowerCase().endsWith(".webp")) {
+                    contentType = "image/webp";
+                } else if (name != null && name.toLowerCase().endsWith(".gif")) {
+                    contentType = "image/gif";
+                } else {
+                    contentType = "image/jpeg";
+                }
+            }
+            String base64Image = "data:" + contentType + ";base64,"
                     + Base64.getEncoder().encodeToString(bytes);
 
             user.setProfilePicture(base64Image);

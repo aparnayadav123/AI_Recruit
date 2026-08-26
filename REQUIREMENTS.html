@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>RecruitAI — Requirements Document</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.45; }
+  h1 { color: #1f3a8a; font-size: 22pt; border-bottom: 2px solid #1f3a8a; padding-bottom: 6px; }
+  h2 { color: #1f3a8a; font-size: 15pt; margin-top: 22px; border-bottom: 1px solid #c7d2fe; padding-bottom: 3px; }
+  h3 { color: #374151; font-size: 12.5pt; margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid #94a3b8; padding: 6px 9px; text-align: left; vertical-align: top; font-size: 10.5pt; }
+  th { background: #e5edff; color: #1f3a8a; }
+  code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-family: Consolas, monospace; }
+  .muted { color: #64748b; font-style: italic; }
+  ul, ol { margin: 6px 0 6px 22px; }
+  .lead { background:#f8fafc; border-left:4px solid #1f3a8a; padding:8px 12px; }
+</style></head>
+<body>
+
+<h1>RecruitAI — End-to-End Requirements Document</h1>
+<p><b>Product:</b> RecruitAI — AI-Powered Applicant Tracking System (ATS)<br>
+<b>Prepared for:</b> Project / Hiring stakeholders<br>
+<b>Status:</b> Implemented (development build)</p>
+
+<h2>1. Purpose &amp; Vision</h2>
+<p>RecruitAI is a recruitment platform that manages the <b>entire candidate lifecycle</b> — from a job
+being created and published, through application, screening, interviews, and a final hire/reject
+decision — while <b>never losing candidate data</b>. Its differentiator is an <b>AI rediscovery engine</b>
+that automatically resurfaces past candidates (including people previously rejected) who now fit a
+newly opened role.</p>
+<p class="lead"><b>Goal:</b> Track every candidate's full hiring journey, automatically re-find past talent
+that now fits open roles, and give managers complete visibility and exportable reports.</p>
+
+<h2>2. Scope</h2>
+<p><b>In scope:</b> job requisition management and publishing to a public careers site; candidate capture
+from multiple sources (careers page, LinkedIn, email, manual); full application lifecycle, interview
+pipeline, hire/reject with reasons; AI candidate–job matching, rediscovery, and reconsideration;
+dashboards, reports/analytics, and Excel/CSV exports; role-based access (Admin / HR Manager / HR).</p>
+<p><b>Out of scope (current build):</b> production-grade authentication hardening; paid third-party
+email/Zoom unless configured (graceful fallbacks provided); offer-letter generation, payroll, onboarding.</p>
+
+<h2>3. Users &amp; Roles</h2>
+<table>
+<tr><th>Role</th><th>Responsibilities</th></tr>
+<tr><td>Admin</td><td>Full access; system/demo administration.</td></tr>
+<tr><td>HR Manager</td><td>Create/close jobs, approve deletions, hire/reject, view all reports.</td></tr>
+<tr><td>HR</td><td>Manage candidates, schedule interviews, record outcomes.</td></tr>
+<tr><td>Candidate (external)</td><td>Applies via the public careers page (no RecruitAI login).</td></tr>
+</table>
+<p class="muted">Demo logins (development only): demo@recruitai.com / admin123, hr@recruitai.com / hr1234,
+manager@recruitai.com / manager1234.</p>
+
+<h2>4. Architecture &amp; Technology</h2>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Port</th></tr>
+<tr><td>Admin web app</td><td>React + Vite + TypeScript + Tailwind</td><td>3000</td></tr>
+<tr><td>Backend API</td><td>Spring Boot (Java)</td><td>8089</td></tr>
+<tr><td>Database</td><td>MongoDB</td><td>27017</td></tr>
+<tr><td>Careers site</td><td>OryFolks (Vite)</td><td>5173</td></tr>
+<tr><td>Careers API</td><td>Express (Node)</td><td>5000</td></tr>
+<tr><td>Browser add-on</td><td>LinkedIn Chrome extension (Manifest V3)</td><td>—</td></tr>
+</table>
+<p><b>Flow:</b> Careers page → backend → RecruitAI database → admin app. The LinkedIn extension pushes
+profiles into the backend. AI features use a deterministic engine with optional Gemini/OpenAI
+enhancement (auto-fallback if no key).</p>
+
+<h2>5. Functional Requirements (by Module)</h2>
+
+<h3>5.1 Authentication &amp; Authorization</h3>
+<ul>
+<li>FR-1: Email/password login issues a JWT.</li>
+<li>FR-2: Google and Outlook social login supported.</li>
+<li>FR-3: Role-based menus/actions (Admin / Manager / HR).</li>
+</ul>
+
+<h3>5.2 Job Management</h3>
+<ul>
+<li>FR-4: Create/edit/view requisitions (title, department, location, employment type, experience,
+salary range in INR, required skills + weights, hiring manager, description).</li>
+<li>FR-5: Publish / unpublish a job to the public careers page (explicit per-job action only).</li>
+<li>FR-6: Lifecycle — Open/Active, Hold, Closed, Cancelled, Archived, Reopen. Closed/Cancelled/Archived
+auto-drop the job off careers.</li>
+<li>FR-7: Live applicant count per job; color-coded status badges.</li>
+<li>FR-8: Salary accepts flexible Indian-rupee formats.</li>
+</ul>
+
+<h3>5.3 Candidate Capture &amp; Management</h3>
+<ul>
+<li>FR-9: Capture from Careers page, LinkedIn extension, email import, manual entry.</li>
+<li>FR-10: Unique, consecutive candidate IDs (CAN001, CAN002…).</li>
+<li>FR-11: Search by ID/name/email/role/skills; filter by status, skill, job, source.</li>
+<li>FR-12: Profile: contact, skills, experience, resume, current org, notice period, languages, fit score.</li>
+<li>FR-13: Resume upload (PDF/DOCX/TXT) with parsing; deterministic fallback if AI unavailable.</li>
+</ul>
+
+<h3>5.4 Application Lifecycle &amp; History (mandatory)</h3>
+<ul>
+<li>FR-14: A candidate may apply to multiple jobs over time; every application is preserved.</li>
+<li>FR-15: Each application has its own status, stage, match score, and timeline.</li>
+<li>FR-16: Candidate History shows profile, all applications, interview history, rejection history,
+hire history, experience timeline, and audit trail.</li>
+<li>FR-17: No physical deletion — soft-delete only; history is append-only.</li>
+</ul>
+
+<h3>5.5 Interview Pipeline</h3>
+<ul>
+<li>FR-18: Structured stages — Technical 1 → Technical 2 → Manager → HR → Hold → Offer.</li>
+<li>FR-19: Each candidate shows their current round (labeled, "Stage X of Y").</li>
+<li>FR-20: Schedule an interview (date/time/type), pick the round, attach a meeting link.</li>
+<li>FR-21: Meeting links — real Zoom if configured, otherwise a free Jitsi link (always works).</li>
+<li>FR-22: Interviewer joins via a Join Meeting button (candidate page + upcoming-interview popup).</li>
+<li>FR-23: Record per-stage outcome (Pass/Fail/Hold), interviewer, rating, feedback.</li>
+</ul>
+
+<h3>5.6 Hire / Reject</h3>
+<ul>
+<li>FR-24: Hire a candidate (status Hired; reflects in dashboard + Hired list + history).</li>
+<li>FR-25: Reject with a structured reason (Experience Less, Skill Mismatch, Technical/Manager Round
+Failed, Communication Issue, Salary Expectation High, Position Closed, Candidate Not Interested,
+Other) + who + date — recorded in history/audit.</li>
+</ul>
+
+<h3>5.7 Rejected Candidates</h3>
+<ul>
+<li>FR-26: Dashboard of all rejections (name, job, reason, rejected-by, date).</li>
+<li>FR-27: Filter by reason/search; Reconsider any candidate; Export to Excel.</li>
+</ul>
+
+<h3>5.8 AI Rediscovery &amp; Suggested Candidates (mandatory)</h3>
+<ul>
+<li>FR-28: On selecting a target job, scan the pool and surface a ranked suggested list.</li>
+<li>FR-29: Detect Experience-Upgrade candidates — previously rejected for low experience who now qualify.</li>
+<li>FR-30: Show match % and a readable reason; "Experience Upgrade" / "Previously Rejected" badges.</li>
+<li>FR-31: Reconsider for this job moves a suggested candidate back into the pipeline (audited).</li>
+</ul>
+
+<h3>5.9 AI Matching Engine</h3>
+<ul>
+<li>FR-32: Deterministic fit/match score from skills + experience vs. the job.</li>
+<li>FR-33: Optional Gemini/OpenAI enhancement; deterministic fallback if no key.</li>
+</ul>
+
+<h3>5.10 Dashboards &amp; Reporting</h3>
+<ul>
+<li>FR-34: Dashboard — Candidates, Active Jobs, Interviews, Hired (clickable drill-down), 6-stage
+pipeline counts, recent activity, source trends, role distribution.</li>
+<li>FR-35: Application Tracker — master table of every application (candidate × job × status × stage ×
+dates × match) with search/filter and Export to Excel.</li>
+<li>FR-36: Reports &amp; Analytics — interview rate, hire rate, rejection rate, time-to-hire,
+candidate-source analysis, department hiring, rejection-reason breakdown.</li>
+<li>FR-37: Excel/CSV export on Candidates, per-Job applicants, Application Tracker, Rejected.</li>
+</ul>
+
+<h3>5.11 Notifications &amp; Workflow</h3>
+<ul>
+<li>FR-38: In-app notifications for applications, interviews, status changes.</li>
+<li>FR-39: Upcoming-interview popup ~15 minutes before start with Join link.</li>
+<li>FR-40: Deletion-request workflow — HR requests deletion → Manager/Admin approves (soft-delete).</li>
+</ul>
+
+<h3>5.12 LinkedIn Chrome Extension</h3>
+<ul>
+<li>FR-41: On a LinkedIn profile, scrape name/role/location/skills/experience/languages.</li>
+<li>FR-42: Save the candidate to RecruitAI; handles stale-context gracefully.</li>
+</ul>
+
+<h3>5.13 Careers Site (OryFolks)</h3>
+<ul>
+<li>FR-43: Public careers page lists only explicitly published jobs.</li>
+<li>FR-44: Candidates apply with name, email, phone, resume, skills, experience, company, location.</li>
+<li>FR-45: Applications flow into RecruitAI automatically.</li>
+</ul>
+
+<h3>5.14 Branding &amp; Profile</h3>
+<ul>
+<li>FR-46: OryFolks logo on login, sidebar, profile (upload button), and company settings.</li>
+<li>FR-47: Editable profile name and picture (persists locally for demo accounts).</li>
+</ul>
+
+<h2>6. Non-Functional Requirements</h2>
+<table>
+<tr><th>Area</th><th>Requirement</th></tr>
+<tr><td>Data retention</td><td>Candidate/application/interview data is never physically deleted (soft-delete + append-only audit).</td></tr>
+<tr><td>Security</td><td>Secrets via environment variables only (no keys committed). JWT auth. Dev caveat: backend currently permitAll — must be locked down before production.</td></tr>
+<tr><td>Resilience</td><td>Graceful fallbacks: AI → deterministic parser; Zoom → Jitsi; email disabled by default.</td></tr>
+<tr><td>Usability</td><td>Responsive UI; Excel-friendly exports (UTF-8 BOM); clear status badges and tables.</td></tr>
+<tr><td>Auditability</td><td>Lifecycle actions (reject/reconsider/reopen) recorded with who/what/when.</td></tr>
+<tr><td>Performance</td><td>List views paginate; counts derived server-side. Scale review recommended for 10k+ candidates.</td></tr>
+</table>
+
+<h2>7. Data Model (key collections)</h2>
+<ul>
+<li><b>Candidate</b> — profile, skills, experience, status, fit score, source, sequence ID.</li>
+<li><b>Job</b> — requisition fields, status, hiring manager, publishedToCareers.</li>
+<li><b>JobApplication</b> — candidate × job; status, stage, match score, interview stages, rejection/hire info (append-only).</li>
+<li><b>InterviewStage</b> (embedded) — stage name, outcome, interviewer, rating, feedback.</li>
+<li><b>Interview</b> — scheduled meeting (time, type, link, status).</li>
+<li><b>CandidateAuditEvent</b> — action, actor, from→to, timestamp.</li>
+<li><b>Resume, SkillMatrix, Notification, DeletionRequest, User, Company.</b></li>
+</ul>
+
+<h2>8. Key Workflows</h2>
+<ol>
+<li><b>Hire flow:</b> Job created → published → candidate applies (careers) → screened → interview rounds
+(Pass/Fail/Hold) → Hired → reflected in dashboard/history.</li>
+<li><b>Reject + Rediscovery:</b> Candidate rejected (reason recorded) → later their experience grows → a new
+matching job opens → candidate auto-appears under Suggested Candidates (Experience Upgrade) →
+Reconsider → back in pipeline.</li>
+<li><b>Reporting:</b> Manager opens Application Tracker / Reports → filters → Export to Excel.</li>
+</ol>
+
+<h2>9. Assumptions &amp; Constraints</h2>
+<ul>
+<li>Single-tenant, local deployment (MongoDB on localhost) for the current build.</li>
+<li>AI keys, Zoom, and SMTP are optional; the system runs fully without them.</li>
+<li>The LinkedIn extension must be loaded unpacked and the LinkedIn tab refreshed after reload.</li>
+</ul>
+
+<h2>10. Future Enhancements (recommended)</h2>
+<ul>
+<li>Lock down authentication/authorization for production (replace permitAll).</li>
+<li>Offer-letter generation, onboarding, and email/SMS notifications.</li>
+<li>Scalability review for large candidate volumes (indexing, server-side search/pagination).</li>
+<li>Role-based field visibility and richer audit reporting.</li>
+<li>Configurable interview-stage templates per job/department.</li>
+</ul>
+
+<p class="muted">Document reflects the implemented development build of RecruitAI.</p>
+
+</body></html>

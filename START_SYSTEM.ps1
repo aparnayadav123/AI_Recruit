@@ -1,4 +1,5 @@
 $backendPort = 8089
+$backendAltPort = 8088
 $frontendPort = 3000
 $agentPort = 8090
 
@@ -20,20 +21,21 @@ function Clear-Port ([int]$port) {
 }
 
 Clear-Port $backendPort
+Clear-Port $backendAltPort
 Clear-Port $frontendPort
 Clear-Port $agentPort
 
 # 2. Start LinkedIn Agent
 Write-Host "Starting Autonomous LinkedIn Agent on Port 8090..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd linkedin-agent; node index.js" -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$PSScriptRoot\linkedin-agent'; node index.js" -WindowStyle Normal
 
 # 3. Start Backend
-Write-Host "Starting Backend on Port 8088..." -ForegroundColor Cyan
-Set-Location -Path ".\backend"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "mvn spring-boot:run | Tee-Object -FilePath '..\backend_debug.log'" -WindowStyle Normal
+Write-Host "Starting Backend on Port 8089..." -ForegroundColor Cyan
+$mvnCmd = "Set-Location '$PSScriptRoot\backend'; `$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'; `$env:PATH='$PSScriptRoot\backend\maven_bin\apache-maven-3.9.5\bin;'+`$env:PATH; mvn spring-boot:run | Tee-Object -FilePath '..\backend_debug.log'"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $mvnCmd -WindowStyle Normal
 
 # 4. Start Frontend
-Set-Location -Path ".."
+Set-Location -Path $PSScriptRoot
 Write-Host "Starting Frontend on Port 3000..." -ForegroundColor Cyan
 npm run dev
 

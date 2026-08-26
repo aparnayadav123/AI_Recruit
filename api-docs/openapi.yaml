@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: RecruitAI REST API
+  description: >
+    Server-side interface for the RecruitAI applicant-tracking platform —
+    authentication, job management, candidates, resumes, interviews and the
+    public careers feed consumed by oryfolks.com.
+  version: "1.0.0"
+  contact:
+    name: OryFolks Dev Team
+    email: orydevopsteam@gmail.com
+
+servers:
+  - url: https://recruitai.oryfolks.com/api
+    description: Production
+  - url: http://localhost:8089/api
+    description: Local development
+
+tags:
+  - name: Auth
+  - name: Jobs
+  - name: Candidates
+  - name: Resumes
+  - name: Applications
+  - name: Interviews
+  - name: Analytics & System
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthRequest:
+      type: object
+      properties:
+        email:    { type: string, example: "demo@recruitai.com" }
+        password: { type: string, example: "admin123" }
+        name:     { type: string, example: "Jane Doe", description: "register / social only" }
+        provider: { type: string, example: "google", description: "social-login only" }
+      required: [email]
+    AuthResponse:
+      type: object
+      properties:
+        token:          { type: string, example: "eyJhbGciOiJIUzI1NiJ9..." }
+        role:           { type: string, example: "ADMIN" }
+        email:          { type: string, example: "demo@recruitai.com" }
+        name:           { type: string, example: "Demo User" }
+        profilePicture: { type: string, nullable: true }
+    ErrorResponse:
+      type: object
+      properties:
+        message: { type: string, example: "Invalid email or password." }
+    SkillWeight:
+      type: object
+      properties:
+        skill:  { type: string, example: "Java" }
+        weight: { type: integer, example: 5 }
+    Job:
+      type: object
+      properties:
+        id:                 { type: string, example: "JOB-1778754518972" }
+        title:              { type: string, example: "Senior Java Developer" }
+        description:        { type: string }
+        company:            { type: string, example: "OryFolks" }
+        location:           { type: string, example: "Hyderabad, India" }
+        department:         { type: string, example: "Engineering" }
+        employmentType:     { type: string, example: "Full-time" }
+        salary:             { type: string, example: "₹18L - ₹24L" }
+        experienceLevel:    { type: string, example: "5+ years" }
+        hiringManager:      { type: string, example: "Aparna B." }
+        skills:             { type: array, items: { $ref: '#/components/schemas/SkillWeight' } }
+        education:          { type: array, items: { type: string } }
+        industry:           { type: string, example: "IT Services" }
+        benefits:           { type: array, items: { type: string } }
+        requirements:       { type: array, items: { type: string } }
+        responsibilities:   { type: array, items: { type: string } }
+        remote:             { type: boolean, example: false }
+        deadline:           { type: string, example: "2026-09-01" }
+        status:             { type: string, enum: [Open, Active, Hold, Closed], example: "Open" }
+        publishedToCareers: { type: boolean, example: false }
+        postedDate:         { type: string, example: "2026-07-21" }
+        applicants:         { type: integer, example: 0 }
+      required: [title]
+    JobPage:
+      type: object
+      properties:
+        content:       { type: array, items: { $ref: '#/components/schemas/Job' } }
+        totalElements: { type: integer, example: 42 }
+        totalPages:    { type: integer, example: 1 }
+        number:        { type: integer, example: 0 }
+        size:          { type: integer, example: 100 }
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------------- AUTH ----------------
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login (email + password) → JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+            examples:
+              demo: { value: { email: "demo@recruitai.com", password: "admin123" } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '400': { description: Email/password missing, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid credentials, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Create account → JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+            examples:
+              new: { value: { email: "jane@oryfolks.com", password: "welcome1", name: "Jane Doe" } }
+      responses:
+        '200': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '400': { description: Validation error (email invalid / password < 6 / name blank) }
+        '409': { description: Email already exists }
+  /auth/social-login:
+    post:
+      tags: [Auth]
+      summary: Google / Outlook sign-in (auto-provisions user)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+            examples:
+              google: { value: { email: "jane@gmail.com", name: "Jane Doe", provider: "google" } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+
+  # ---------------- JOBS ----------------
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List jobs (paginated)
+      parameters:
+        - { name: page,    in: query, schema: { type: integer, default: 0 } }
+        - { name: size,    in: query, schema: { type: integer, default: 100 } }
+        - { name: sortBy,  in: query, schema: { type: string, default: createdAt } }
+        - { name: sortDir, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JobPage' } } } }
+    post:
+      tags: [Jobs]
+      summary: Create a job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Job' }
+            examples:
+              minimal: { value: { title: "Senior Java Developer", department: "Engineering", location: "Hyderabad", employmentType: "Full-time", status: "Open" } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '400': { description: Invalid body }
+  /jobs/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [Jobs]
+      summary: Get a job by id
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '404': { description: Not found }
+    put:
+      tags: [Jobs]
+      summary: Update a job
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '404': { description: Not found }
+    delete:
+      tags: [Jobs]
+      summary: Delete a job
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+  /jobs/search:
+    get:
+      tags: [Jobs]
+      summary: Search jobs
+      parameters:
+        - { name: search, in: query, required: true, schema: { type: string } }
+        - { name: page,   in: query, schema: { type: integer, default: 0 } }
+        - { name: size,   in: query, schema: { type: integer, default: 10 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JobPage' } } } }
+  /jobs/status/{status}:
+    get:
+      tags: [Jobs]
+      summary: Jobs by status
+      parameters: [ { name: status, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /jobs/department/{department}:
+    get:
+      tags: [Jobs]
+      summary: Jobs by department
+      parameters: [ { name: department, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /jobs/statistics:
+    get: { tags: [Jobs], summary: Aggregate job statistics, responses: { '200': { description: OK } } }
+  /jobs/distribution:
+    get: { tags: [Jobs], summary: Job count by department, responses: { '200': { description: OK } } }
+  /jobs/public:
+    get:
+      tags: [Jobs]
+      summary: Public careers feed (published + Open/Active only)
+      description: >
+        No authentication required. Returns only jobs where publishedToCareers=true
+        AND status is Open or Active. This is the endpoint the oryfolks.com website consumes.
+      security: []
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Job' } } } } }
+  /jobs/{id}/publish-to-careers:
+    post:
+      tags: [Jobs]
+      summary: Publish a job to the careers page
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Updated Job, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '404': { description: Not found }
+  /jobs/{id}/unpublish-from-careers:
+    post:
+      tags: [Jobs]
+      summary: Remove a job from the careers page
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Updated Job } }
+  /jobs/{id}/suggested-candidates:
+    get:
+      tags: [Jobs]
+      summary: AI-matched candidates for a job
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /jobs/{id}/close:
+    post: { tags: [Jobs], summary: Close a job, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+  /jobs/{id}/reopen:
+    post: { tags: [Jobs], summary: Reopen a job, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+  /jobs/{id}/archive:
+    post: { tags: [Jobs], summary: Archive a job, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+  /jobs/{id}/cancel:
+    post: { tags: [Jobs], summary: Cancel a job, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+
+  # ---------------- CANDIDATES ----------------
+  /candidates:
+    get:
+      tags: [Candidates]
+      summary: List / filter candidates
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Candidates]
+      summary: Create a candidate
+      responses: { '201': { description: Created } }
+  /candidates/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:    { tags: [Candidates], summary: Get candidate, responses: { '200': { description: OK }, '404': { description: Not found } } }
+    put:    { tags: [Candidates], summary: Update candidate, responses: { '200': { description: OK } } }
+    delete: { tags: [Candidates], summary: Delete candidate, responses: { '204': { description: Deleted } } }
+  /candidates/{id}/status:
+    patch:
+      tags: [Candidates]
+      summary: Change pipeline status
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /candidates/{id}/assign-job:
+    patch:
+      tags: [Candidates]
+      summary: Assign candidate to a job
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /candidates/statistics:
+    get: { tags: [Candidates], summary: Candidate statistics, responses: { '200': { description: OK } } }
+
+  # ---------------- RESUMES ----------------
+  /resumes/upload:
+    post:
+      tags: [Resumes]
+      summary: Upload & parse a resume
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses: { '200': { description: Parsed resume } }
+  /resumes/{id}:
+    get:    { tags: [Resumes], summary: Get resume, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+    delete: { tags: [Resumes], summary: Delete resume, parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+  /resumes/{id}/download:
+    get:
+      tags: [Resumes]
+      summary: Download original resume file
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Binary file } }
+
+  # ---------------- APPLICATIONS ----------------
+  /applications:
+    get:  { tags: [Applications], summary: List applications, responses: { '200': { description: OK } } }
+    post: { tags: [Applications], summary: Create application, responses: { '200': { description: Created } } }
+  /applications/{id}:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    get:    { tags: [Applications], summary: Get application, responses: { '200': { description: OK } } }
+    put:    { tags: [Applications], summary: Update application, responses: { '200': { description: OK } } }
+    delete: { tags: [Applications], summary: Delete application, responses: { '204': { description: Deleted } } }
+
+  # ---------------- INTERVIEWS ----------------
+  /interviews:
+    get:  { tags: [Interviews], summary: List interviews, responses: { '200': { description: OK } } }
+    post: { tags: [Interviews], summary: Schedule interview, responses: { '200': { description: Created } } }
+  /interviews/generate-link:
+    post: { tags: [Interviews], summary: Generate meeting link, responses: { '200': { description: OK } } }
+  /interviews/{id}/status:
+    patch:
+      tags: [Interviews]
+      summary: Update interview status
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+
+  # ---------------- SYSTEM ----------------
+  /analytics/overview:
+    get: { tags: [Analytics & System], summary: Dashboard analytics overview, responses: { '200': { description: OK } } }
+  /global-search:
+    get:
+      tags: [Analytics & System]
+      summary: Cross-entity search
+      parameters: [ { name: q, in: query, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /health:
+    get: { tags: [Analytics & System], summary: Health check, security: [], responses: { '200': { description: OK } } }

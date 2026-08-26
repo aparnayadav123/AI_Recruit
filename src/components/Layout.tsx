@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 import {
@@ -161,7 +161,11 @@ const Layout: React.FC = () => {
         };
 
         window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
+        window.addEventListener('user-updated', handleStorageChange);
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('user-updated', handleStorageChange);
+        };
     }, []);
 
     const [notifications, setNotifications] = useState<any[]>([]);

@@ -1,60 +1,141 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecruitAI LinkedIn Connector</title>
     <link rel="stylesheet" href="popup.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
-
 <body>
     <div id="app">
-        <header>
-            <div class="logo-container">
-                <span class="logo-text">RecruitAI</span>
-                <span class="badge">PRO</span>
+
+        <!-- HEADER -->
+        <header id="main-header">
+            <div class="header-inner">
+                <div class="logo-group">
+                    <div class="logo-icon">R</div>
+                    <div>
+                        <div class="logo-text">RecruitAI</div>
+                        <div class="logo-sub">LinkedIn Connector</div>
+                    </div>
+                </div>
+                <div id="auth-badge" class="auth-badge hidden">
+                    <span class="auth-dot"></span>
+                    <span id="auth-badge-label">Connected</span>
+                </div>
             </div>
-            <p class="subtitle">LinkedIn Connector</p>
         </header>
 
-        <main id="main-content">
-            <div id="login-view" class="hidden">
-                <div class="info-card">
-                    <p>Please log in to your RecruitAI dashboard to synchronize the extension.</p>
-                    <button id="goto-login" class="btn-secondary">Go to Dashboard</button>
+        <!-- NOT-ON-LINKEDIN VIEW -->
+        <div id="not-linkedin-view" class="view hidden">
+            <div class="center-card">
+                <div class="icon-circle" style="background:#f0fdf4;color:#16a34a;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                </div>
+                <h3 class="center-title">Navigate to LinkedIn</h3>
+                <p class="center-desc">Open a LinkedIn profile page (<code>linkedin.com/in/…</code>) to start extracting candidate data.</p>
+                <button id="open-linkedin-btn" class="btn-primary mt-16">Open LinkedIn</button>
+            </div>
+        </div>
 
-                    <div class="divider"></div>
-                    <p class="small-hint">Or paste your JWT Token manually:</p>
-                    <input type="password" id="manual-token" placeholder="Paste Token Here..." class="token-input">
-                    <button id="save-token-btn" class="btn-primary mt-10">Activate Extension</button>
+        <!-- AUTH / LOGIN VIEW -->
+        <div id="login-view" class="view hidden">
+            <div class="section-label">Step 1 — Connect your account</div>
+            <div class="info-steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-text">Log in to <strong id="dashboard-link-text">RecruitAI Dashboard</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-text">Go to <strong>Settings → Integrations</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-text">Click <strong>LinkedIn → Copy Token</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div class="step-text">Paste the token below and click Activate</div>
                 </div>
             </div>
-
-            <div id="profile-view">
-                <div id="profile-preview" class="hidden">
-                    <h3 id="profile-name">Loading...</h3>
-                    <p id="profile-headline"></p>
-                    <div class="divider"></div>
-                </div>
-
-                <div id="initial-state">
-                    <p class="hint">Open a LinkedIn profile to begin</p>
-                </div>
-
-                <button id="save-btn" class="btn-primary" disabled>
-                    <span id="btn-text">Extract Profile</span>
-                    <div id="loader" class="spinner hidden"></div>
+            <button id="goto-dashboard-btn" class="btn-secondary">Open RecruitAI Dashboard</button>
+            <div class="divider-line"><span>or paste your token</span></div>
+            <div class="token-field">
+                <input type="password" id="manual-token" placeholder="Paste JWT token here..." autocomplete="off" />
+                <button id="toggle-token-vis" class="eye-btn" title="Show/hide token">
+                    <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
             </div>
-        </main>
+            <button id="save-token-btn" class="btn-primary mt-12">Activate Extension</button>
+        </div>
 
-        <div id="status-msg" class="status-chip hidden"></div>
+        <!-- MAIN PROFILE VIEW -->
+        <div id="profile-view" class="view hidden">
 
+            <!-- Not yet extracted -->
+            <div id="pre-extract-state">
+                <div class="profile-hint-card">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Click Extract to read this LinkedIn profile</span>
+                </div>
+                <button id="extract-btn" class="btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <span id="extract-btn-text">Extract Profile</span>
+                    <div id="extract-loader" class="spinner hidden"></div>
+                </button>
+            </div>
+
+            <!-- After extraction: preview card -->
+            <div id="post-extract-state" class="hidden">
+                <div id="profile-card" class="profile-card">
+                    <div class="profile-avatar-wrap">
+                        <div id="profile-avatar" class="profile-avatar">?</div>
+                    </div>
+                    <div class="profile-meta">
+                        <div id="profile-name" class="profile-name"></div>
+                        <div id="profile-role" class="profile-role"></div>
+                        <div id="profile-location" class="profile-location"></div>
+                    </div>
+                </div>
+
+                <div id="profile-details" class="profile-details"></div>
+
+                <div class="action-row">
+                    <button id="re-extract-btn" class="btn-ghost">Re-extract</button>
+                    <button id="save-btn" class="btn-primary flex-1">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        <span id="save-btn-text">Save to RecruitAI</span>
+                        <div id="save-loader" class="spinner hidden"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Saved success -->
+            <div id="saved-state" class="hidden">
+                <div class="success-card">
+                    <div class="success-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                    </div>
+                    <div class="success-title">Candidate Saved!</div>
+                    <div id="saved-name" class="success-desc"></div>
+                    <button id="view-in-crm-btn" class="btn-secondary mt-12">View in RecruitAI</button>
+                    <button id="extract-another-btn" class="btn-ghost mt-8">Extract Another</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATUS TOAST -->
+        <div id="status-toast" class="status-toast hidden"></div>
+
+        <!-- FOOTER -->
         <footer>
-            <p>System Version 1.0.0</p>
+            <span>v1.1.0</span>
+            <button id="logout-btn" class="logout-btn" title="Disconnect token">Disconnect</button>
         </footer>
+
     </div>
     <script src="popup.js"></script>
 </body>
-
-</html>
+</html>

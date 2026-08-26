@@ -18,5 +18,13 @@ foreach ($port in $ports) {
     }
 }
 
+$mavenBin = Join-Path $PSScriptRoot "maven_bin\apache-maven-3.9.5\bin"
+if (Test-Path $mavenBin) {
+    $env:PATH = "$mavenBin;" + $env:PATH
+}
+if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
+    $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
+}
+
 Write-Host "Starting Backend on Port 8089..."
 mvn spring-boot:run > console_output.txt 2>&1

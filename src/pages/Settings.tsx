@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import api from '../api';
 import { useIsManager } from '../roles';
 import { User, Bell, Building, Shield, Save, Slack, Linkedin, Mail, CheckCircle2, Lock, Settings as SettingsIcon } from 'lucide-react';
@@ -7,7 +7,131 @@ interface SettingsProps {
   searchQuery?: string;
 }
 
+// ── LinkedIn integration card — extracted to honour React's hooks rules ──
+interface LinkedInCardProps {
+  connected: boolean;
+  busy: boolean;
+  isManager: boolean;
+  onToggle: () => void;
+  onShowToast: (msg: string) => void;
+}
+const LinkedInIntegrationCard: React.FC<LinkedInCardProps> = ({ connected, busy, isManager, onToggle, onShowToast }) => {
+  const [showGuide, setShowGuide] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+
+  const copyToken = () => {
+    try {
+      const raw = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+      const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {} as Record<string,string>; } })();
+      const token = raw || (user as Record<string,string>).token || (user as Record<string,string>).jwt || '';
+      if (!token) {
+        onShowToast('No active session token found. Please log out and log back in.');
+        return;
+      }
+      navigator.clipboard.writeText(token).then(() => {
+        setTokenCopied(true);
+        onShowToast('JWT token copied! Paste it into the extension popup.');
+        setTimeout(() => setTokenCopied(false), 3000);
+      });
+    } catch {
+      onShowToast('Could not copy token. Please copy manually from the browser console.');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-300 overflow-hidden">
+      {/* Header row */}
+      <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+            <Linkedin className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-2">
+              LinkedIn
+              {connected && (
+                <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-1.5 py-0.5 uppercase tracking-widest">
+                  ● Connected
+                </span>
+              )}
+            </h4>
+            <p className="text-[9px] text-gray-600 font-bold">Chrome extension — extract profiles directly from LinkedIn</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowGuide(g => !g)}
+            className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-300 text-slate-600 hover:bg-slate-50 transition"
+          >
+            {showGuide ? 'Hide Guide' : 'Setup Guide'}
+          </button>
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={busy || !isManager}
+            title={!isManager ? 'HR Manager access required' : ''}
+            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              connected
+                ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100'
+                : 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100'
+            }`}
+          >
+            {busy ? '…' : (connected ? 'Disconnect' : 'Connect')}
+          </button>
+        </div>
+      </div>
+
+      {/* Expandable install guide */}
+      {showGuide && (
+        <div className="border-t border-slate-200 bg-slate-50 p-4 space-y-4">
+          <div>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">How to install &amp; connect</p>
+            <ol className="space-y-2">
+              {[
+                { n: '1', text: 'The extension folder is linkedin-extension/ inside this project directory.' },
+                { n: '2', text: 'Open Chrome → type chrome://extensions in the address bar.' },
+                { n: '3', text: 'Enable Developer Mode (toggle, top-right corner), then click Load unpacked.' },
+                { n: '4', text: 'Select the linkedin-extension/ folder. The RecruitAI icon appears in your toolbar.' },
+                { n: '5', text: 'Copy your JWT token below and paste it into the extension popup to authenticate.' },
+              ].map(s => (
+                <li key={s.n} className="flex gap-2.5 items-start">
+                  <span className="min-w-[18px] h-[18px] rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center mt-0.5">{s.n}</span>
+                  <span className="text-[10px] text-slate-700 font-medium leading-relaxed">{s.text}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* JWT copy widget */}
+          <div className="bg-white border border-slate-300 rounded-lg p-3 space-y-2">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Your Session Token</p>
+            <p className="text-[10px] text-slate-600 font-medium">Copy this token and paste it into the extension popup to authenticate.</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={copyToken}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors ${
+                  tokenCopied
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {tokenCopied ? (<><CheckCircle2 className="w-3 h-3" /> Copied!</>) : <>Copy JWT Token</>}
+              </button>
+            </div>
+            <p className="text-[9px] text-slate-400 font-medium">
+              Token is tied to your current session. Re-copy after logging out and back in.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
+
   const [activeTab, setActiveTab] = useState('profile');
   // Company & Integrations are HR Manager-only to edit (FR-901, BR-09).
   // Recruiters can view but not change them. Profile & Notifications stay personal/editable.
@@ -243,61 +367,82 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
               </div>
 
               <div className="flex items-center gap-4 pb-4 border-b border-slate-300">
-                {profileData.profilePic ? (
-                  <img className="h-12 w-12 rounded-lg object-cover border border-blue-100 shadow-sm" src={profileData.profilePic} alt="Profile" />
-                ) : (
-                  <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center text-white text-base font-black shadow-sm">
-                    {profileData.firstName ? profileData.firstName.charAt(0).toUpperCase() : 'A'}
-                  </div>
-                )}
+                <div
+                  onClick={() => profilePicInputRef.current?.click()}
+                  className="cursor-pointer group relative rounded-lg overflow-hidden shrink-0"
+                  title="Click to upload profile photo"
+                >
+                  {profileData.profilePic ? (
+                    <img className="h-12 w-12 rounded-lg object-cover border border-blue-100 shadow-sm group-hover:opacity-80 transition" src={profileData.profilePic} alt="Profile" />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center text-white text-base font-black shadow-sm group-hover:bg-blue-700 transition">
+                      {profileData.firstName ? profileData.firstName.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     onClick={() => profilePicInputRef.current?.click()}
-                    className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-100 transition"
+                    disabled={isSaving}
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-100 transition disabled:opacity-50"
                   >
-                    Upload
+                    {isSaving ? 'Uploading...' : 'Upload'}
                   </button>
                 </div>
                 <input
                   ref={profilePicInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                   className="hidden"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (!file || !profileData.email) return;
+                    if (!file) return;
+
+                    const targetEmail = profileData.email || originalEmail || (() => {
+                      try { return JSON.parse(localStorage.getItem('user') || '{}').email; } catch { return ''; }
+                    })();
+
+                    if (!targetEmail) {
+                      alert('Please specify your email address first.');
+                      return;
+                    }
 
                     if (file.size > 2 * 1024 * 1024) {
-                      alert('Max 2MB');
+                      alert('File size too large. Please select an image under 2MB.');
+                      e.target.value = '';
                       return;
                     }
 
                     setIsSaving(true);
                     const formData = new FormData();
                     formData.append('file', file);
-                    formData.append('email', profileData.email);
+                    formData.append('email', targetEmail);
 
                     try {
                       // NOTE: do NOT set Content-Type here. Letting the browser serialize the
-                      // FormData adds the required `multipart/form-data; boundary=…` header —
-                      // hard-coding "multipart/form-data" omits the boundary and the server
-                      // then can't parse the upload, so the photo never saves.
+                      // FormData adds the required `multipart/form-data; boundary=…` header.
                       const response = await api.put('/users/profile-picture', formData);
 
                       if (response.data) {
-                        setProfileData(prev => ({ ...prev, profilePic: response.data.profilePicture }));
+                        const newPic = response.data.profilePicture;
+                        setProfileData(prev => ({ ...prev, profilePic: newPic }));
                         const userData = localStorage.getItem('user');
                         if (userData) {
                           const user = JSON.parse(userData);
-                          const updatedUser = { ...user, profilePicture: response.data.profilePicture };
+                          const updatedUser = { ...user, profilePicture: newPic };
                           localStorage.setItem('user', JSON.stringify(updatedUser));
                           window.dispatchEvent(new Event('storage'));
+                          window.dispatchEvent(new CustomEvent('user-updated', { detail: updatedUser }));
                         }
+                        showToast('Profile photo updated successfully');
                       }
                     } catch (error) {
                       console.error('Upload failed', error);
+                      alert('Failed to upload profile picture. Please try again.');
                     } finally {
                       setIsSaving(false);
+                      e.target.value = '';
                     }
                   }}
                 />
@@ -481,70 +626,82 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   }}
                   className={`flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition ${isSavingNotifications ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  {isSavingNotifications ? 'Saving...' : 'Save Preferences'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* INTEGRATIONS TAB */}
-          {activeTab === 'integrations' && (
-            <div className="space-y-3">
-              {!isManager && (
-                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                  <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">View only — HR Manager access required to change integrations.</span>
-                </div>
-              )}
-              {[
-                { key: 'linkedin', label: 'LinkedIn', desc: 'Sync candidates and outreach',  iconBg: 'bg-blue-50',   iconColor: 'text-blue-600',   icon: <Linkedin className="w-5 h-5" /> },
-                { key: 'slack',    label: 'Slack',    desc: 'Send team alerts to a channel', iconBg: 'bg-purple-50', iconColor: 'text-purple-600', icon: <Slack className="w-5 h-5" /> },
-                { key: 'gmail',    label: 'Gmail',    desc: 'Send and track candidate email',iconBg: 'bg-red-50',    iconColor: 'text-red-600',    icon: <Mail className="w-5 h-5" /> },
-              ].map(item => {
-                const connected = !!integrations[item.key];
-                const busy = togglingIntegration === item.key;
-                return (
-                  <div key={item.key} className="bg-white rounded-xl shadow-sm border border-slate-300 p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 ${item.iconBg} rounded-lg ${item.iconColor}`}>{item.icon}</div>
-                      <div>
-                        <h4 className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-2">
-                          {item.label}
-                          {connected && (
-                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-1.5 py-0.5 uppercase tracking-widest">
-                              â— Connected
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-[9px] text-gray-600 font-bold">{item.desc}</p>
+                          <Save className="w-3.5 h-3.5" />
+                          {isSavingNotifications ? 'Saving...' : 'Save Preferences'}
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => toggleIntegration(item.key)}
-                      disabled={busy || !isManager}
-                      title={!isManager ? 'HR Manager access required' : ''}
-                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                        connected
-                          ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100'
-                          : 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100'
-                      }`}
-                    >
-                      {busy ? 'â€¦' : (connected ? 'Disconnect' : 'Connect')}
-                    </button>
-                  </div>
-                );
-              })}
-              <p className="text-[9px] font-bold text-slate-400 text-center pt-2 uppercase tracking-widest">
-                Integration state is saved to your user profile.
-              </p>
-            </div>
-          )}
+                  )}
 
-          {/* COMPANY TAB */}
-          {activeTab === 'company' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-300 p-4 space-y-5">
-              <div>
+                  {/* INTEGRATIONS TAB */}
+                  {activeTab === 'integrations' && (
+                    <div className="space-y-3">
+                      {!isManager && (
+                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                          <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">View only — HR Manager access required to change integrations.</span>
+                        </div>
+                      )}
+
+                      {/* ── LinkedIn Card (enhanced with JWT + install guide) ── */}
+                      <LinkedInIntegrationCard
+                        connected={!!integrations['linkedin']}
+                        busy={togglingIntegration === 'linkedin'}
+                        isManager={isManager}
+                        onToggle={() => toggleIntegration('linkedin')}
+                        onShowToast={(msg) => showToast(msg)}
+                      />
+
+
+                      {/* ── Other integrations (Slack, Gmail) ── */}
+                      {[
+                        { key: 'slack', label: 'Slack', desc: 'Send team alerts to a channel', iconBg: 'bg-purple-50', iconColor: 'text-purple-600', icon: <Slack className="w-5 h-5" /> },
+                        { key: 'gmail', label: 'Gmail', desc: 'Send and track candidate email', iconBg: 'bg-red-50',    iconColor: 'text-red-600',    icon: <Mail className="w-5 h-5" /> },
+                      ].map(item => {
+                        const connected = !!integrations[item.key];
+                        const busy = togglingIntegration === item.key;
+                        return (
+                          <div key={item.key} className="bg-white rounded-xl shadow-sm border border-slate-300 p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 ${item.iconBg} rounded-lg ${item.iconColor}`}>{item.icon}</div>
+                              <div>
+                                <h4 className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-2">
+                                  {item.label}
+                                  {connected && (
+                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-1.5 py-0.5 uppercase tracking-widest">
+                                      ● Connected
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-[9px] text-gray-600 font-bold">{item.desc}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => toggleIntegration(item.key)}
+                              disabled={busy || !isManager}
+                              title={!isManager ? 'HR Manager access required' : ''}
+                              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                connected
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100'
+                                  : 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100'
+                              }`}
+                            >
+                              {busy ? '…' : (connected ? 'Disconnect' : 'Connect')}
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      <p className="text-[9px] font-bold text-slate-400 text-center pt-2 uppercase tracking-widest">
+                        Integration state is saved to your user profile.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* COMPANY TAB */}
+                  {activeTab === 'company' && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-300 p-4 space-y-5">
+                      <div>
                 <h3 className="text-sm font-black text-gray-900 tracking-tight uppercase">Company Details</h3>
                 <p className="text-[10px] text-gray-600 font-bold">Manage organization settings.</p>
               </div>

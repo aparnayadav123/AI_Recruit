@@ -1,154 +1,266 @@
 /**
- * Popup Logic
+ * RecruitAI LinkedIn Connector — Popup Logic v1.1
  */
 
+const PROD_APP_URL = 'https://ai-recruit-eight.vercel.app';
+const DEV_APP_URL  = 'http://localhost:3000';
+const PROD_CRM_URL = PROD_APP_URL;
+
 document.addEventListener('DOMContentLoaded', async () => {
-    const saveBtn = document.getElementById('save-btn');
-    const btnText = document.getElementById('btn-text');
-    const loader = document.getElementById('loader');
-    const statusMsg = document.getElementById('status-msg');
-    const profileView = document.getElementById('profile-view');
-    const profilePreview = document.getElementById('profile-preview');
-    const initialState = document.getElementById('initial-state');
-    const profileName = document.getElementById('profile-name');
-    const profileHeadline = document.getElementById('profile-headline');
-    const loginView = document.getElementById('login-view');
-    const gotoLogin = document.getElementById('goto-login');
-    const manualToken = document.getElementById('manual-token');
-    const saveTokenBtn = document.getElementById('save-token-btn');
 
+    // ── DOM refs ────────────────────────────────────────────────
+    const notLinkedInView   = document.getElementById('not-linkedin-view');
+    const loginView         = document.getElementById('login-view');
+    const profileView       = document.getElementById('profile-view');
+
+    const authBadge         = document.getElementById('auth-badge');
+    const authBadgeLabel    = document.getElementById('auth-badge-label');
+
+    const openLinkedInBtn   = document.getElementById('open-linkedin-btn');
+    const gotoDashboardBtn  = document.getElementById('goto-dashboard-btn');
+    const manualToken       = document.getElementById('manual-token');
+    const toggleTokenVis    = document.getElementById('toggle-token-vis');
+    const saveTokenBtn      = document.getElementById('save-token-btn');
+    const logoutBtn         = document.getElementById('logout-btn');
+
+    const preExtractState   = document.getElementById('pre-extract-state');
+    const postExtractState  = document.getElementById('post-extract-state');
+    const savedState        = document.getElementById('saved-state');
+
+    const extractBtn        = document.getElementById('extract-btn');
+    const extractBtnText    = document.getElementById('extract-btn-text');
+    const extractLoader     = document.getElementById('extract-loader');
+
+    const profileAvatar     = document.getElementById('profile-avatar');
+    const profileName       = document.getElementById('profile-name');
+    const profileRole       = document.getElementById('profile-role');
+    const profileLocation   = document.getElementById('profile-location');
+    const profileDetails    = document.getElementById('profile-details');
+
+    const saveBtn           = document.getElementById('save-btn');
+    const saveBtnText       = document.getElementById('save-btn-text');
+    const saveLoader        = document.getElementById('save-loader');
+    const reExtractBtn      = document.getElementById('re-extract-btn');
+
+    const savedName         = document.getElementById('saved-name');
+    const viewInCrmBtn      = document.getElementById('view-in-crm-btn');
+    const extractAnotherBtn = document.getElementById('extract-another-btn');
+
+    const statusToast       = document.getElementById('status-toast');
+
+    // ── State ────────────────────────────────────────────────────
     let extractedData = null;
+    let savedCandidateId = null;
+    let currentTab = null;
+    let appBaseUrl = PROD_APP_URL;
 
-    // 1. Initial Check: Are we on LinkedIn Profile?
+    // ── Helpers ──────────────────────────────────────────────────
+    function showView(v) {
+        [notLinkedInView, loginView, profileView].forEach(el => el && el.classList.add('hidden'));
+        v && v.classList.remove('hidden');
+    }
+    function showSubState(s) {
+        [preExtractState, postExtractState, savedState].forEach(el => el && el.classList.add('hidden'));
+        s && s.classList.remove('hidden');
+    }
+    function showToast(msg, type = 'info') {
+        statusToast.textContent = msg;
+        statusToast.className = `status-toast toast-${type}`;
+        statusToast.classList.remove('hidden');
+        setTimeout(() => statusToast.classList.add('hidden'), 3500);
+    }
+    function setExtractLoading(on) {
+        extractBtn.disabled = on;
+        extractBtnText.textContent = on ? 'Extracting...' : 'Extract Profile';
+        on ? extractLoader.classList.remove('hidden') : extractLoader.classList.add('hidden');
+    }
+    function setSaveLoading(on) {
+        saveBtn.disabled = on;
+        saveBtnText.textContent = on ? 'Saving...' : 'Save to RecruitAI';
+        on ? saveLoader.classList.remove('hidden') : saveLoader.classList.add('hidden');
+    }
+    function renderProfile(data) {
+        const initial = (data.name || '?').charAt(0).toUpperCase();
+        profileAvatar.textContent = initial;
+        profileName.textContent   = data.name || 'Unknown Name';
+        profileRole.textContent   = data.primaryRole || data.headline || '';
+        profileLocation.textContent = data.locality || data.location || '';
+
+        // Detail rows
+        const rows = [];
+        if (data.company || data.currentOrganization) {
+            rows.push({ label: 'Company', value: data.currentOrganization || data.company });
+        }
+        if (data.email && !data.email.startsWith('linkedin-')) {
+            rows.push({ label: 'Email', value: data.email });
+        }
+        if (data.totalExperienceYears) {
+            rows.push({ label: 'Experience', value: `${data.totalExperienceYears} yrs` });
+        }
+        if (data.skills && data.skills.length > 0) {
+            rows.push({ label: 'Skills', value: null, skills: data.skills.slice(0, 6) });
+        }
+
+        profileDetails.innerHTML = rows.map(r => {
+            if (r.skills) {
+                const chips = r.skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+                return `<div class="detail-row"><span class="detail-label">${r.label}</span></div><div class="skill-chips">${chips}</div>`;
+            }
+            return `<div class="detail-row"><span class="detail-label">${r.label}</span><span class="detail-value">${r.value}</span></div>`;
+        }).join('');
+    }
+    function sendExtractMessage(tabId, callback) {
+        chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp) => {
+            if (chrome.runtime.lastError) { callback(null, chrome.runtime.lastError.message); return; }
+            callback(resp, null);
+        });
+    }
+
+    // ── Initialise ───────────────────────────────────────────────
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    currentTab = tab;
 
-    if (tab.url.includes('linkedin.com/in/')) {
-        saveBtn.disabled = false;
-        initialState.classList.add('hidden');
-        profilePreview.classList.remove('hidden');
-    } else {
-        saveBtn.disabled = true;
-        profilePreview.textContent = 'Please navigate to a LinkedIn Profile page.';
-        profilePreview.classList.remove('hidden');
-        initialState.classList.add('hidden');
+    // Detect which environment user is on
+    if (tab && tab.url && tab.url.includes('localhost')) {
+        appBaseUrl = DEV_APP_URL;
+    }
+    gotoDashboardBtn && (gotoDashboardBtn.onclick = () =>
+        chrome.tabs.create({ url: `${appBaseUrl}/settings` })
+    );
+    openLinkedInBtn && (openLinkedInBtn.onclick = () =>
+        chrome.tabs.create({ url: 'https://www.linkedin.com/in/' })
+    );
+
+    // Check auth token
+    const storage = await chrome.storage.local.get(['jwt_token']);
+    const hasToken = !!storage.jwt_token;
+
+    if (hasToken) {
+        authBadge.classList.remove('hidden');
+        authBadgeLabel.textContent = 'Connected';
     }
 
-    // 2. Check Auth Status (from storage)
-    chrome.storage.local.get(['jwt_token'], (result) => {
-        if (!result.jwt_token) {
-            profileView.classList.add('hidden');
-            loginView.classList.remove('hidden');
+    // Routing
+    if (!tab || !tab.url || !tab.url.includes('linkedin.com/in/')) {
+        showView(notLinkedInView);
+        if (!hasToken) { /* still show not-linkedin with logout in footer */ }
+        return;
+    }
+
+    if (!hasToken) {
+        showView(loginView);
+        return;
+    }
+
+    showView(profileView);
+    showSubState(preExtractState);
+
+    // ── Token UI ─────────────────────────────────────────────────
+    toggleTokenVis && toggleTokenVis.addEventListener('click', () => {
+        manualToken.type = manualToken.type === 'password' ? 'text' : 'password';
+    });
+
+    saveTokenBtn && saveTokenBtn.addEventListener('click', () => {
+        const token = (manualToken.value || '').trim();
+        if (!token || token.split('.').length < 3) {
+            showToast('Invalid token format. Paste the full JWT.', 'error');
+            return;
         }
+        chrome.storage.local.set({ jwt_token: token }, () => {
+            showToast('Extension activated!', 'success');
+            authBadge.classList.remove('hidden');
+            setTimeout(() => {
+                showView(profileView);
+                showSubState(preExtractState);
+            }, 800);
+        });
     });
 
-    gotoLogin.addEventListener('click', () => {
-        chrome.tabs.create({ url: 'http://localhost:3000/settings' });
+    logoutBtn && logoutBtn.addEventListener('click', () => {
+        chrome.storage.local.remove(['jwt_token'], () => {
+            authBadge.classList.add('hidden');
+            showView(loginView);
+            showToast('Disconnected', 'info');
+        });
     });
 
-    // Manual Token Save
-    saveTokenBtn.addEventListener('click', () => {
-        const token = manualToken.value.trim();
-        if (token) {
-            chrome.storage.local.set({ jwt_token: token }, () => {
-                showStatus('Extension Activated!', 'success');
-                loginView.classList.add('hidden');
-                profileView.classList.remove('hidden');
-            });
-        }
+    // ── Extract Flow ─────────────────────────────────────────────
+    extractBtn && extractBtn.addEventListener('click', async () => {
+        setExtractLoading(true);
+        const tabId = currentTab.id;
+
+        sendExtractMessage(tabId, (resp, err) => {
+            if (err || !resp) {
+                // Content script not yet injected — inject it then retry
+                chrome.scripting.executeScript({ target: { tabId }, files: ['scripts/content.js'] }, () => {
+                    if (chrome.runtime.lastError) {
+                        setExtractLoading(false);
+                        showToast('Cannot inject script. Refresh the LinkedIn page.', 'error');
+                        return;
+                    }
+                    setTimeout(() => {
+                        sendExtractMessage(tabId, (resp2, err2) => {
+                            setExtractLoading(false);
+                            if (err2 || !resp2 || resp2.status !== 'success') {
+                                showToast(err2 || resp2?.message || 'Extraction failed. Refresh the page.', 'error');
+                                return;
+                            }
+                            onExtracted(resp2.data);
+                        });
+                    }, 600);
+                });
+                return;
+            }
+            setExtractLoading(false);
+            if (!resp || resp.status !== 'success') {
+                showToast(resp?.message || 'Extraction failed. Is the page fully loaded?', 'error');
+                return;
+            }
+            onExtracted(resp.data);
+        });
     });
 
-    // 3. Extraction Flow
-    saveBtn.addEventListener('click', async () => {
-        if (!extractedData) {
-            // First Click: Extract
-            statusMsg.classList.add('hidden');
-            startLoading('Extracting...');
-
-            chrome.tabs.sendMessage(tab.id, { action: 'EXTRACT_PROFILE' }, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.warn('Content script not ready. Injecting manually...');
-
-                    // Attempt to inject script manually if it failed
-                    chrome.scripting.executeScript({
-                        target: { tabId: tab.id },
-                        files: ['scripts/content.js']
-                    }, () => {
-                        if (chrome.runtime.lastError) {
-                            stopLoading('Extract Profile');
-                            showStatus('Connection failed. Please refresh the LinkedIn page.', 'error');
-                            console.error('Injection error:', chrome.runtime.lastError.message);
-                            return;
-                        }
-
-                        // Retry message after injection
-                        setTimeout(() => {
-                            chrome.tabs.sendMessage(tab.id, { action: 'EXTRACT_PROFILE' }, (resp) => {
-                                stopLoading('Save to RecruitAI');
-                                if (resp && resp.status === 'success') {
-                                    extractedData = resp.data;
-                                    profileName.textContent = extractedData.name;
-                                    profileHeadline.textContent = extractedData.headline;
-                                    showStatus('Profile data captured!', 'success');
-                                } else {
-                                    const errMsg = resp?.message || 'Data extraction failed. Ensure the page is fully loaded.';
-                                    showStatus(errMsg, 'error');
-                                    console.error('Extraction Error:', errMsg);
-                                }
-                            });
-                        }, 500);
-                    });
-                    return;
-                }
-
-                stopLoading('Save to RecruitAI');
-
-                if (response && response.status === 'success') {
-                    extractedData = response.data;
-                    profileName.textContent = extractedData.name;
-                    profileHeadline.textContent = extractedData.headline;
-                    showStatus('Profile data captured!', 'success');
-                } else {
-                    const errMsg = response?.message || 'Data extraction failed. Ensure the page is fully loaded.';
-                    showStatus(errMsg, 'error');
-                }
-            });
-        } else {
-            // Second Click: Save to CRM
-            startLoading('Saving...');
-
-            chrome.runtime.sendMessage({ action: 'SAVE_CANDIDATE', data: extractedData }, (response) => {
-                stopLoading('Saved!');
-
-                if (response && response.status === 'success') {
-                    showStatus('Candidate saved to CRM successfully!', 'success');
-                    saveBtn.disabled = true;
-                    btnText.textContent = '✓ Saved to CRM';
-                } else {
-                    showStatus(response.message || 'Error saving to CRM', 'error');
-                }
-            });
-        }
-    });
-
-    function startLoading(text) {
-        saveBtn.disabled = true;
-        btnText.textContent = text;
-        loader.classList.remove('hidden');
+    function onExtracted(data) {
+        extractedData = data;
+        renderProfile(data);
+        showSubState(postExtractState);
+        showToast('Profile extracted successfully!', 'success');
     }
 
-    function stopLoading(text) {
-        saveBtn.disabled = false;
-        btnText.textContent = text;
-        loader.classList.add('hidden');
-    }
+    reExtractBtn && reExtractBtn.addEventListener('click', () => {
+        extractedData = null;
+        showSubState(preExtractState);
+    });
 
-    function showStatus(msg, type) {
-        statusMsg.textContent = msg;
-        statusMsg.classList.remove('hidden', 'status-success', 'status-error');
-        statusMsg.classList.add(`status-${type}`);
+    // ── Save Flow ────────────────────────────────────────────────
+    saveBtn && saveBtn.addEventListener('click', () => {
+        if (!extractedData) return;
+        setSaveLoading(true);
+        chrome.runtime.sendMessage({ action: 'SAVE_CANDIDATE', data: extractedData }, (resp) => {
+            setSaveLoading(false);
+            if (!resp || resp.status !== 'success') {
+                showToast(resp?.message || 'Failed to save. Check backend is running.', 'error');
+                return;
+            }
+            savedCandidateId = resp.data?.id;
+            savedName.textContent = `"${extractedData.name}" has been added to your CRM.`;
+            showSubState(savedState);
+            showToast('Candidate saved!', 'success');
+        });
+    });
 
-        setTimeout(() => {
-            statusMsg.classList.add('hidden');
-        }, 4000);
-    }
+    viewInCrmBtn && viewInCrmBtn.addEventListener('click', () => {
+        const url = savedCandidateId
+            ? `${appBaseUrl}/candidates?id=${savedCandidateId}`
+            : `${appBaseUrl}/candidates`;
+        chrome.tabs.create({ url });
+    });
+
+    extractAnotherBtn && extractAnotherBtn.addEventListener('click', () => {
+        extractedData = null;
+        savedCandidateId = null;
+        showSubState(preExtractState);
+    });
+
 });
+

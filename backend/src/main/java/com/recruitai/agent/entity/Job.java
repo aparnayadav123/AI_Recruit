@@ -8,7 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -94,11 +95,13 @@ public class Job {
     private int applicants; // Count of applicants
 
     @Field("created_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][.SS][.S]")
+    @JsonSerialize(using = JsonTimestamp.Serializer.class)
+    @JsonDeserialize(using = JsonTimestamp.Deserializer.class)
     private LocalDateTime createdAt;
 
     @Field("updated_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][.SS][.S]")
+    @JsonSerialize(using = JsonTimestamp.Serializer.class)
+    @JsonDeserialize(using = JsonTimestamp.Deserializer.class)
     private LocalDateTime updatedAt;
 
     // Constructors

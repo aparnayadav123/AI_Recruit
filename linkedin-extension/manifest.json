@@ -1,21 +1,24 @@
 {
     "manifest_version": 3,
     "name": "RecruitAI - LinkedIn Connector",
-    "version": "1.0.0",
-    "description": "Seamlessly save LinkedIn profiles to your RecruitAI CRM.",
+    "version": "1.1.0",
+    "description": "Seamlessly save LinkedIn profiles to your RecruitAI CRM with one click.",
     "permissions": [
         "storage",
         "activeTab",
-        "scripting"
+        "scripting",
+        "tabs"
     ],
     "externally_connectable": {
         "matches": [
-            "http://localhost:3000/*"
+            "http://localhost:3000/*",
+            "https://ai-recruit-eight.vercel.app/*"
         ]
     },
     "host_permissions": [
         "*://*.linkedin.com/*",
-        "http://localhost:8089/*"
+        "http://localhost:8089/*",
+        "https://ai-recruit-eight.vercel.app/*"
     ],
     "icons": {
         "16": "icons/icon16.png",
@@ -23,7 +26,8 @@
         "128": "icons/icon128.png"
     },
     "action": {
-        "default_title": "RecruitAI",
+        "default_title": "RecruitAI LinkedIn Connector",
+        "default_popup": "popup/popup.html",
         "default_icon": {
             "16": "icons/icon16.png",
             "48": "icons/icon48.png",
@@ -40,7 +44,8 @@
             ],
             "js": [
                 "scripts/content.js"
-            ]
+            ],
+            "run_at": "document_idle"
         }
     ]
-}
+}
