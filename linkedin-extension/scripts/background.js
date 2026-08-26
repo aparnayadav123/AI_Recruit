@@ -10,7 +10,7 @@
 //      (b) running in the extension's service-worker console:
 //          chrome.storage.local.set({ backend_url: 'https://api.yourdomain.com' })
 //      (c) the web app syncing it via the SYNC_TOKEN message (handled below).
-const PROD_BACKEND = ''; // e.g. 'https://api.yourdomain.com' — leave '' to use localhost in dev
+const PROD_BACKEND = 'https://recruitai-backend-bvo0.onrender.com';
 let API_BASE_URL = (PROD_BACKEND ? PROD_BACKEND.replace(/\/+$/, '') : 'http://localhost:8089') + '/api';
 
 // Pick up a deployed URL stored at runtime (survives restarts), overriding the default.
