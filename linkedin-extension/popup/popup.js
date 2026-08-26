@@ -219,7 +219,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         extractedData = data;
         renderProfile(data);
         showSubState(postExtractState);
-        showToast('Profile extracted successfully!', 'success');
+        
+        if (data.status && data.status !== 'New') {
+            showToast('This candidate is already in the candidates page!', 'info');
+            if (saveBtnText) saveBtnText.textContent = 'Update Candidate';
+        } else {
+            showToast('Profile extracted successfully!', 'success');
+        }
     }
 
     reExtractBtn && reExtractBtn.addEventListener('click', () => {

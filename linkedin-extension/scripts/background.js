@@ -106,6 +106,11 @@ async function saveToCRM(profileData) {
     let candidateId = null;
     let initialCandidate = null;
 
+    if (profileData.status && profileData.status !== 'New' && profileData.id) {
+        candidateId = profileData.id;
+        initialCandidate = profileData;
+    }
+
     // 3. UPLOAD RESUME IF PRESENT
     if (profileData.hasResume && profileData.resumeData) {
         console.log('📄 Uploading Resume...');
