@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Plus, MapPin, Users, User, Clock, MoreVertical, Briefcase, X, IndianRupee, Calendar, GraduationCap, Building2, Search, CheckCircle, XCircle, FileText, Download } from 'lucide-react';
 import api from '../api';
@@ -336,7 +336,7 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
   );
 };
 
-const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
+const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -372,39 +372,12 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
     skills: [],
     education: [],
     industry: '',
-                    benefits: [],
+    benefits: [],
     deadline: '',
     status: 'Hold',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
-
-  const [searchQuery, setSearchQuery] = useState(propSearchQuery);
-  useEffect(() => setSearchQuery(propSearchQuery), [propSearchQuery]);
-  const [departmentFilter, setDepartmentFilter] = useState('All');
-
-  const departments = ['All', ...Array.from(new Set(jobs.map(j => j.department).filter(Boolean)))];
-
-  const filteredJobs = jobs.filter(job => {
-    if (statusFilter !== 'all' && statusFilter !== 'All') {
-       if (statusFilter === 'Open') {
-          if (job.status !== 'Open' && job.status !== 'Active') return false;
-       } else {
-          if (job.status !== statusFilter) return false;
-       }
-    }
-    if (departmentFilter !== 'All' && job.department !== departmentFilter) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (job.title || '').toLowerCase().includes(q) || 
-             (job.company || '').toLowerCase().includes(q) || 
-             (job.location || '').toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  const jobCardRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
-
 
   // ... (rest of the component stays mostly the same, except for the view details integration)
 
@@ -731,7 +704,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
         industry: '',
         benefits: [],
         deadline: '',
-        status: 'Open',
+        status: 'Hold',
       });
 
       setIsModalOpen(false);
@@ -769,7 +742,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
               title: '', description: '', company: '', department: '', location: '',
               employmentType: 'Full-time', remote: false, salary: '',
               experienceLevel: 'Mid Level', skills: [], education: [], industry: '',
-              benefits: [], deadline: '', status: 'Open',
+              benefits: [], deadline: '', status: 'Hold',
             });
             setIsModalOpen(true);
           }}
@@ -780,168 +753,260 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
       </div>
 
       {/* Filter Section with Premium Blue Border */}
-      <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-2 border-b md:border-b-0 pb-2 md:pb-0 overflow-x-auto">
-            {(['All', 'Open', 'Hold', 'Closed'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setStatusFilter(tab)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${statusFilter === tab
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-              >
-                {tab === 'Open' ? 'Active / Open' : tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search jobs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <select
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      <div className="bg-white p-3 rounded-xl border border-slate-300 shadow-sm flex items-center gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-gray-50 rounded-lg">
+          {[
+            { id: 'all', label: 'All', color: 'blue' },
+            { id: 'Open', label: 'Active', color: 'emerald' },
+            { id: 'Hold', label: 'Hold', color: 'amber' },
+            { id: 'Closed', label: 'Closed', color: 'slate' },
+            { id: 'Cancelled', label: 'Cancelled', color: 'orange' }
+          ].map((btn) => (
+            <button
+              key={btn.id}
+              onClick={() => setStatusFilter(btn.id as any)}
+              className={`px-5 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all
+                ${statusFilter === btn.id
+                  ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
+                  : 'text-gray-600 hover:text-gray-600'
+                }`}
             >
-              <option value="All">All Departments</option>
-              {departments.filter(d => d !== 'All').map((dept) => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
+              {btn.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Jobs Grid */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      ) : filteredJobs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-300 p-8 text-center">
-          <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-gray-900 mb-1">No jobs found</h3>
-          <p className="text-xs text-gray-500">
-            {searchQuery || statusFilter !== 'All' || departmentFilter !== 'All'
-              ? 'Try adjusting your filters'
-              : 'Create your first job requisition to get started'}
-          </p>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+          <p className="text-gray-600 font-bold uppercase tracking-widest text-xs">Fetching Requisitions...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobs.map((job) => {
-            const isHighlighted = job.id === highlightJobId;
-            return (
-              <div
-                key={job.id}
-                ref={(el) => { if (el) jobCardRefs.current.set(job.id, el); }}
-                className={`bg-white rounded-xl border p-4 hover:shadow-md transition duration-200 relative flex flex-col justify-between ${isHighlighted
-                  ? 'border-blue-500 ring-2 ring-blue-400 bg-blue-50/20'
-                  : 'border-slate-300'
-                  }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <h3 className="text-sm font-black text-gray-900 line-clamp-1">{job.title}</h3>
-                      <p className="text-[11px] font-bold text-blue-600">{job.department}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {jobs
+            .filter(job => {
+              let normalizedStatus = job.status;
+              if (normalizedStatus === 'Active') normalizedStatus = 'Open';
+              if (normalizedStatus === 'Draft') normalizedStatus = 'Hold';
+              return statusFilter === 'all' || normalizedStatus === statusFilter;
+            })
+            .filter(job => {
+              if (!searchQuery) return true;
+              const query = searchQuery.toLowerCase();
+              return (
+                (job.title || '').toLowerCase().includes(query) ||
+                (job.department || '').toLowerCase().includes(query) ||
+                (job.location || '').toLowerCase().includes(query) ||
+                (job.id || '').toLowerCase().includes(query)
+              );
+            })
+            .map((job) => {
+              const highlightText = (text: string) => {
+                if (!searchQuery) return text;
+                const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
+                return parts.map((part, i) =>
+                  part.toLowerCase() === searchQuery.toLowerCase() ? (
+                    <mark key={i} className="bg-yellow-200 px-1 rounded">{part}</mark>
+                  ) : part
+                );
+              };
+
+              const isHighlightedFromSearch = highlightJobId === job.id;
+              return (
+                <div key={job.id} id={`job-${job.id}`} onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('button')) return;
+                  setSelectedJobForDetails(job);
+                }} className={`bg-white rounded-xl shadow-sm border p-3 hover:border-blue-200 transition-all group cursor-pointer relative overflow-hidden ${isHighlightedFromSearch ? 'border-blue-500 ring-2 ring-blue-500/40' : 'border-slate-300'}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      <Briefcase size={14} />
                     </div>
                     <div className="relative">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMenuOpenId(menuOpenId === job.id ? null : job.id);
-                        }}
-                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                        onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === job.id ? null : job.id); }}
+                        className="text-gray-600 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 transition"
                       >
                         <MoreVertical size={14} />
                       </button>
 
                       {menuOpenId === job.id && (
-                        <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-30 text-left">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleEditJob(job); }}
-                            className="w-full px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            Edit
-                          </button>
-                          {job.publishedToCareers ? (
+                        <div className="absolute right-0 mt-2 w-52 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 transition-all">
+                          <div className="py-1">
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleUnpublishJob(job.id); }}
-                              className="w-full px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2 font-medium"
+                              onClick={(e) => { e.stopPropagation(); handleEditJob(job); }}
+                              className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-700 hover:bg-gray-100 w-full text-left"
                             >
-                              Unpublish from Careers
+                              Edit Job
                             </button>
-                          ) : (
+                            {job.publishedToCareers ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUnpublishJob(job.id); }}
+                                className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 hover:bg-amber-50 w-full text-left"
+                              >
+                                Unpublish from Careers
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); setPendingPublishJob(job); }}
+                                className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:bg-blue-50 w-full text-left"
+                              >
+                                Publish to Careers
+                              </button>
+                            )}
+                            {['Closed', 'Cancelled'].includes(String(job.status)) ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleReopenJob(job.id); }}
+                                className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-50 w-full text-left"
+                              >
+                                Reopen Job
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCloseJob(job.id); }}
+                                  className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:bg-gray-100 w-full text-left"
+                                >
+                                  Mark as Closed
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCancelJob(job.id); }}
+                                  className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-orange-700 hover:bg-orange-50 w-full text-left"
+                                >
+                                  Mark as Cancelled
+                                </button>
+                              </>
+                            )}
                             <button
-                              onClick={(e) => { e.stopPropagation(); setPendingPublishJob(job); setMenuOpenId(null); }}
-                              className="w-full px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 flex items-center gap-2 font-medium"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteJob(job.id); }}
+                              className="flex items-center px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-50 w-full text-left"
                             >
-                              Publish to Careers
+                              Delete Job
                             </button>
-                          )}
-                          {job.status === 'Open' || job.status === 'Active' ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCloseJob(job.id); }}
-                              className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              Close Job
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleReopenJob(job.id); }}
-                              className="w-full px-3 py-1.5 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2"
-                            >
-                              Reopen Job
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCancelJob(job.id); }}
-                            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            Cancel Job
-                          </button>
-                          <div className="border-t border-slate-100 my-1"></div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteJob(job.id); }}
-                            className="w-full px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                          >
-                            Delete
-                          </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                    {job.description || 'No description provided.'}
-                  </p>
+                  <h3 className="text-[11px] font-black text-gray-900 mb-0.5 leading-tight uppercase">{highlightText(job.title)}</h3>
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2.5">{highlightText(job.department)}</p>
 
-                  <div className="space-y-1.5 mb-4">
+                  <div className="space-y-1 mb-3">
                     <div className="flex items-center text-[10px] font-bold text-gray-600">
                       <MapPin size={11} className="mr-1.5 text-blue-300" />
-                      {job.remote ? 'Remote' : (job.location || 'Location Not Specified')}
+                      {job.location}
                     </div>
                     <div className="flex items-center text-[10px] font-bold text-gray-600">
                       <Clock size={11} className="mr-1.5 text-blue-300" />
                       {job.employmentType}
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-300">
+                    <div className="flex items-center text-[10px] font-black text-gray-900">
+                      <Users size={11} className="mr-1.5 text-blue-300" />
+                      {job.applicants} Applicants
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {job.publishedToCareers && (
+                        <span title="Live on oryfolks.com/careers" className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-200">
+                          Published
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${['Active', 'Open'].includes(job.status)
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                        : job.status === 'Cancelled'
+                          ? 'bg-rose-50 text-rose-600 border-rose-200'
+                          : job.status === 'Closed'
+                            ? 'bg-slate-200 text-slate-700 border-slate-300'
+                            : 'bg-slate-100 text-slate-600 border-slate-300'}`}>
+                        {job.status === 'Active' ? 'Open' : (job.status === 'Draft' ? 'Hold' : job.status)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex gap-2 pt-3 border-t border-slate-300">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedJobForDetails(job); }}
+                      className="flex-1 bg-white border border-slate-300 text-slate-600 py-1.5 rounded-lg text-[9px] font-black hover:bg-slate-50 transition uppercase tracking-widest"
+                    >
+                      Details
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/suggested-candidates?jobId=${encodeURIComponent(job.id)}`); }}
+                      className="flex-1 bg-blue-600 text-white py-1.5 rounded-lg text-[9px] font-black hover:bg-blue-700 transition uppercase tracking-widest shadow-md shadow-blue-100"
+                    >
+                      Sourcing
+                    </button>
+                  </div>
                 </div>
+              );
+            })}
+        </div>
+      )}
+
+      {selectedJobForDetails && (
+        <JobDetailsModal
+          job={selectedJobForDetails}
+          onClose={() => setSelectedJobForDetails(null)}
+        />
+      )}
+
+      {/* Publish-to-Careers Approval Modal */}
+      {pendingPublishJob && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-300">
+            <div className="sticky top-0 bg-white border-b border-slate-300 px-5 py-4 flex items-center justify-between z-20">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 leading-none uppercase tracking-tight">Publish to Careers Page</h3>
+                <p className="text-[10px] text-slate-600 font-bold mt-1">This will make the job visible on www.oryfolks.com/careers</p>
               </div>
-            );
-          })}
+              <button
+                onClick={() => !publishing && setPendingPublishJob(null)}
+                disabled={publishing}
+                className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition disabled:opacity-50"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider mb-1">Job to publish</p>
+                <p className="text-sm font-bold text-blue-950">{pendingPublishJob.title}</p>
+                <p className="text-[11px] text-blue-700 font-semibold">{pendingPublishJob.department} • {pendingPublishJob.location} • {pendingPublishJob.employmentType}</p>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Public payload preview (exactly what the careers page will show):</p>
+                <pre className="bg-slate-900 text-slate-100 text-[10px] leading-relaxed p-3 rounded-lg overflow-auto max-h-72 font-mono">
+{JSON.stringify(buildPublicPreview(pendingPublishJob), null, 2)}
+                </pre>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-900 font-semibold">
+                Confirming will set <code className="bg-white px-1 rounded">publishedToCareers=true</code> for this job. It will be served by <code className="bg-white px-1 rounded">/api/jobs/public</code> and proxied by oryfolks.com on the next careers-page load.
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-white border-t border-slate-300 px-5 py-3 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setPendingPublishJob(null)}
+                disabled={publishing}
+                className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 bg-slate-100 hover:bg-slate-200 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPublish}
+                disabled={publishing}
+                className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 transition shadow-md shadow-blue-100 disabled:opacity-50"
+              >
+                {publishing ? 'Publishing…' : 'Approve & Publish'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -951,17 +1016,19 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-300">
             <div className="sticky top-0 bg-white border-b border-slate-300 px-5 py-4 flex items-center justify-between z-20">
               <h3 className="text-lg font-black text-gray-900 leading-none uppercase tracking-tight">{editJobId ? 'Edit Job' : 'Create Job'}</h3>
-              <button onClick={handleCloseModal} className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-gray-600 transition">
+              <button onClick={handleCloseModal} className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition">
                 <X size={14} />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-5">
+              {/* Basic Information */}
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
                   <Briefcase size={14} />
                   Basic Information
                 </h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -978,9 +1045,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     />
                     {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Company
+                      Company <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -993,6 +1061,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     />
                     {errors.company && <p className="text-red-500 text-xs mt-1">{errors.company}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Department <span className="text-red-500">*</span>
@@ -1008,9 +1077,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     />
                     {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Industry
+                      Industry <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1024,9 +1094,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     {errors.industry && <p className="text-red-500 text-xs mt-1">{errors.industry}</p>}
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Job Description
+                    Job Description <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={formData.description}
@@ -1047,11 +1118,14 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                   </div>
                 </div>
               </div>
+
+              {/* Location & Type */}
               <div className="space-y-4">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-indigo-600" />
                   Location & Employment Type
                 </h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1069,6 +1143,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     />
                     {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Employment Type <span className="text-red-500">*</span>
@@ -1085,6 +1160,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                       <option value="Temporary">Temporary</option>
                     </select>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Experience Level
@@ -1101,9 +1177,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                       <option value="Manager">Manager</option>
                     </select>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Salary Range
+                      Salary Range <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 w-5 h-5" />
@@ -1119,6 +1196,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     {errors.salary && <p className="text-red-500 text-xs mt-1">{errors.salary}</p>}
                   </div>
                 </div>
+
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -1132,14 +1210,17 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                   </label>
                 </div>
               </div>
+
+              {/* Requirements */}
               <div className="space-y-4">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <GraduationCap className="w-5 h-5 text-indigo-600" />
                   Requirements
                 </h4>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Required Skills
+                    Required Skills <span className="text-red-500">*</span>
                   </label>
                   <div className="flex flex-col gap-3 mb-2">
                     <div className="flex gap-2">
@@ -1159,12 +1240,134 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                         Add Skill
                       </button>
                     </div>
+                    <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg border border-slate-300">
+                      <span className="text-sm font-medium text-gray-700">Weight:</span>
+                      <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={currentWeight}
+                        onChange={(e) => setCurrentWeight(parseInt(e.target.value))}
+                        className="flex-1 accent-indigo-600"
+                      />
+                      <span className="text-sm font-bold text-indigo-700 w-8">{currentWeight}%</span>
+                    </div>
+                  </div>
+                  {errors.skills && <p className="text-red-500 text-xs mb-2">{errors.skills}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {formData.skills.map((skillPair) => {
+                      const [name, weight] = skillPair.split(':');
+                      return (
+                        <span
+                          key={skillPair}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium border border-indigo-200"
+                        >
+                          {name} <span className="text-indigo-500 text-xs">({weight}%)</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(skillPair)}
+                            className="hover:text-red-600 transition-colors ml-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Education Requirements
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={currentEducation}
+                      onChange={(e) => setCurrentEducation(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addEducation())}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., Bachelor's in Computer Science"
+                    />
+                    <button
+                      type="button"
+                      onClick={addEducation}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.education.map((edu) => (
+                      <span
+                        key={edu}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                      >
+                        {edu}
+                        <button
+                          type="button"
+                          onClick={() => removeEducation(edu)}
+                          className="hover:text-blue-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
+                  Additional Information
+                </h4>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Benefits
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={currentBenefit}
+                      onChange={(e) => setCurrentBenefit(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addBenefit())}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., Health Insurance, 401k"
+                    />
+                    <button
+                      type="button"
+                      onClick={addBenefit}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.benefits.map((benefit) => (
+                      <span
+                        key={benefit}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                      >
+                        {benefit}
+                        <button
+                          type="button"
+                          onClick={() => removeBenefit(benefit)}
+                          className="hover:text-green-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Application Deadline
+                      Application Deadline <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 w-5 h-5" />
@@ -1179,6 +1382,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                     </div>
                     {errors.deadline && <p className="text-red-500 text-xs mt-1">{errors.deadline}</p>}
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Job Status
@@ -1188,12 +1392,14 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery: propSearchQuery = '' }) => {
                       onChange={(e) => handleInputChange('status', e.target.value as 'Open' | 'Hold')}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value="Open">Open (Active)</option>
                       <option value="Hold">Hold</option>
+                      <option value="Open">Open</option>
                     </select>
                   </div>
                 </div>
               </div>
+
+              {/* Form Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-300">
                 <button
                   type="button"
