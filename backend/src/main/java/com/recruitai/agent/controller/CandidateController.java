@@ -157,6 +157,14 @@ public class CandidateController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // ---------------- CHECK DUPLICATE ----------------
+    @GetMapping("/check-duplicate")
+    public ResponseEntity<CandidateDto> checkDuplicate(@RequestParam String linkedinUrl) {
+        Optional<Candidate> candidate = candidateRepository.findByLinkedinUrl(linkedinUrl);
+        return candidate.map(c -> ResponseEntity.ok(convertToDto(c)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     // ---------------- GET ALL (PAGINATED) ----------------
     @GetMapping
     public ResponseEntity<Page<CandidateDto>> getAllCandidates(
