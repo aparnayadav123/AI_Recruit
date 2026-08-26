@@ -513,7 +513,7 @@ public class ResumeService implements org.springframework.beans.factory.Initiali
     private static final java.util.regex.Pattern LINKEDIN_URL_PATTERN = java.util.regex.Pattern.compile(
         "(?i)(?:https?://)?(?:[a-z]{2,3}\\.)?linkedin\\.com/in/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]*)?");
 
-    static String extractLinkedinUrl(String text) {
+    public static String extractLinkedinUrl(String text) {
         if (text == null || text.isBlank()) return null;
         java.util.regex.Matcher m = LINKEDIN_URL_PATTERN.matcher(text);
         if (!m.find()) return null;

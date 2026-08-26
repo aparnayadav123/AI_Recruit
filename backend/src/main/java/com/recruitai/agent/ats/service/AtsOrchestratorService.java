@@ -64,6 +64,12 @@ public class AtsOrchestratorService {
                 candidate.setName(parsed.path("name").asText("Unknown Candidate"));
                 candidate.setEmail(parsed.path("email").asText("pending-" + candidate.getId() + "@recruitai.com"));
 
+                // Try to extract LinkedIn URL directly from the text
+                String extractedUrl = com.recruitai.agent.service.ResumeService.extractLinkedinUrl(text);
+                if (extractedUrl != null) {
+                    candidate.setLinkedinUrl(extractedUrl);
+                }
+
                 java.util.List<String> skills = new java.util.ArrayList<>();
                 parsed.path("skills").forEach(s -> skills.add(s.asText()));
                 candidate.setSkills(skills);
@@ -76,9 +82,21 @@ public class AtsOrchestratorService {
                 candidate.setCreatedAt(java.time.LocalDateTime.now());
                 candidate.setStatus("New");
 
-                // Check for existing candidate
-                return candidateRepository.findByEmail(candidate.getEmail())
-                        .orElseGet(() -> candidateRepository.save(candidate));
+                // Check for existing candidate by Email first
+                Optional<Candidate> existingByEmail = candidateRepository.findByEmail(candidate.getEmail());
+                if (existingByEmail.isPresent()) {
+                    return existingByEmail.get();
+                }
+
+                // Fallback check by LinkedIn URL if Email wasn't a match (or was dummy)
+                if (candidate.getLinkedinUrl() != null && !candidate.getLinkedinUrl().isBlank()) {
+                    Optional<Candidate> existingByLinkedin = candidateRepository.findByLinkedinUrl(candidate.getLinkedinUrl());
+                    if (existingByLinkedin.isPresent()) {
+                        return existingByLinkedin.get();
+                    }
+                }
+
+                return candidateRepository.save(candidate);
             } catch (Exception e) {
                 System.err.println("[parse-profile] Gemini JSON unreadable, using deterministic fallback: " + e.getMessage());
             }

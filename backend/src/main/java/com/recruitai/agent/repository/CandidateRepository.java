@@ -23,6 +23,9 @@ public interface CandidateRepository extends MongoRepository<Candidate, String> 
 
     boolean existsByEmail(String email);
 
+    boolean existsByLinkedinUrl(String linkedinUrl);
+    Optional<Candidate> findByLinkedinUrl(String linkedinUrl);
+
     boolean existsByEmailAndJobId(String email, String jobId);
 
     Optional<Candidate> findByEmailAndJobId(String email, String jobId);

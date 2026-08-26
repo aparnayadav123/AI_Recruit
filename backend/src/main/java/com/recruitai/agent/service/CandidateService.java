@@ -107,6 +107,15 @@ public class CandidateService {
             throw new com.recruitai.agent.exception.DuplicateResourceException(
                     "Candidate with email " + candidate.getEmail() + " already exists in the system.");
         }
+
+        // STRICT DUPLICATE CHECK: Global LinkedIn Uniqueness
+        if (candidate.getLinkedinUrl() != null && !candidate.getLinkedinUrl().isBlank()) {
+            if (candidateRepository.existsByLinkedinUrl(candidate.getLinkedinUrl())) {
+                throw new com.recruitai.agent.exception.DuplicateResourceException(
+                        "Candidate with LinkedIn URL " + candidate.getLinkedinUrl() + " already exists in the system.");
+            }
+        }
+
         candidate.setCreatedAt(LocalDateTime.now());
 
         // Smallest unused number → consecutive, gap-free IDs (reclaims slots freed by deletes).
