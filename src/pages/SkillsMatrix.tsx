@@ -30,7 +30,10 @@ const SkillsMatrix: React.FC = () => {
   const fetchData = async () => {
     setError(null);
     try {
-      const rawCandidates = candidatesRes.data.content || [];
+      const candidatesRes = await api.get('/candidates?size=100');
+      const rawCandidates = Array.isArray(candidatesRes.data)
+        ? candidatesRes.data
+        : (candidatesRes.data?.content || []);
       const candidatesData = rawCandidates.filter((c: any, index: number, self: any[]) =>
         index === self.findIndex((t: any) => 
           (t.id && t.id === c.id) || 
