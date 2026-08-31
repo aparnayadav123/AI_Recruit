@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 import { useIsManager } from '../roles';
@@ -984,6 +984,24 @@ const CandidateDetails: React.FC = () => {
                                     Reject
                                 </button>
                             )}
+                            <label
+                                title="Upload or replace candidate resume"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 transition-all shadow-sm cursor-pointer"
+                            >
+                                {isUploadingSidebar ? <Loader2 size={14} className="animate-spin text-emerald-600" /> : <Upload size={14} className="text-emerald-600" />}
+                                <span>{isUploadingSidebar ? 'Uploading…' : 'Replace Resume'}</span>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.txt"
+                                    className="hidden"
+                                    disabled={isUploadingSidebar}
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleFileUpload(f);
+                                        e.target.value = '';
+                                    }}
+                                />
+                            </label>
                             <a
                                 href={linkedInHref}
                                 target="_blank"
@@ -1274,7 +1292,25 @@ const CandidateDetails: React.FC = () => {
                                             </select>
                                         ) : (candidate.japaneseLanguageProficiency || 'N/A') },
                                         { label: 'Resume', value: (
-                                            <button onClick={handleDownloadResume} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"><FileText size={14} className="text-blue-500" />Download</button>
+                                            <div className="flex items-center gap-3">
+                                                <button onClick={handleDownloadResume} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"><FileText size={14} className="text-blue-500" />Download</button>
+                                                <span className="text-slate-300">|</span>
+                                                <label className="inline-flex items-center gap-1.5 text-emerald-600 hover:underline cursor-pointer">
+                                                    {isUploadingSidebar ? <Loader2 size={13} className="animate-spin text-emerald-600" /> : <Upload size={13} className="text-emerald-500" />}
+                                                    <span>{isUploadingSidebar ? 'Uploading…' : 'Replace Resume'}</span>
+                                                    <input
+                                                        type="file"
+                                                        accept=".pdf,.doc,.docx,.txt"
+                                                        className="hidden"
+                                                        disabled={isUploadingSidebar}
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0];
+                                                            if (f) handleFileUpload(f);
+                                                            e.target.value = '';
+                                                        }}
+                                                    />
+                                                </label>
+                                            </div>
                                         ) },
                                         { label: 'Formatted CV', value: (
                                             <button onClick={handleGenerateFormattedCv} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"><FileUp size={14} className="text-orange-500" />Generate</button>

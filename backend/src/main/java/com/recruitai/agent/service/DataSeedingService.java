@@ -103,13 +103,22 @@ public class DataSeedingService {
     private <T> boolean loadFromFile(String filename,
             org.springframework.data.mongodb.repository.MongoRepository<T, String> repository, Class<T> clazz) {
         try {
+            java.util.List<T> data = null;
             java.io.File file = new java.io.File(filename);
-            if (!file.exists())
-                return false;
-
-            java.util.List<T> data = objectMapper.readValue(
-                    file,
-                    objectMapper.getTypeFactory().constructCollectionType(java.util.List.class, clazz));
+            if (file.exists()) {
+                data = objectMapper.readValue(
+                        file,
+                        objectMapper.getTypeFactory().constructCollectionType(java.util.List.class, clazz));
+            } else {
+                String resourcePath = filename.startsWith("/") ? filename : "/" + filename;
+                try (java.io.InputStream is = getClass().getResourceAsStream(resourcePath)) {
+                    if (is != null) {
+                        data = objectMapper.readValue(
+                                is,
+                                objectMapper.getTypeFactory().constructCollectionType(java.util.List.class, clazz));
+                    }
+                }
+            }
 
             if (data != null && !data.isEmpty()) {
                 repository.saveAll(data);
@@ -120,9 +129,6 @@ public class DataSeedingService {
             // Backup file simply isn't there yet — first run, expected.
             logger.debug("Backup file {} not present, skipping restore.", filename);
         } catch (Exception e) {
-            // Stale / mis-formatted dump (e.g. schema drift). The DB is authoritative,
-            // so it's safe to skip restoration — log at WARN, not ERROR, to avoid
-            // alarming startup output.
             logger.warn("Skipped restoring {} (stale or unreadable backup): {}", filename, e.getMessage());
         }
         return false;
@@ -427,7 +433,8 @@ public class DataSeedingService {
 
     private void createAdminUser() {
         // Create standard admin
-        if (userRepository.findByEmail("admin@recruitai.com").isEmpty()) {
+        java.util.List<User> admins = userRepository.findAllByEmail("admin@recruitai.com");
+        if (admins.isEmpty()) {
             User admin = new User();
             admin.setEmail("admin@recruitai.com");
             admin.setName("System Admin");
@@ -436,10 +443,15 @@ public class DataSeedingService {
             admin.setCreatedAt(LocalDateTime.now());
             userRepository.save(admin);
             logger.info("Admin user created.");
+        } else if (admins.size() > 1) {
+            for (int i = 1; i < admins.size(); i++) {
+                userRepository.delete(admins.get(i));
+            }
         }
 
         // Create demo user (used in UI)
-        if (userRepository.findByEmail("demo@recruitai.com").isEmpty()) {
+        java.util.List<User> demos = userRepository.findAllByEmail("demo@recruitai.com");
+        if (demos.isEmpty()) {
             User demo = new User();
             demo.setEmail("demo@recruitai.com");
             demo.setName("Demo User");
@@ -448,12 +460,15 @@ public class DataSeedingService {
             demo.setCreatedAt(LocalDateTime.now());
             userRepository.save(demo);
             logger.info("Demo user created with password: admin123");
+        } else if (demos.size() > 1) {
+            for (int i = 1; i < demos.size(); i++) {
+                userRepository.delete(demos.get(i));
+            }
         }
 
-        // Demo HR + Manager accounts. These also have a login BYPASS in AuthController, but
-        // without a backing row Settings > My Profile can't persist edits (updateProfile
-        // findByEmail -> 404). Seeding a real row lets their profile updates save & reload.
-        if (userRepository.findByEmail("hr@recruitai.com").isEmpty()) {
+        // Demo HR + Manager accounts
+        java.util.List<User> hrs = userRepository.findAllByEmail("hr@recruitai.com");
+        if (hrs.isEmpty()) {
             User hr = new User();
             hr.setEmail("hr@recruitai.com");
             hr.setName("HR Demo");
@@ -462,9 +477,14 @@ public class DataSeedingService {
             hr.setCreatedAt(LocalDateTime.now());
             userRepository.save(hr);
             logger.info("Demo HR user created with password: hr1234");
+        } else if (hrs.size() > 1) {
+            for (int i = 1; i < hrs.size(); i++) {
+                userRepository.delete(hrs.get(i));
+            }
         }
 
-        if (userRepository.findByEmail("manager@recruitai.com").isEmpty()) {
+        java.util.List<User> managers = userRepository.findAllByEmail("manager@recruitai.com");
+        if (managers.isEmpty()) {
             User manager = new User();
             manager.setEmail("manager@recruitai.com");
             manager.setName("Manager Demo");
@@ -473,16 +493,18 @@ public class DataSeedingService {
             manager.setCreatedAt(LocalDateTime.now());
             userRepository.save(manager);
             logger.info("Demo Manager user created with password: manager1234");
+        } else if (managers.size() > 1) {
+            for (int i = 1; i < managers.size(); i++) {
+                userRepository.delete(managers.get(i));
+            }
         }
 
-        // One-off cleanup: the short-lived Recruiter demo account is retired — QA uses the
-        // three canonical roles (Admin / HR / Manager) only. Remove any recruiter row so
-        // recruiter@recruitai.com can no longer log in.
+        // One-off cleanup: the short-lived Recruiter demo account is retired
         try {
-            userRepository.findByEmail("recruiter@recruitai.com").ifPresent(u -> {
+            java.util.List<User> recruiters = userRepository.findAllByEmail("recruiter@recruitai.com");
+            for (User u : recruiters) {
                 userRepository.delete(u);
-                logger.info("Removed retired Recruiter demo account.");
-            });
+            }
         } catch (Exception e) {
             logger.warn("Recruiter demo cleanup skipped: {}", e.getMessage());
         }

@@ -155,32 +155,65 @@ public class SkillMatrixService {
         double expPts = Math.min(20.0, years * 3.0);
 
         List<SkillMatrix.SkillMetric> metrics = new ArrayList<>();
+        int skillIndex = 0;
+        String roleLower = candidate.getRole() != null ? candidate.getRole().toLowerCase() : "";
+        String summaryLower = candidate.getSummary() != null ? candidate.getSummary().toLowerCase() : "";
+
         for (String skill : skills) {
             String s = skill.toLowerCase();
 
-            // Mentions beyond the single skills-list entry are real evidence of usage.
-            int evidenceMentions = Math.max(0, countOccurrences(haystack, s) - 1);
-            double freqPts = haveResumeText
-                    ? Math.min(36.0, evidenceMentions * 12.0)   // 1→12, 2→24, 3+→36
-                    : 6.0;                                       // no resume text to differentiate
+            // 1. Mentions beyond single listing
+            int occurrencesInHaystack = countOccurrences(haystack, s);
+            int evidenceMentions = Math.max(0, occurrencesInHaystack - 1);
+            double freqPts = 0;
 
+            if (haveResumeText) {
+                freqPts = Math.min(36.0, evidenceMentions * 10.0);
+            } else {
+                if (summaryLower.contains(s)) {
+                    freqPts += 12.0;
+                }
+                // Primary skill weighting: first listed skills represent core specialty
+                double positionWeight = Math.max(0.0, 24.0 - (skillIndex * 4.0));
+                freqPts += positionWeight;
+            }
+
+            // 2. Role alignment
+            double rolePts = 0;
+            if (!roleLower.isBlank()) {
+                if (roleLower.contains(s) || (s.equals("css") && roleLower.contains("ui")) 
+                        || (s.equals("html") && roleLower.contains("ui"))
+                        || (s.equals("react") && roleLower.contains("frontend"))
+                        || (s.equals("ai") && roleLower.contains("ceo"))) {
+                    rolePts = 12.0;
+                }
+            }
+
+            // 3. Proximity context & certifications
             double ctxPts = 0;
             if (mentionedNear(haystack, s, EXPERT_KW, 60))  ctxPts += 14;
             if (mentionedNear(haystack, s, PROJECT_KW, 80)) ctxPts += 10;
             if (mentionedNear(haystack, s, LEAD_KW, 60))    ctxPts += 8;
-            if (hasCertification(haystack, s))              ctxPts += 8;
+            if (hasCertification(haystack, s))              ctxPts += 10;
             ctxPts = Math.min(26.0, ctxPts);
 
-            double total = 30.0 + freqPts + ctxPts + expPts;
-            int pct = (int) Math.round(Math.max(10, Math.min(99, total)));
+            // 4. Fit score bonus
+            double fitBonus = (candidate.getFitScore() != null && candidate.getFitScore() > 0)
+                    ? Math.min(15.0, candidate.getFitScore() * 0.15)
+                    : 0.0;
+
+            double total = 32.0 + freqPts + rolePts + ctxPts + expPts + fitBonus;
+            int pct = (int) Math.round(Math.max(15, Math.min(98, total)));
 
             SkillMatrix.SkillMetric m = new SkillMatrix.SkillMetric();
             m.setSkill(skill);
             m.setPercentage(pct);
             m.setConfidence(pct >= 80 ? "High" : pct >= 50 ? "Medium" : "Low");
             metrics.add(m);
+            skillIndex++;
         }
 
+        // Sort descending so the highest percentage skill is always first
         metrics.sort((a, b) -> Integer.compare(b.getPercentage(), a.getPercentage()));
         return metrics;
     }

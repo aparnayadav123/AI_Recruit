@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Award } from 'lucide-react';
 import api from '../api';
@@ -30,8 +30,14 @@ const SkillsMatrix: React.FC = () => {
   const fetchData = async () => {
     setError(null);
     try {
-      const candidatesRes = await api.get('/candidates');
-      const candidatesData = candidatesRes.data.content || [];
+      const rawCandidates = candidatesRes.data.content || [];
+      const candidatesData = rawCandidates.filter((c: any, index: number, self: any[]) =>
+        index === self.findIndex((t: any) => 
+          (t.id && t.id === c.id) || 
+          (t.email && c.email && t.email.toLowerCase() === c.email.toLowerCase()) || 
+          (t.name && c.name && t.name.trim().toLowerCase() === c.name.trim().toLowerCase())
+        )
+      );
       setCandidates(candidatesData);
 
       // Fetch skill matrix for each candidate

@@ -93,8 +93,7 @@ public class DataBackupService {
     public void restoreData() {
         File directory = new File(DATA_DIR);
         if (!directory.exists()) {
-            logger.warn("No data directory found at {}. Skipping restore.", directory.getAbsolutePath());
-            return;
+            directory.mkdirs();
         }
 
         logger.info("Checking repositories for existing data before restore...");
@@ -109,9 +108,7 @@ public class DataBackupService {
             }, jobRepository);
         }
 
-        if (resumeRepository.count() == 0)
-
-        {
+        if (resumeRepository.count() == 0) {
             restoreEntity("resumes", new TypeReference<List<Resume>>() {
             }, resumeRepository);
         }
@@ -139,18 +136,32 @@ public class DataBackupService {
 
     private <T> void restoreEntity(String entityName, TypeReference<List<T>> typeRef,
             org.springframework.data.mongodb.repository.MongoRepository<T, String> repository) {
+        String content = null;
         File file = new File(DATA_DIR, entityName + "_dump.json");
         if (file.exists()) {
             try {
                 logger.info("Restoring {} from path: {}", entityName, file.getAbsolutePath());
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                content = new String(java.nio.file.Files.readAllBytes(file.toPath()),
                         java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                logger.warn("Could not read file {}: {}", file.getAbsolutePath(), e.getMessage());
+            }
+        }
 
-                if (content.trim().isEmpty())
-                    return;
+        if (content == null || content.trim().isEmpty()) {
+            try (java.io.InputStream is = getClass().getResourceAsStream("/data/" + entityName + "_dump.json")) {
+                if (is != null) {
+                    logger.info("Restoring {} from packaged classpath resource: /data/{}_dump.json", entityName, entityName);
+                    content = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+            } catch (Exception e) {
+                logger.warn("Could not read packaged classpath dump for {}: {}", entityName, e.getMessage());
+            }
+        }
 
+        if (content != null && !content.trim().isEmpty()) {
+            try {
                 // AUTOMATIC REPAIR LOGIC: Clean corrupted date formats before parsing
-                // Fixes issues like 2026-02-13T09:28:32.320.32.3 -> 2026-02-13T09:28:32.320
                 String repairedContent = content.replaceAll(
                         "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?)(?:(?:\\.\\d+)+|Z|[+-]\\d{2}:?\\d{2})",
                         "$1");
