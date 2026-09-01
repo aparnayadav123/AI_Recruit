@@ -11,12 +11,16 @@
 //          chrome.storage.local.set({ backend_url: 'https://api.yourdomain.com' })
 //      (c) the web app syncing it via the SYNC_TOKEN message (handled below).
 const PROD_BACKEND = 'https://recruitai-backend-bvo0.onrender.com';
-let API_BASE_URL = (PROD_BACKEND ? PROD_BACKEND.replace(/\/+$/, '') : 'http://localhost:8089') + '/api';
+let API_BASE_URL = 'https://recruitai-backend-bvo0.onrender.com/api';
 
 // Pick up a deployed URL stored at runtime (survives restarts), overriding the default.
 try {
     chrome.storage.local.get(['backend_url'], (r) => {
-        if (r && r.backend_url) API_BASE_URL = String(r.backend_url).replace(/\/+$/, '') + '/api';
+        if (r && r.backend_url && !r.backend_url.includes('localhost')) {
+            API_BASE_URL = String(r.backend_url).replace(/\/+$/, '') + '/api';
+        } else {
+            API_BASE_URL = PROD_BACKEND + '/api';
+        }
     });
 } catch (e) { /* storage unavailable — keep default */ }
 

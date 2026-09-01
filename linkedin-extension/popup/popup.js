@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     logoutBtn && logoutBtn.addEventListener('click', () => {
-        chrome.storage.local.remove(['jwt_token'], () => {
+        chrome.storage.local.remove(['jwt_token', 'backend_url'], () => {
             authBadge.classList.add('hidden');
             showView(loginView);
             showToast('Disconnected', 'info');
