@@ -219,7 +219,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         extractedData = data;
         renderProfile(data);
         showSubState(postExtractState);
-        showToast('Profile extracted successfully!', 'success');
+
+        // First, if it already had a status from AI parsing (sidebar flow)
+        if (data.status && data.status !== 'New') {
+            showToast('This candidate is already in the candidates page!', 'info');
+            if (saveBtnText) saveBtnText.textContent = 'Update Candidate';
+            return;
+        }
+
+        // If local DOM scraping (popup flow), we need to ask backend if URL exists
+        const lnUrl = data.profileUrl || data.linkedinUrl;
+        if (lnUrl) {
+            chrome.runtime.sendMessage({ action: 'CHECK_DUPLICATE', linkedinUrl: lnUrl }, (resp) => {
+                if (resp && resp.status === 'success' && resp.data) {
+                    // Backend found the candidate!
+                    const existing = resp.data;
+                    extractedData.id = existing.id;
+                    extractedData.status = existing.status;
+                    showToast('This candidate is already in the candidates page!', 'info');
+                    if (saveBtnText) saveBtnText.textContent = 'Update Candidate';
+                } else {
+                    showToast('Profile extracted successfully!', 'success');
+                }
+            });
+        } else {
+            showToast('Profile extracted successfully!', 'success');
+        }
     }
 
     reExtractBtn && reExtractBtn.addEventListener('click', () => {
