@@ -50,17 +50,20 @@ const InterviewPipeline: React.FC = () => {
     };
 
     const handleStatusChange = async (candidateId: string, newStatus: 'Passed' | 'Rejected' | 'Scheduled') => {
-        try {
-            const candidate = candidates.find(c => c.id === candidateId);
-            if (!candidate) return;
+        const candidate = candidates.find(c => c.id === candidateId);
+        if (!candidate) return;
+        const previousStatus = candidate.roundStatus;
 
+        try {
             const updated = { ...candidate, roundStatus: newStatus };
             setCandidates(candidates.map(c => c.id === candidateId ? updated : c));
 
             await api.put(`/candidates/${candidateId}`, updated);
         } catch (e) {
             console.error("Failed to update status", e);
-            alert('Could not update status. Please try again.');
+            // Explicitly roll back to previous state if interrupted or failed
+            setCandidates(candidates.map(c => c.id === candidateId ? { ...c, roundStatus: previousStatus } : c));
+            alert('Stage transition interrupted or failed. Cleanly rolled back to previous state: ' + (previousStatus || 'Scheduled'));
             fetchCandidates();
         }
     };
