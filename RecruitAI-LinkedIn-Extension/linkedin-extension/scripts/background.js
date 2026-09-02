@@ -2,35 +2,19 @@
  * Service Worker for API Communication
  */
 
-// Backend base URL.
-//  • Development: defaults to localhost:8089.
-//  • Deployment: set your production backend ONCE and the extension uses it
-//    everywhere — no code edits needed. Set it either by:
-//      (a) editing PROD_BACKEND below, or
-//      (b) running in the extension's service-worker console:
-//          chrome.storage.local.set({ backend_url: 'https://api.yourdomain.com' })
-//      (c) the web app syncing it via the SYNC_TOKEN message (handled below).
 const PROD_BACKEND = 'https://recruitai-backend-bvo0.onrender.com';
-let API_BASE_URL = 'https://recruitai-backend-bvo0.onrender.com/api';
 
-// Pick up a deployed URL stored at runtime (survives restarts), overriding the default.
-try {
-    chrome.storage.local.get(['backend_url'], (r) => {
-        if (r && r.backend_url && !r.backend_url.includes('localhost')) {
-            API_BASE_URL = String(r.backend_url).replace(/\/+$/, '') + '/api';
-        } else {
-            API_BASE_URL = PROD_BACKEND + '/api';
+async function getApiBaseUrl() {
+    try {
+        const storage = await chrome.storage.local.get(['backend_url']);
+        if (storage && storage.backend_url) {
+            return String(storage.backend_url).replace(/\/+$/, '') + '/api';
         }
-    });
-} catch (e) { /* storage unavailable — keep default */ }
+    } catch (e) {}
+    return PROD_BACKEND + '/api';
+}
 
-/**
- * Wraps fetch with a per-call timeout. Default 20 seconds — long enough for the
- * resume-upload flow (Gemini parse can take 10-15s), short enough that the
- * sidebar's 30-second watchdog still wins the race when something genuinely
- * hangs (backend offline, mid-network glitch, etc.).
- */
-function fetchWithTimeout(url, opts = {}, timeoutMs = 20000) {
+function fetchWithTimeout(url, opts = {}, timeoutMs = 25000) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     return fetch(url, { ...opts, signal: ctrl.signal })
@@ -38,61 +22,77 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 20000) {
         .catch(err => {
             clearTimeout(timer);
             if (err && err.name === 'AbortError') {
-                throw new Error(`Request to ${url} timed out after ${timeoutMs / 1000}s. Is the recruit-ai backend running at ${API_BASE_URL.replace('/api', '')}?`);
+                throw new Error(`Request to backend timed out after ${timeoutMs / 1000}s.`);
             }
             throw err;
         });
+}
+
+async function fetchWithFallback(pathAndQuery, opts = {}, timeoutMs = 25000) {
+    const primaryBase = await getApiBaseUrl();
+    const primaryUrl = `${primaryBase}${pathAndQuery}`;
+    try {
+        return await fetchWithTimeout(primaryUrl, opts, timeoutMs);
+    } catch (err) {
+        const fallbackUrl = `${PROD_BACKEND}/api${pathAndQuery}`;
+        if (primaryUrl !== fallbackUrl) {
+            console.warn(`Primary URL ${primaryUrl} failed (${err.message}). Retrying fallback ${fallbackUrl}...`);
+            return await fetchWithTimeout(fallbackUrl, opts, timeoutMs);
+        }
+        throw err;
+    }
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'SAVE_CANDIDATE') {
         saveToCRM(request.data)
             .then(result => sendResponse({ status: 'success', data: result }))
-            .catch(error => sendResponse({ status: 'error', message: error.message }));
+            .catch(error => sendResponse({ status: 'error', message: error.message || 'Failed to save' }));
         return true; // async response
     }
     
     if (request.action === 'PARSE_PROFILE') {
         parseProfileAI(request.text)
             .then(result => sendResponse({ status: 'success', data: result }))
-            .catch(error => sendResponse({ status: 'error', message: error.message }));
+            .catch(error => sendResponse({ status: 'error', message: error.message || 'AI Parsing failed' }));
         return true;
     }
 
     if (request.action === 'CHECK_DUPLICATE') {
         checkDuplicate(request.linkedinUrl)
             .then(result => sendResponse({ status: 'success', data: result }))
-            .catch(error => sendResponse({ status: 'error', message: error.message }));
+            .catch(error => sendResponse({ status: 'error', message: error.message || 'Duplicate check failed' }));
         return true;
     }
 });
 
 async function checkDuplicate(linkedinUrl) {
-    const storage = await chrome.storage.local.get(['jwt_token']);
-    const token = storage.jwt_token || '';
-    const res = await fetchWithTimeout(`${API_BASE_URL}/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(linkedinUrl)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    }, 5000); // Fast timeout for duplicate check
+    try {
+        const storage = await chrome.storage.local.get(['jwt_token']);
+        const token = storage.jwt_token || '';
+        const res = await fetchWithFallback(`/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(linkedinUrl)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        }, 8000);
 
-    if (!res.ok) {
-        if (res.status === 404) return null; // Not found, which is fine
-        throw new Error('Duplicate check failed');
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            return null;
+        }
+        return await res.json();
+    } catch (e) {
+        console.warn('Duplicate check warning:', e);
+        return null; // Non-fatal: allow save to proceed even if duplicate check fails
     }
-    return await res.json();
 }
 
 async function parseProfileAI(text) {
     const storage = await chrome.storage.local.get(['jwt_token']);
     const token = storage.jwt_token;
 
-    // Token is OPTIONAL. The backend runs in permissive dev mode, and the web-app
-    // token sync only succeeds when the (hardcoded) extension ID matches — which it
-    // won't for an unpacked extension. Proceed without it so enrichment still works
-    // and the candidate fields actually populate.
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ats/parse-profile`, {
+    const res = await fetchWithFallback(`/ats/parse-profile`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ text: text, source: 'LINKEDIN_DYNAMIC' })
@@ -106,13 +106,8 @@ async function parseProfileAI(text) {
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
     if (request.action === 'SYNC_TOKEN') {
         const toStore = { jwt_token: request.token };
-        // When deployed, the web app can pass its backend URL so the extension talks
-        // to production automatically instead of localhost.
         if (request.backendUrl) toStore.backend_url = request.backendUrl;
         chrome.storage.local.set(toStore, () => {
-            if (request.backendUrl) {
-                API_BASE_URL = String(request.backendUrl).replace(/\/+$/, '') + '/api';
-            }
             console.log('🔑 JWT Token synced from web app');
             sendResponse({ status: 'success' });
         });
@@ -123,9 +118,6 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 async function saveToCRM(profileData) {
     // 1. Get JWT from storage
     const storage = await chrome.storage.local.get(['jwt_token']);
-    // Token is OPTIONAL (backend is permissive in dev). When present it's sent so the
-    // "assignedBy" attribution works; when absent, saving still proceeds. The bad
-    // "Bearer undefined" header is harmless — the JWT filter ignores invalid tokens.
     const token = storage.jwt_token || '';
 
     let candidateId = null;
@@ -136,7 +128,7 @@ async function saveToCRM(profileData) {
         initialCandidate = profileData;
     }
 
-    // 3. UPLOAD RESUME IF PRESENT
+    // 2. UPLOAD RESUME IF PRESENT
     if (profileData.hasResume && profileData.resumeData) {
         console.log('📄 Uploading Resume...');
         const blob = dataURLtoBlob(profileData.resumeData);
@@ -152,7 +144,7 @@ async function saveToCRM(profileData) {
             formData.append('assignedBy', 'LinkedIn');
         }
 
-        const uploadRes = await fetchWithTimeout(`${API_BASE_URL}/resumes/upload`, {
+        const uploadRes = await fetchWithFallback(`/resumes/upload`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -169,55 +161,44 @@ async function saveToCRM(profileData) {
         candidateId = initialCandidate.id;
         console.log('✅ Resume Uploaded. Candidate Created:', candidateId);
     } else {
-        // Check for existing candidate if no resume was uploaded
-        // Match strategy: Email first, then Name
-        const isMockEmail = profileData.email && profileData.email.startsWith('linkedin-');
-        if (!isMockEmail && profileData.email) {
-            const historyRes = await fetchWithTimeout(`${API_BASE_URL}/candidates/history?email=${encodeURIComponent(profileData.email)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (historyRes.ok) {
-                const history = await historyRes.json();
-                if (history && history.length > 0) {
-                    initialCandidate = history[0];
-                    candidateId = initialCandidate.id;
-                    console.log('🔄 Found existing candidate by email:', candidateId);
+        // Name/Email based lookup fallback if candidate exists
+        if (!candidateId && (profileData.email || profileData.name)) {
+            const query = profileData.email && !profileData.email.startsWith('linkedin-')
+                ? profileData.email
+                : profileData.name;
+            try {
+                const searchRes = await fetchWithFallback(`/candidates/search?search=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }, 8000);
+                if (searchRes.ok) {
+                    const searchResults = await searchRes.json();
+                    const match = searchResults.content?.find(c =>
+                        (profileData.email && c.email && c.email.toLowerCase() === profileData.email.toLowerCase()) ||
+                        (profileData.name && c.name && c.name.toLowerCase() === profileData.name.toLowerCase())
+                    );
+                    if (match) {
+                        initialCandidate = match;
+                        candidateId = initialCandidate.id;
+                        console.log('🔄 Found existing candidate:', candidateId);
+                    }
                 }
-            }
-        }
-
-        // Name-based fallback if no candidate found via email
-        if (!candidateId && profileData.name) {
-            const searchRes = await fetchWithTimeout(`${API_BASE_URL}/candidates/search?search=${encodeURIComponent(profileData.name)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (searchRes.ok) {
-                const searchResults = await searchRes.json();
-                // Simple exact name match check against the first few results
-                const match = searchResults.content?.find(c => c.name.toLowerCase() === profileData.name.toLowerCase());
-                if (match) {
-                    initialCandidate = match;
-                    candidateId = initialCandidate.id;
-                    console.log('🔄 Found existing candidate by Name:', candidateId);
-                }
+            } catch (e) {
+                console.warn('Existing candidate lookup skipped:', e);
             }
         }
     }
 
-    // 4. PREPARE FINAL PAYLOAD (Merge LinkedIn Data)
+    // 3. PREPARE FINAL PAYLOAD (Merge LinkedIn Data)
     const payload = {
-        ...(initialCandidate || {}), // Keep all existing fields (noticePeriod, salary, etc.)
+        ...(initialCandidate || {}),
         id: candidateId, 
-        name: profileData.name || initialCandidate?.name,
+        name: profileData.name || initialCandidate?.name || 'LinkedIn Candidate',
         email: profileData.email || initialCandidate?.email || `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`,
         phone: profileData.phone || initialCandidate?.phone || '',
         role: profileData.primaryRole || profileData.headline || initialCandidate?.role || 'Professional',
         company: profileData.company || initialCandidate?.company || '',
         currentOrganization: profileData.currentOrganization || profileData.company || initialCandidate?.currentOrganization || '',
         skills: (profileData.skills && profileData.skills.length > 0) ? profileData.skills : (initialCandidate?.skills || []),
-        // content.js scrapes the Languages section into profileData.languages —
-        // this field used to read profileData.languageSkills (which was never set)
-        // so the Language column on the candidate page was always blank.
         languageSkills: (profileData.languages && profileData.languages.length > 0)
             ? profileData.languages
             : (profileData.languageSkills && profileData.languageSkills.length > 0)
@@ -254,11 +235,10 @@ async function saveToCRM(profileData) {
 
     console.log('📡 Sending/Updating Candidate Payload:', payload);
 
-    // 5. CREATE OR UPDATE CANDIDATE
+    // 4. CREATE OR UPDATE CANDIDATE
     let response;
     if (candidateId) {
-        // Update existing candidate (merged from resume + linkedin)
-        response = await fetchWithTimeout(`${API_BASE_URL}/candidates/${candidateId}`, {
+        response = await fetchWithFallback(`/candidates/${candidateId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -267,8 +247,7 @@ async function saveToCRM(profileData) {
             body: JSON.stringify(payload)
         });
     } else {
-        // Create new candidate (No resume)
-        response = await fetchWithTimeout(`${API_BASE_URL}/candidates`, {
+        response = await fetchWithFallback(`/candidates`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -286,7 +265,6 @@ async function saveToCRM(profileData) {
     return await response.json();
 }
 
-// Helper to convert Base64 DataURL to Blob
 function dataURLtoBlob(dataurl) {
     try {
         var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
@@ -301,7 +279,6 @@ function dataURLtoBlob(dataurl) {
     }
 }
 
-// GET_STATUS — popup uses this to check token and backend health
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'GET_STATUS') {
         chrome.storage.local.get(['jwt_token', 'backend_url'], (r) => {
@@ -310,8 +287,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
     if (request.action === 'CLEAR_TOKEN') {
-        chrome.storage.local.remove(['jwt_token'], () => sendResponse({ status: 'cleared' }));
+        chrome.storage.local.remove(['jwt_token', 'backend_url'], () => sendResponse({ status: 'cleared' }));
         return true;
     }
 });
-

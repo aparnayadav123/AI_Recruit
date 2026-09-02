@@ -252,21 +252,87 @@ document.addEventListener('DOMContentLoaded', async () => {
         showSubState(preExtractState);
     });
 
+    // ── Direct Save Helper (Fallback if background service worker is blocked) ──
+    async function directSaveCandidate(profileData) {
+        const storage = await chrome.storage.local.get(['jwt_token']);
+        const token = storage.jwt_token || '';
+
+        const payload = {
+            name: profileData.name || 'LinkedIn Candidate',
+            email: profileData.email || `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`,
+            phone: profileData.phone || '',
+            role: profileData.primaryRole || profileData.headline || 'Professional',
+            company: profileData.company || profileData.currentOrganization || '',
+            currentOrganization: profileData.currentOrganization || profileData.company || '',
+            skills: profileData.skills || [],
+            languageSkills: profileData.languages || profileData.languageSkills || [],
+            experience: profileData.totalExperienceYears || profileData.experience || 0,
+            locality: profileData.locality || profileData.location || '',
+            country: profileData.country || '',
+            linkedinUrl: profileData.profileUrl || profileData.linkedinUrl || '',
+            source: 'LinkedIn Extension'
+        };
+
+        const targetUrl = 'https://recruitai-backend-bvo0.onrender.com/api/candidates';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`API Error (${res.status}): ${errorText}`);
+        }
+        return await res.json();
+    }
+
     // ── Save Flow ────────────────────────────────────────────────
-    saveBtn && saveBtn.addEventListener('click', () => {
+    saveBtn && saveBtn.addEventListener('click', async () => {
         if (!extractedData) return;
         setSaveLoading(true);
-        chrome.runtime.sendMessage({ action: 'SAVE_CANDIDATE', data: extractedData }, (resp) => {
-            setSaveLoading(false);
-            if (!resp || resp.status !== 'success') {
-                showToast(resp?.message || 'Failed to save. Check backend is running.', 'error');
-                return;
+
+        try {
+            chrome.runtime.sendMessage({ action: 'SAVE_CANDIDATE', data: extractedData }, async (resp) => {
+                if (chrome.runtime.lastError || !resp || resp.status !== 'success') {
+                    console.warn('Background save message failed, attempting direct save...', chrome.runtime.lastError || resp);
+                    try {
+                        const saved = await directSaveCandidate(extractedData);
+                        setSaveLoading(false);
+                        savedCandidateId = saved?.id;
+                        savedName.textContent = `"${extractedData.name}" has been added to your CRM.`;
+                        showSubState(savedState);
+                        showToast('Candidate saved!', 'success');
+                        return;
+                    } catch (directErr) {
+                        setSaveLoading(false);
+                        console.error('Direct save error:', directErr);
+                        showToast(directErr.message || 'Failed to save candidate.', 'error');
+                        return;
+                    }
+                }
+                setSaveLoading(false);
+                savedCandidateId = resp.data?.id;
+                savedName.textContent = `"${extractedData.name}" has been added to your CRM.`;
+                showSubState(savedState);
+                showToast('Candidate saved!', 'success');
+            });
+        } catch (outerErr) {
+            try {
+                const saved = await directSaveCandidate(extractedData);
+                setSaveLoading(false);
+                savedCandidateId = saved?.id;
+                savedName.textContent = `"${extractedData.name}" has been added to your CRM.`;
+                showSubState(savedState);
+                showToast('Candidate saved!', 'success');
+            } catch (err) {
+                setSaveLoading(false);
+                showToast(err.message || 'Failed to save candidate.', 'error');
             }
-            savedCandidateId = resp.data?.id;
-            savedName.textContent = `"${extractedData.name}" has been added to your CRM.`;
-            showSubState(savedState);
-            showToast('Candidate saved!', 'success');
-        });
+        }
     });
 
     viewInCrmBtn && viewInCrmBtn.addEventListener('click', () => {

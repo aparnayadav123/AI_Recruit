@@ -12,15 +12,15 @@
     "externally_connectable": {
         "matches": [
             "http://localhost:3000/*",
-            "https://*.vercel.app/*"
+            "https://ai-recruit-eight.vercel.app/*"
         ]
     },
     "host_permissions": [
         "*://*.linkedin.com/*",
         "http://localhost:8089/*",
-        "https://*.onrender.com/*",
+        "https://ai-recruit-eight.vercel.app/*",
         "https://recruitai-backend-bvo0.onrender.com/*",
-        "https://*.vercel.app/*"
+        "https://*.onrender.com/*"
     ],
     "icons": {
         "16": "icons/icon16.png",
