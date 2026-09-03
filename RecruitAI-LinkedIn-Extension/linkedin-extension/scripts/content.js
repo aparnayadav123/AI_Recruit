@@ -382,11 +382,11 @@ function extractData() {
     if (expSection) textSources.push(expSection.innerText || '');
     
     // Experience cards
-    const expCards = document.querySelectorAll('[data-view-name="profile-component-entity"], section:has(#experience) li, .pvs-entity');
+    const expCards = document.querySelectorAll('[data-view-name="profile-component-entity"], .pvs-entity, .artdeco-list__item');
     expCards.forEach(c => textSources.push(c.innerText || ''));
 
-    // Highlights / Mutual cards (e.g. "Harshith started at Ory Folks 1 year and 2 months after you did")
-    const highlightsSection = document.querySelector('.pv-highlights-section, [data-view-name="profile-component-entity"]:has-text("Highlights")');
+    // Highlights / Mutual cards
+    const highlightsSection = document.querySelector('.pv-highlights-section, #highlights');
     if (highlightsSection) textSources.push(highlightsSection.innerText || '');
     
     // Main page text
