@@ -37,6 +37,7 @@ export const markActivity = (): void => {
 /** True once an authenticated session has been idle longer than the timeout. */
 export const isSessionExpired = (): boolean => {
     if (!localStorage.getItem('token')) return false;   // not logged in → nothing to expire
+    if (localStorage.getItem('sessionForceExpired') === 'true') return true;
     const raw = localStorage.getItem(LAST_ACTIVITY_KEY);
     if (!raw) return false;                             // no baseline yet → treat as active
     const last = Number(raw);
@@ -50,6 +51,7 @@ export const clearSession = (): void => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem(LAST_ACTIVITY_KEY);
+        localStorage.removeItem('sessionForceExpired');
     } catch { /* ignore */ }
 };
 
