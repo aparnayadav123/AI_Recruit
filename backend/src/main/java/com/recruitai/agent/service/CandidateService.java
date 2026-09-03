@@ -1,6 +1,7 @@
 package com.recruitai.agent.service;
 
 import com.recruitai.agent.entity.Candidate;
+import com.recruitai.agent.entity.JobApplication;
 import com.recruitai.agent.repository.CandidateRepository;
 import com.recruitai.agent.repository.JobApplicationRepository;
 import com.recruitai.agent.repository.SkillMatrixRepository;
