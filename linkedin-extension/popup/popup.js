@@ -83,13 +83,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const initial = (data.name || '?').charAt(0).toUpperCase();
         profileAvatar.textContent = initial;
         profileName.textContent   = data.name || 'Unknown Name';
-        profileRole.textContent   = data.primaryRole || data.headline || '';
+
+        let cleanRole = data.primaryRole || data.headline || '';
+        cleanRole = cleanRole.replace(/verify\s*in\s*\d+\s*minutes?|verified|she\/her|he\/him|they\/them/i, '').trim();
+        profileRole.textContent   = cleanRole;
         profileLocation.textContent = data.locality || data.location || '';
 
         // Detail rows
         const rows = [];
-        if (data.company || data.currentOrganization) {
-            rows.push({ label: 'Company', value: data.currentOrganization || data.company });
+        const org = data.currentOrganization || data.company;
+        if (org && org !== 'N/A') {
+            rows.push({ label: 'Company', value: org });
         }
         if (data.email && !data.email.startsWith('linkedin-')) {
             rows.push({ label: 'Email', value: data.email });
@@ -98,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             rows.push({ label: 'Experience', value: `${data.totalExperienceYears} yrs` });
         }
         if (data.skills && data.skills.length > 0) {
-            rows.push({ label: 'Skills', value: null, skills: data.skills.slice(0, 6) });
+            rows.push({ label: 'Skills', value: null, skills: data.skills.slice(0, 8) });
         }
 
         profileDetails.innerHTML = rows.map(r => {
