@@ -252,7 +252,7 @@ function extractData() {
         }
     }
 
-    // 4. Extract Organization / Current Company (Comprehensive 2024-2026 Selectors)
+    // 4. Extract Organization / Current Company (Universal Dynamic Scraper for ANY company)
     const orgSelectors = [
         '.pv-text-details__right-panel button span[aria-hidden="true"]',
         '.pv-text-details__right-panel a span[aria-hidden="true"]',
@@ -270,26 +270,31 @@ function extractData() {
         const els = document.querySelectorAll(sel);
         for (const el of els) {
             const text = (el.innerText || '').trim().split('\n')[0].trim();
-            if (text && text.length > 1 && !/connections|followers|contact info|verified/i.test(text)) {
-                // If it looks like school, prioritize company over school if possible
-                data.currentOrganization = text;
+            if (text && text.length > 1 && !/connections|followers|contact info|verified|see more/i.test(text)) {
+                data.currentOrganization = text.replace(/^[•·\s]+/, '').trim();
                 break;
             }
         }
         if (data.currentOrganization) break;
     }
 
-    // Experience Section Company Scan
+    // Dynamic Experience Section Company Scan (reads topmost job)
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
         const expSection = document.querySelector('#experience')?.closest('section') || document.querySelector('#experience')?.parentElement;
         if (expSection) {
-            const expItems = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
-            for (const item of expItems) {
-                const text = item.innerText || '';
-                if (text.includes('Present') || expItems.length > 0) {
+            // Find company link or topmost entity
+            const compLink = expSection.querySelector('a[href*="/company/"]');
+            if (compLink) {
+                const compText = (compLink.innerText || '').trim().split('\n')[0].trim();
+                if (compText && compText.length > 1) data.currentOrganization = compText;
+            }
+            if (!data.currentOrganization) {
+                const expItems = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
+                for (const item of expItems) {
+                    const text = item.innerText || '';
                     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
                     if (lines.length > 1) {
-                        const comp = lines.find(l => !/present|full-time|part-time|internship|yr|mo|mos|yrs/i.test(l) && l.length > 2);
+                        const comp = lines.find(l => !/present|full-time|part-time|internship|contract|freelance|\d+\s*(?:yr|mo|mos|yrs)|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(l) && l.length > 2);
                         if (comp) {
                             data.currentOrganization = comp.split('·')[0].trim();
                             break;
@@ -300,11 +305,11 @@ function extractData() {
         }
     }
 
-    // Headline fallback for company
+    // Headline fallback for company (e.g. "Software Engineer at Google" -> "Google")
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
         const rawHeadline = data.rawHeadline || headlineText;
-        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||·]+)/i);
-        if (atMatch) data.currentOrganization = atMatch[1].trim();
+        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||·|\n]+)/i);
+        if (atMatch && atMatch[1].trim().length > 1) data.currentOrganization = atMatch[1].trim();
     }
 
     console.log('🏢 Extracted Org:', data.currentOrganization);
@@ -331,7 +336,7 @@ function extractData() {
     const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
     if (aboutSection) {
         const aboutText = aboutSection.innerText || '';
-        data.about = aboutText;
+        data.about = aboutText.replace(/…see more|see less/gi, '').trim();
         if (!data.email) {
             const emailMatch = aboutText.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/);
             if (emailMatch) data.email = emailMatch[0];
@@ -387,49 +392,53 @@ function extractData() {
 
     console.log('⏳ Total Experience Years:', data.totalExperienceYears);
 
-    // 7. Extract Skills (Headline + Skills Section + Tech Dictionary)
+    // 7. Universal Dynamic Skills Extractor (Pulls ANY skill from Skills Section, Headline, About, Page)
     const skillsAnchor = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
     if (skillsAnchor) {
-        const listItems = skillsAnchor.querySelectorAll('li, span[aria-hidden="true"]');
+        const listItems = skillsAnchor.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
         listItems.forEach(item => {
-            const skill = (item.innerText || '').trim();
-            if (skill && skill.length > 1 && skill.length < 30 && !/endorsement|skill|show all/i.test(skill)) {
-                if (!data.skills.includes(skill)) data.skills.push(skill);
+            // Find main skill title span
+            const titleSpan = item.querySelector('span[aria-hidden="true"], .hoverable-link-text, .mr1 span');
+            const skillText = (titleSpan ? titleSpan.innerText : item.innerText || '').split('\n')[0].trim();
+            if (skillText && skillText.length > 1 && skillText.length < 40 && !/endorsement|skill|show all|\+\d+/i.test(skillText)) {
+                const cleanSkill = skillText.replace(/^[•·\s]+/, '').trim();
+                if (cleanSkill && !data.skills.includes(cleanSkill)) data.skills.push(cleanSkill);
             }
         });
     }
 
-    // Extract skills from Headline (e.g., "Java · Spring Boot · SQL · AI")
-    const headlineSkills = (data.rawHeadline || headlineText).split(/[·|•,\/]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 25);
-    const commonTechList = [
-        'Java', 'Spring Boot', 'Spring', 'React', 'Angular', 'AWS', 'Azure', 'SQL', 'MySQL', 'PostgreSQL', 
-        'MongoDB', 'Node', 'Docker', 'Kubernetes', 'Python', 'AI', 'Machine Learning', 'Japanese', 
-        'TypeScript', 'JavaScript', 'HTML', 'CSS', 'Git', 'Jira', 'Agile', 'DevOps', 'CI/CD', 'REST API', 'Microservices'
+    // Dynamic extraction from Headline delimiters (e.g., "Java · Spring Boot · React · AWS · AI")
+    const headlineSegments = (data.rawHeadline || headlineText).split(/[·|•,\/]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 30);
+    
+    // Comprehensive 120+ Technology & Skill Dictionary for Deep Text Recognition
+    const masterTechList = [
+        'HTML', 'HTML5', 'CSS', 'CSS3', 'JavaScript', 'TypeScript', 'React', 'React.js', 'React Native', 'Next.js', 'Vue', 'Vue.js', 'Nuxt.js', 'Angular', 'AngularJS', 'Svelte', 'Redux', 'Tailwind CSS', 'Bootstrap', 'jQuery',
+        'Java', 'Spring', 'Spring Boot', 'Hibernate', 'Python', 'Django', 'Flask', 'FastAPI', 'Node.js', 'Express', 'Express.js', 'NestJS', 'Go', 'Golang', 'Rust', 'C#', '.NET', 'ASP.NET', 'C++', 'C', 'PHP', 'Laravel', 'Ruby', 'Ruby on Rails', 'Kotlin', 'Swift', 'Dart', 'Scala',
+        'SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'Redis', 'Oracle', 'SQLite', 'Cassandra', 'DynamoDB', 'Elasticsearch', 'Firebase', 'Supabase', 'GraphQL', 'REST API', 'Microservices', 'Kafka', 'RabbitMQ',
+        'AWS', 'Amazon Web Services', 'Azure', 'Microsoft Azure', 'GCP', 'Google Cloud', 'Docker', 'Kubernetes', 'Terraform', 'Ansible', 'Jenkins', 'CI/CD', 'Git', 'GitHub', 'GitLab', 'Linux', 'Unix',
+        'AI', 'Artificial Intelligence', 'Machine Learning', 'Deep Learning', 'NLP', 'LLM', 'OpenAI', 'TensorFlow', 'PyTorch', 'Pandas', 'NumPy', 'Scikit-learn', 'OpenCV',
+        'Manual Testing', 'Automation Testing', 'Selenium', 'Cypress', 'Playwright', 'JUnit', 'Jest', 'Postman', 'JMeter', 'Jira', 'Agile', 'Scrum', 'Figma', 'Japanese', 'JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5'
     ];
 
-    headlineSkills.forEach(hs => {
-        const matchedTech = commonTechList.find(tech => tech.toLowerCase() === hs.toLowerCase() || hs.toLowerCase().includes(tech.toLowerCase()));
-        if (matchedTech && !data.skills.includes(matchedTech)) {
-            data.skills.push(matchedTech);
+    headlineSegments.forEach(hs => {
+        const found = masterTechList.find(t => t.toLowerCase() === hs.toLowerCase() || hs.toLowerCase() === t.toLowerCase());
+        const skillToAdd = found || hs;
+        if (skillToAdd.length > 1 && !/engineer|developer|analyst|manager|lead|architect|consultant|pursuing|bilingual/i.test(skillToAdd)) {
+            if (!data.skills.includes(skillToAdd)) data.skills.push(skillToAdd);
         }
     });
 
-    // Scan entire page for common tech stack keywords
-    const fullText = (raiPageText() + ' ' + (document.body.innerText || '')).toLowerCase();
-    commonTechList.forEach(k => {
-        if (fullText.includes(k.toLowerCase()) && !data.skills.some(s => s.toLowerCase() === k.toLowerCase())) {
-            data.skills.push(k);
+    // Deep text scanner for known master technologies across About and whole page
+    const entirePageLower = (raiPageText() + ' ' + (document.body.innerText || '')).toLowerCase();
+    masterTechList.forEach(tech => {
+        const techRegex = new RegExp(`\\b${tech.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (techRegex.test(entirePageLower) && !data.skills.some(s => s.toLowerCase() === tech.toLowerCase())) {
+            data.skills.push(tech);
         }
     });
 
-    data.skills = [...new Set(data.skills)].slice(0, 30);
-    console.log('🛠️ Final Extracted Skills:', data.skills);, 'Automation', 'Selenium', 'Jira', 'Agile', 'DevOps', 'CI/CD'];
-        commonTech.forEach(k => {
-            if (pageText.toLowerCase().includes(k.toLowerCase()) && !data.skills.includes(k)) {
-                data.skills.push(k);
-            }
-        });
-    }
+    data.skills = [...new Set(data.skills)].slice(0, 40);
+    console.log('🛠️ Final Extracted Skills:', data.skills);
 
     // 6b. Extract Education â€” degree + institution per entry
     const educationAnchor = document.querySelector('#education');

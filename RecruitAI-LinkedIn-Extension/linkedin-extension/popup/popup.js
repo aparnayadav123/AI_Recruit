@@ -102,12 +102,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             rows.push({ label: 'Experience', value: `${data.totalExperienceYears} yrs` });
         }
         if (data.skills && data.skills.length > 0) {
-            rows.push({ label: 'Skills', value: null, skills: data.skills.slice(0, 8) });
+            rows.push({ label: `Skills (${data.skills.length})`, value: null, skills: data.skills.slice(0, 15), totalCount: data.skills.length });
+        }
+        if (data.about && data.about.length > 10) {
+            const truncatedAbout = data.about.length > 120 ? data.about.substring(0, 120) + '...' : data.about;
+            rows.push({ label: 'About', value: truncatedAbout });
         }
 
         profileDetails.innerHTML = rows.map(r => {
             if (r.skills) {
-                const chips = r.skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+                let chips = r.skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+                if (r.totalCount > 15) {
+                    chips += `<span class="skill-chip font-bold">+${r.totalCount - 15} more</span>`;
+                }
                 return `<div class="detail-row"><span class="detail-label">${r.label}</span></div><div class="skill-chips">${chips}</div>`;
             }
             return `<div class="detail-row"><span class="detail-label">${r.label}</span><span class="detail-value">${r.value}</span></div>`;
