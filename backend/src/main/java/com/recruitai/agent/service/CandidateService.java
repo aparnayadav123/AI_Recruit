@@ -649,12 +649,23 @@ public class CandidateService {
                 .orElseThrow(() -> new com.recruitai.agent.exception.ResourceNotFoundException("Candidate", id));
     }
 
-    // ✅ DELETE (CASCADE STYLE)
+    // ✅ DELETE (Compliance-aware: removes active candidate while preserving application history NFR-006)
     public void deleteCandidate(String id) {
         Candidate candidate = candidateRepository.findById(id)
                 .orElseThrow(() -> new com.recruitai.agent.exception.ResourceNotFoundException("Candidate", id));
 
-        applicationRepository.deleteByCandidateId(id);
+        // Preserve application history for compliance (NFR-006 / NFRU04 / BR-01)
+        List<JobApplication> apps = applicationRepository.findByCandidateId(id);
+        for (JobApplication a : apps) {
+            if (a.getCandidateName() == null || a.getCandidateName().isBlank()) {
+                a.setCandidateName(candidate.getName());
+            }
+            if (a.getJobTitle() == null || a.getJobTitle().isBlank()) {
+                a.setJobTitle(candidate.getRole());
+            }
+            applicationRepository.save(a);
+        }
+
         skillMatrixRepository.deleteByCandidateId(id);
         interviewRepository.deleteByCandidateId(id);
 
