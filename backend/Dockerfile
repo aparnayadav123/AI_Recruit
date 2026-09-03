@@ -13,7 +13,7 @@ RUN mvn -B clean package -DskipTests
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN mkdir -p data
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/target/agent-0.0.1-SNAPSHOT.jar app.jar
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=50.0 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m -Xss512k -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8089
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
