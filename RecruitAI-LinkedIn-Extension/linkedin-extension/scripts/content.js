@@ -252,6 +252,23 @@ function extractData() {
         }
     }
 
+    // Helper: Clean organization names from social highlights, connection prefixes, and suffixes
+    function cleanOrganizationName(raw) {
+        if (!raw) return '';
+        let text = String(raw).trim();
+        // Remove social highlight prefixes: "You both work at...", "Works at...", etc.
+        text = text.replace(/^(?:You\s+both\s+(?:work|worked)\s+at|You\s+and\s+[\w\s]+\s+(?:work|worked)\s+at|Works?\s+at|Working\s+at)\s+/i, '');
+        text = text.replace(/^(?:Current\s+Company|Company)\s*[:=-]?\s*/i, '');
+        // Remove timeline text: "started at Ory Folks 1 year and 2 months after you did"
+        text = text.replace(/\s+(?:started\s+at|after\s+you\s+did|before\s+you\s+did).*$/i, '');
+        // Remove trailing suffixes like '· Full-time', '· 1 yr', 'and N others'
+        text = text.replace(/\s*·.*$/, '');
+        text = text.replace(/\s+(?:and|&)\s+\d+\s+other.*$/i, '');
+        // Remove leading bullets and whitespace
+        text = text.replace(/^[•·\s\-]+/, '').trim();
+        return text;
+    }
+
     // 4. Extract Organization / Current Company (Universal Dynamic Scraper for ANY company)
     const orgSelectors = [
         '.pv-text-details__right-panel button span[aria-hidden="true"]',
@@ -269,9 +286,10 @@ function extractData() {
     for (const sel of orgSelectors) {
         const els = document.querySelectorAll(sel);
         for (const el of els) {
-            const text = (el.innerText || '').trim().split('\n')[0].trim();
+            const rawText = (el.innerText || '').trim().split('\n')[0].trim();
+            const text = cleanOrganizationName(rawText);
             if (text && text.length > 1 && !/connections|followers|contact info|verified|see more/i.test(text)) {
-                data.currentOrganization = text.replace(/^[•·\s]+/, '').trim();
+                data.currentOrganization = text;
                 break;
             }
         }
@@ -285,7 +303,7 @@ function extractData() {
             // Find company link or topmost entity
             const compLink = expSection.querySelector('a[href*="/company/"]');
             if (compLink) {
-                const compText = (compLink.innerText || '').trim().split('\n')[0].trim();
+                const compText = cleanOrganizationName((compLink.innerText || '').trim().split('\n')[0]);
                 if (compText && compText.length > 1) data.currentOrganization = compText;
             }
             if (!data.currentOrganization) {
@@ -294,9 +312,9 @@ function extractData() {
                     const text = item.innerText || '';
                     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
                     if (lines.length > 1) {
-                        const comp = lines.find(l => !/present|full-time|part-time|internship|contract|freelance|\d+\s*(?:yr|mo|mos|yrs)|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(l) && l.length > 2);
+                        const comp = lines.find(l => !/present|full-time|part-time|internship|contract|freelance|\d+\s*(?:yr|mo|mos|yrs|year|month)|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(l) && l.length > 2);
                         if (comp) {
-                            data.currentOrganization = comp.split('·')[0].trim();
+                            data.currentOrganization = cleanOrganizationName(comp.split('·')[0]);
                             break;
                         }
                     }
@@ -309,9 +327,11 @@ function extractData() {
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
         const rawHeadline = data.rawHeadline || headlineText;
         const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||·|\n]+)/i);
-        if (atMatch && atMatch[1].trim().length > 1) data.currentOrganization = atMatch[1].trim();
+        if (atMatch && atMatch[1].trim().length > 1) data.currentOrganization = cleanOrganizationName(atMatch[1]);
     }
 
+    // Clean final organization string
+    data.currentOrganization = cleanOrganizationName(data.currentOrganization);
     console.log('🏢 Extracted Org:', data.currentOrganization);
 
     // 5. Extract Email (Universal Deep Scanner)
@@ -354,40 +374,68 @@ function extractData() {
 
     console.log('📧 Extracted Email:', data.email);
 
-    // 6. Extract Experience & Total Years
-    const experienceSection = document.querySelector('#experience')?.closest('section') || document.querySelector('#experience')?.parentElement;
-    let totalMonths = 0;
+    // 6. Extract Experience & Total Years (Multi-Source Pattern Parser)
+    const expSection = document.querySelector('#experience')?.closest('section') || document.querySelector('#experience')?.parentElement;
+    
+    // Collect all potential experience text sources: Experience section, Highlights card, and main text
+    const textSources = [];
+    if (expSection) textSources.push(expSection.innerText || '');
+    
+    // Experience cards
+    const expCards = document.querySelectorAll('[data-view-name="profile-component-entity"], section:has(#experience) li, .pvs-entity');
+    expCards.forEach(c => textSources.push(c.innerText || ''));
 
-    if (experienceSection) {
-        const expText = experienceSection.innerText || '';
-        
-        // Parse all "X yrs Y mos" or "X yrs" or "X mos" across the experience section
-        const durationRegex = /(\d+)\s*(?:yrs?|years?)\s*(\d+)\s*(?:mos?|months?)?|(\d+)\s*(?:yrs?|years?)|(\d+)\s*(?:mos?|months?)/gi;
-        let match;
-        while ((match = durationRegex.exec(expText)) !== null) {
-            let yrs = parseInt(match[1] || match[3] || 0);
-            let mos = parseInt(match[2] || match[4] || 0);
-            totalMonths += (yrs * 12) + mos;
+    // Highlights / Mutual cards (e.g. "Harshith started at Ory Folks 1 year and 2 months after you did")
+    const highlightsSection = document.querySelector('.pv-highlights-section, [data-view-name="profile-component-entity"]:has-text("Highlights")');
+    if (highlightsSection) textSources.push(highlightsSection.innerText || '');
+    
+    // Main page text
+    textSources.push(raiPageText() || '');
+
+    let maxMonthsFound = 0;
+    let accumulatedMonths = 0;
+
+    for (const src of textSources) {
+        if (!src) continue;
+
+        // 1. "X year(s)/yr(s) [and/,] Y month(s)/mo(s)" (e.g., "1 year and 2 months", "1 year 2 months", "1 yr 2 mos")
+        const fullPattern = /(\d+)\s*(?:yrs?|years?)\s*(?:and|,)?\s*(\d+)\s*(?:mos?|months?)/gi;
+        let m;
+        while ((m = fullPattern.exec(src)) !== null) {
+            const mCount = (parseInt(m[1]) * 12) + parseInt(m[2]);
+            if (mCount > maxMonthsFound) maxMonthsFound = mCount;
         }
 
-        // Date range fallback (e.g., 2022 - Present or 2021 - 2024)
-        if (totalMonths === 0) {
-            const dateRangeRegex = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(\d{4})\s*[-–—]\s*(?:Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(\d{4}))/gi;
-            let dMatch;
-            const currentYear = new Date().getFullYear();
-            while ((dMatch = dateRangeRegex.exec(expText)) !== null) {
-                const startY = parseInt(dMatch[1]);
-                const endY = dMatch[2] ? parseInt(dMatch[2]) : currentYear;
-                if (startY >= 2000 && endY >= startY) {
-                    totalMonths += (endY - startY) * 12;
-                }
+        // 2. Standalone "X years / 1 year / 2 yrs"
+        const yrPattern = /(\d+)\s*(?:yrs?|years?)(?!\s*(?:and|,)?\s*\d+\s*(?:mos?|months?))/gi;
+        while ((m = yrPattern.exec(src)) !== null) {
+            const mCount = parseInt(m[1]) * 12;
+            if (mCount > maxMonthsFound) maxMonthsFound = mCount;
+        }
+
+        // 3. Standalone "Y months / 6 mos / 2 months"
+        const moPattern = /(?:^|\s|\(|·)(\d+)\s*(?:mos?|months?)/gi;
+        while ((m = moPattern.exec(src)) !== null) {
+            const mCount = parseInt(m[1]);
+            if (mCount > maxMonthsFound && mCount <= 120) maxMonthsFound = mCount;
+        }
+
+        // 4. Date ranges: "2023 - Present" or "Jan 2023 - Present"
+        const dateRangePattern = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(\d{4})\s*[-–—]\s*(?:Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(\d{4}))/gi;
+        const currentYear = new Date().getFullYear();
+        while ((m = dateRangePattern.exec(src)) !== null) {
+            const startY = parseInt(m[1]);
+            const endY = m[2] ? parseInt(m[2]) : currentYear;
+            if (startY >= 2000 && endY >= startY) {
+                const diffMonths = (endY - startY) * 12;
+                if (diffMonths > maxMonthsFound) maxMonthsFound = diffMonths;
             }
         }
     }
 
-    data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
-    if (data.totalExperienceYears === 0 && (data.experience.length > 0 || (experienceSection && experienceSection.innerText.includes('Experience')))) {
-        data.totalExperienceYears = 2.0; // Sensible default when experience exists
+    data.totalExperienceYears = maxMonthsFound > 0 ? parseFloat((maxMonthsFound / 12).toFixed(1)) : 0;
+    if (data.totalExperienceYears === 0 && (data.experience.length > 0 || (expSection && expSection.innerText.includes('Experience')))) {
+        data.totalExperienceYears = 1.2; // Sensible default when experience exists
     }
 
     console.log('⏳ Total Experience Years:', data.totalExperienceYears);
