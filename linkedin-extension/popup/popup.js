@@ -196,6 +196,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── Self-Contained Async LinkedIn DOM Extractor Function ──────────
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
     async function directExtractLinkedInDOM() {
+        // Fast scroll to trigger LinkedIn lazy loading for Experience & Skills sections
+        try {
+            window.scrollTo({ top: 1200, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 150));
+            window.scrollTo({ top: 2400, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 150));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } catch (_) {}
+
         const data = {
             name: '',
             headline: '',
