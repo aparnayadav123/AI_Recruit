@@ -2,6 +2,12 @@
  * LinkedIn Profile Content Scraper
  */
 
+(() => {
+if (window.__RECRUITAI_CONTENT_SCRIPT_INJECTED__) {
+    console.log('[RecruitAI] Content script already active in this tab.');
+}
+window.__RECRUITAI_CONTENT_SCRIPT_INJECTED__ = true;
+
 console.log('[RecruitAI] Content Script Loaded');
 
 /// Listen for messages from the popup
@@ -2352,3 +2358,4 @@ if (document.readyState === 'loading') {
 } else {
     initRecruitAI();
 }
+})();

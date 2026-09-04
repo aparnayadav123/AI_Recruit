@@ -196,33 +196,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── Extract Flow ─────────────────────────────────────────────
     extractBtn && extractBtn.addEventListener('click', async () => {
         setExtractLoading(true);
-        const tabId = currentTab.id;
+        const tabId = currentTab?.id;
+
+        if (!tabId) {
+            setExtractLoading(false);
+            showToast('No active tab found. Please refresh the page.', 'error');
+            return;
+        }
 
         sendExtractMessage(tabId, (resp, err) => {
             if (err || !resp) {
-                // Content script not yet injected — inject it then retry
-                chrome.scripting.executeScript({ target: { tabId }, files: ['scripts/content.js'] }, () => {
+                // Content script not yet injected or extension was just reloaded — inject it and retry
+                chrome.scripting.executeScript({ target: { tabId }, files: ['scripts/content.js'] }, (results) => {
                     if (chrome.runtime.lastError) {
                         setExtractLoading(false);
-                        showToast('Cannot inject script. Refresh the LinkedIn page.', 'error');
+                        showToast('Please refresh this LinkedIn tab (Press F5) to activate the updated extension.', 'error');
                         return;
                     }
                     setTimeout(() => {
                         sendExtractMessage(tabId, (resp2, err2) => {
                             setExtractLoading(false);
                             if (err2 || !resp2 || resp2.status !== 'success') {
-                                showToast(err2 || resp2?.message || 'Extraction failed. Refresh the page.', 'error');
+                                showToast('Please refresh this LinkedIn tab (Press F5) to activate the updated extension.', 'error');
                                 return;
                             }
                             onExtracted(resp2.data);
                         });
-                    }, 600);
+                    }, 400);
                 });
                 return;
             }
             setExtractLoading(false);
             if (!resp || resp.status !== 'success') {
-                showToast(resp?.message || 'Extraction failed. Is the page fully loaded?', 'error');
+                showToast(resp?.message || 'Extraction failed. Please refresh the LinkedIn page.', 'error');
                 return;
             }
             onExtracted(resp.data);
