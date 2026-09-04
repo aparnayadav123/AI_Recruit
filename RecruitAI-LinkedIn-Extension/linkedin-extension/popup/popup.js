@@ -193,9 +193,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // ── Self-Contained LinkedIn DOM Extractor Function ──────────
-    // This function executes directly in the LinkedIn tab context via chrome.scripting.executeScript
-    function directExtractLinkedInDOM() {
+    // ── Self-Contained Async LinkedIn DOM Extractor Function ──────────
+    // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
+    async function directExtractLinkedInDOM() {
         const data = {
             name: '',
             headline: '',
@@ -318,50 +318,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         data.company = data.currentOrganization;
 
-        // 6. Email Extraction (Modal / Dialog / mailto / About / Page)
-        const mailContainers = [document.querySelector('[role="dialog"]'), document.querySelector('#artdeco-modal-outlet'), document.querySelector('.pv-contact-info'), document.body].filter(Boolean);
-        for (const c of mailContainers) {
-            const mailto = c.querySelector('a[href^="mailto:"]');
+        // Helper: Extract contact fields from any modal element
+        function parseContactFromModal(modal) {
+            if (!modal) return;
+            const text = modal.innerText || '';
+            // Email
+            const mailto = modal.querySelector('a[href^="mailto:"]');
             if (mailto) {
                 const m = (mailto.getAttribute('href') || mailto.innerText || '').replace(/^mailto:/i, '').split('?')[0].trim();
-                if (m.includes('@') && !isGenericEmail(m)) { data.email = m; break; }
+                if (m.includes('@') && !isGenericEmail(m)) data.email = m;
             }
-        }
-        if (!data.email) {
-            const modal = document.querySelector('[role="dialog"], .artdeco-modal, #artdeco-modal-outlet, .pv-contact-info');
-            if (modal) {
-                const matches = (modal.innerText || '').match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+            if (!data.email) {
+                const matches = text.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
                 for (const m of matches) {
                     if (!isGenericEmail(m)) { data.email = m.trim(); break; }
                 }
             }
-        }
-        if (!data.email) {
-            const allMatches = (document.body.innerText || '').match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
-            for (const m of allMatches) {
-                if (!isGenericEmail(m)) { data.email = m.trim(); break; }
-            }
-        }
-
-        // 7. Phone Extraction
-        for (const c of mailContainers) {
-            const tel = c.querySelector('a[href^="tel:"]');
+            // Phone
+            const tel = modal.querySelector('a[href^="tel:"]');
             if (tel) {
                 const p = (tel.getAttribute('href') || tel.innerText || '').replace(/^tel:/i, '').replace(/\s*\([^)]*\)/g, '').trim();
-                if (p.replace(/\D/g, '').length >= 7) { data.phone = p; break; }
+                if (p.replace(/\D/g, '').length >= 7) data.phone = p;
             }
-        }
-        if (!data.phone) {
-            const modal = document.querySelector('[role="dialog"], .artdeco-modal, #artdeco-modal-outlet, .pv-contact-info');
-            if (modal) {
-                const modalText = modal.innerText || '';
-                const pMatch = modalText.match(/(?:Phone|Mobile|Contact Number)\s*[\n\r:]+\s*([^\n\r<]+)/i);
+            if (!data.phone) {
+                const pMatch = text.match(/(?:Phone|Mobile|Contact Number)\s*[\n\r:]+\s*([^\n\r<]+)/i);
                 if (pMatch) {
                     const cleaned = pMatch[1].replace(/\s*\([^)]*\)/g, '').trim();
-                    if (cleaned.replace(/\D/g, '').length >= 7) data.phone = cleaned;
+                    if (cleaned.replace(/\D/g, '').length >= 7 && !/^(address|email|birthday|connected|website|profile)$/i.test(cleaned)) {
+                        data.phone = cleaned;
+                    }
                 }
                 if (!data.phone) {
-                    const lines = modalText.split('\n').map(l => l.trim()).filter(Boolean);
+                    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
                     for (let i = 0; i < lines.length; i++) {
                         if (/^(?:Phone|Mobile|Contact)$/i.test(lines[i]) && i + 1 < lines.length) {
                             const next = lines[i + 1].replace(/\s*\([^)]*\)/g, '').trim();
@@ -369,6 +357,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                 }
+            }
+        }
+
+        // 6. Check if Contact Info Modal is already open
+        const existingModal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+        if (existingModal) {
+            parseContactFromModal(existingModal);
+        }
+
+        // 7. Auto-open Contact Info Modal if email or phone is missing
+        if (!data.email || !data.phone) {
+            const contactLink = document.querySelector('a[href*="/overlay/contact-info/"], #top-card-text-details-contact-info, a[data-control-name="contact_info"]')
+                || Array.from(document.querySelectorAll('a, button')).find(a => /contact\s*info/i.test(a.innerText || ''));
+
+            if (contactLink) {
+                try {
+                    contactLink.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    contactLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    
+                    // Wait for modal to render in DOM
+                    for (let t = 0; t < 6; t++) {
+                        await new Promise(r => setTimeout(r, 200));
+                        const modal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+                        if (modal && modal.innerText.length > 20) {
+                            parseContactFromModal(modal);
+                            // Close modal cleanly
+                            const closeBtn = modal.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
+                            if (closeBtn) closeBtn.click();
+                            break;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // Fallback email from mailto links or about
+        if (!data.email) {
+            const mailto = document.querySelector('a[href^="mailto:"]');
+            if (mailto) {
+                const m = (mailto.getAttribute('href') || mailto.innerText || '').replace(/^mailto:/i, '').split('?')[0].trim();
+                if (m.includes('@') && !isGenericEmail(m)) data.email = m;
             }
         }
 
