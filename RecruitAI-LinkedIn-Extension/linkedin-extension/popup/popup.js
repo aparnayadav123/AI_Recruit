@@ -98,7 +98,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data.email && !data.email.startsWith('linkedin-')) {
             rows.push({ label: 'Email', value: data.email });
         }
-        if (data.totalExperienceYears) {
+        if (data.phone) {
+            rows.push({ label: 'Phone', value: data.phone });
+        }
+        if (data.totalExperienceYears !== undefined && data.totalExperienceYears !== null) {
             rows.push({ label: 'Experience', value: `${data.totalExperienceYears} yrs` });
         }
         if (data.skills && data.skills.length > 0) {
