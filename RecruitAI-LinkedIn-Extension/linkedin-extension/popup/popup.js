@@ -538,33 +538,72 @@ document.addEventListener('DOMContentLoaded', async () => {
         showSubState(preExtractState);
     });
 
-    // ── Direct Save Helper (Fallback if background service worker is blocked) ──
+    // ── Direct Save Helper (Auto-detects Existing Candidate for PUT Update) ──
     async function directSaveCandidate(profileData) {
         const storage = await chrome.storage.local.get(['jwt_token']);
         const token = storage.jwt_token || '';
 
+        const lnUrl = profileData.profileUrl || profileData.linkedinUrl || '';
+        let existingId = profileData.id;
+
+        // If no ID yet, check if candidate already exists in backend by LinkedIn URL
+        if (!existingId && lnUrl) {
+            try {
+                const checkRes = await fetch(`https://recruitai-backend-bvo0.onrender.com/api/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(lnUrl)}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (checkRes.ok) {
+                    const existing = await checkRes.json();
+                    if (existing && existing.id) existingId = existing.id;
+                }
+            } catch (e) {
+                console.warn('Duplicate check skipped:', e);
+            }
+        }
+
+        // If still no ID, check by name
+        if (!existingId && profileData.name) {
+            try {
+                const searchRes = await fetch(`https://recruitai-backend-bvo0.onrender.com/api/candidates/search?search=${encodeURIComponent(profileData.name)}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (searchRes.ok) {
+                    const searchResults = await searchRes.json();
+                    const match = searchResults.content?.find(c =>
+                        (profileData.name && c.name && c.name.toLowerCase() === profileData.name.toLowerCase())
+                    );
+                    if (match && match.id) existingId = match.id;
+                }
+            } catch (e) {}
+        }
+
+        const isUpdate = !!existingId;
+        const targetUrl = isUpdate
+            ? `https://recruitai-backend-bvo0.onrender.com/api/candidates/${existingId}`
+            : 'https://recruitai-backend-bvo0.onrender.com/api/candidates';
+
         const payload = {
+            id: existingId || undefined,
             name: profileData.name || 'LinkedIn Candidate',
-            email: profileData.email || `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`,
+            email: (profileData.email && !profileData.email.startsWith('linkedin-')) ? profileData.email : (isUpdate ? undefined : `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`),
             phone: profileData.phone || '',
             role: profileData.primaryRole || profileData.headline || 'Professional',
             company: profileData.company || profileData.currentOrganization || '',
             currentOrganization: profileData.currentOrganization || profileData.company || '',
             skills: profileData.skills || [],
             languageSkills: profileData.languages || profileData.languageSkills || [],
-            experience: profileData.totalExperienceYears || profileData.experience || 0,
+            experience: profileData.totalExperienceYears !== undefined ? profileData.totalExperienceYears : (profileData.experience || 0),
             locality: profileData.locality || profileData.location || '',
             country: profileData.country || '',
-            linkedinUrl: profileData.profileUrl || profileData.linkedinUrl || '',
+            linkedinUrl: lnUrl,
             source: 'LinkedIn Extension'
         };
 
-        const targetUrl = 'https://recruitai-backend-bvo0.onrender.com/api/candidates';
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch(targetUrl, {
-            method: 'POST',
+            method: isUpdate ? 'PUT' : 'POST',
             headers,
             body: JSON.stringify(payload)
         });
