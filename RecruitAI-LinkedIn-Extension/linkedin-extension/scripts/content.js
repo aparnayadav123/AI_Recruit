@@ -146,8 +146,22 @@ function extractPhoneFromElementOrPage(rootEl) {
     if (modal) {
         const text = modal.innerText || '';
         
-        // Pattern A: "Phone\n6304930942 (Mobile)"
-        const phoneLabelMatch = text.match(/(?:Phone|Mobile|Contact Number)\s*[\n\r:]+\s*([^\n\r<]+)/i);
+        // Pattern A: Check ci-phone section or Phone header
+        const phoneSection = modal.querySelector('section.ci-phone, .pv-contact-info__contact-type.ci-phone, [class*="ci-phone"]')
+            || Array.from(modal.querySelectorAll('section, div')).find(s => /phone|mobile/i.test(s.querySelector('h3, h4, span, header')?.innerText || ''));
+        if (phoneSection) {
+            const secText = phoneSection.innerText || '';
+            const m10 = secText.match(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/);
+            if (m10) return m10[0].replace(/^\+91[\s-]*/, '').trim();
+            const cleaned = secText.replace(/phone|mobile/gi, '').replace(/\([^)]*\)/g, '').trim();
+            if (cleaned.replace(/\D/g, '').length >= 7) {
+                const foundLine = cleaned.split('\n').map(l => l.trim()).find(l => l.replace(/\D/g, '').length >= 7);
+                if (foundLine) return foundLine;
+            }
+        }
+
+        // Pattern B: "Phone\n6304930942 (Mobile)"
+        const phoneLabelMatch = text.match(/(?:Phone|Mobile|Contact Number|Tel)\s*[\n\r:]+\s*([^\n\r<]+)/i);
         if (phoneLabelMatch) {
             const candidate = phoneLabelMatch[1].replace(/\s*\([^)]*\)/g, '').trim();
             if (candidate.replace(/\D/g, '').length >= 7 && !/^(address|email|birthday|connected|website|profile)$/i.test(candidate)) {
@@ -155,7 +169,13 @@ function extractPhoneFromElementOrPage(rootEl) {
             }
         }
 
-        // Pattern B: Lines in modal
+        // Pattern C: Indian 10-digit mobile number pattern (e.g. 6304930942)
+        const m10 = text.match(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/);
+        if (m10) {
+            return m10[0].replace(/^\+91[\s-]*/, '').trim();
+        }
+
+        // Pattern D: Lines in modal
         const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
         for (let i = 0; i < lines.length; i++) {
             if (/^(?:Phone|Mobile|Contact)$/i.test(lines[i]) && i + 1 < lines.length) {
@@ -164,7 +184,7 @@ function extractPhoneFromElementOrPage(rootEl) {
             }
         }
 
-        // Pattern C: Any 7-15 digit phone number regex in modal
+        // Pattern E: Any 7-15 digit phone number regex in modal
         const numMatches = text.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g) || [];
         for (const num of numMatches) {
             const digits = num.replace(/\D/g, '');
@@ -259,6 +279,8 @@ async function fetchContactDetailsFromPage() {
             }
         }, 250);
     });
+}
+
 // Helper: Robust experience calculation that safely parses Experience section & page text without degree contamination
 function extractExperienceYears() {
     let maxMonths = 0;
@@ -286,13 +308,13 @@ function extractExperienceYears() {
     const MONTH_MAP = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
     function parseDateRangeMonths(text) {
         if (!text) return 0;
-        const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—]\s*(Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+        const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
         if (rangeMatch) {
             const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 0;
             const startYear = parseInt(rangeMatch[2], 10);
             let endMonth = new Date().getMonth();
             let endYear = new Date().getFullYear();
-            if (rangeMatch[3].toLowerCase() !== 'present') {
+            if (!/present|current|now/i.test(rangeMatch[3])) {
                 endYear = parseInt(rangeMatch[4], 10);
                 const endMStr = rangeMatch[3].match(/^[a-zA-Z]+/);
                 if (endMStr && MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()] !== undefined) {
@@ -316,14 +338,47 @@ function extractExperienceYears() {
                         return h && /^experience$/i.test((h.innerText || '').trim());
                     });
 
+    let totalSumMonths = 0;
+    let earliestYear = 9999;
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth() + 1;
+
     if (expSection) {
-        const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
-        for (const item of items) {
+        let topItems = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+        if (!topItems || topItems.length === 0) topItems = expSection.querySelectorAll('li');
+
+        topItems.forEach(item => {
             const itemText = item.innerText || '';
-            const m1 = parseDurationString(itemText);
-            const m2 = parseDateRangeMonths(itemText);
-            const itemMonths = Math.max(m1, m2);
-            if (itemMonths > maxMonths) maxMonths = itemMonths;
+            const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+            const subItems = isGroup ? item.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+            if (subItems.length > 0) {
+                const groupDur = Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+                let subSum = 0;
+                subItems.forEach(sub => {
+                    const st = sub.innerText || '';
+                    subSum += Math.max(parseDurationString(st), parseDateRangeMonths(st));
+                });
+                totalSumMonths += groupDur > 0 ? groupDur : subSum;
+            } else {
+                totalSumMonths += Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+            }
+
+            const dm = itemText.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+            if (dm) {
+                dm.forEach(d => {
+                    const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
+                    if (y >= 1990 && y <= curYear && y < earliestYear) earliestYear = y;
+                });
+            }
+        });
+
+        if (totalSumMonths > 0) maxMonths = totalSumMonths;
+        if (earliestYear < 9999 && earliestYear <= curYear) {
+            const spanMonths = ((curYear - earliestYear) * 12) + curMonth;
+            if (spanMonths > maxMonths && (spanMonths - maxMonths) > 24) {
+                maxMonths = spanMonths;
+            }
         }
 
         if (maxMonths === 0) {
@@ -700,9 +755,9 @@ function extractData() {
     console.log('ðŸ¢ Organization:', data.currentOrganization);
 
     // 4. Extract About & Global Text Scan (Fallback)
-    const aboutSection = document.querySelector('#about');
-    if (aboutSection) {
-        const aboutText = aboutSection.parentElement.querySelector('.inline-show-more-text');
+    const aboutAnchor = document.querySelector('#about');
+    if (aboutAnchor) {
+        const aboutText = aboutAnchor.parentElement.querySelector('.inline-show-more-text');
         data.about = aboutText ? aboutText.innerText.trim() : '';
 
         // Advanced Email Regex
@@ -966,7 +1021,7 @@ function extractData() {
                         }
                     }
                 }
-            }
+            });
         }
     }
 
@@ -985,9 +1040,9 @@ function extractData() {
     data.phone = extractPhoneFromElementOrPage(document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info') || document.body);
 
     // Also populate about summary if present
-    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
-    if (aboutSection) {
-        const aboutText = aboutSection.innerText || '';
+    const aboutSec = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSec && !data.about) {
+        const aboutText = aboutSec.innerText || '';
         data.about = aboutText.replace(/…see more|see less/gi, '').trim();
     }
 
@@ -995,13 +1050,14 @@ function extractData() {
     console.log('📞 Extracted Phone:', data.phone);
 
     // 6. Extract Experience & Total Years (Strictly Scoped to Experience — NO education contamination)
-    data.totalExperienceYears = extractExperienceYears();
+    const helperExp = extractExperienceYears();
+    data.totalExperienceYears = Math.max(data.totalExperienceYears || 0, helperExp || 0);
     console.log('⏳ Total Experience Years:', data.totalExperienceYears);
 
     // 7. Universal Dynamic Skills Extractor (Pulls ANY skill from Skills Section, Headline, About, Page)
-    const skillsAnchor = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
-    if (skillsAnchor) {
-        const listItems = skillsAnchor.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
+    const skillsSectionEl = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
+    if (skillsSectionEl) {
+        const listItems = skillsSectionEl.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
         listItems.forEach(item => {
             // Find main skill title span
             const titleSpan = item.querySelector('span[aria-hidden="true"], .hoverable-link-text, .mr1 span');

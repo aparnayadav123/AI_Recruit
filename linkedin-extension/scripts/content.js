@@ -338,14 +338,47 @@ function extractExperienceYears() {
                         return h && /^experience$/i.test((h.innerText || '').trim());
                     });
 
+    let totalSumMonths = 0;
+    let earliestYear = 9999;
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth() + 1;
+
     if (expSection) {
-        const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
-        for (const item of items) {
+        let topItems = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+        if (!topItems || topItems.length === 0) topItems = expSection.querySelectorAll('li');
+
+        topItems.forEach(item => {
             const itemText = item.innerText || '';
-            const m1 = parseDurationString(itemText);
-            const m2 = parseDateRangeMonths(itemText);
-            const itemMonths = Math.max(m1, m2);
-            if (itemMonths > maxMonths) maxMonths = itemMonths;
+            const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+            const subItems = isGroup ? item.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+            if (subItems.length > 0) {
+                const groupDur = Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+                let subSum = 0;
+                subItems.forEach(sub => {
+                    const st = sub.innerText || '';
+                    subSum += Math.max(parseDurationString(st), parseDateRangeMonths(st));
+                });
+                totalSumMonths += groupDur > 0 ? groupDur : subSum;
+            } else {
+                totalSumMonths += Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+            }
+
+            const dm = itemText.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+            if (dm) {
+                dm.forEach(d => {
+                    const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
+                    if (y >= 1990 && y <= curYear && y < earliestYear) earliestYear = y;
+                });
+            }
+        });
+
+        if (totalSumMonths > 0) maxMonths = totalSumMonths;
+        if (earliestYear < 9999 && earliestYear <= curYear) {
+            const spanMonths = ((curYear - earliestYear) * 12) + curMonth;
+            if (spanMonths > maxMonths && (spanMonths - maxMonths) > 24) {
+                maxMonths = spanMonths;
+            }
         }
 
         if (maxMonths === 0) {
@@ -722,9 +755,9 @@ function extractData() {
     console.log('ðŸ¢ Organization:', data.currentOrganization);
 
     // 4. Extract About & Global Text Scan (Fallback)
-    const aboutSection = document.querySelector('#about');
-    if (aboutSection) {
-        const aboutText = aboutSection.parentElement.querySelector('.inline-show-more-text');
+    const aboutAnchor = document.querySelector('#about');
+    if (aboutAnchor) {
+        const aboutText = aboutAnchor.parentElement.querySelector('.inline-show-more-text');
         data.about = aboutText ? aboutText.innerText.trim() : '';
 
         // Advanced Email Regex
@@ -988,7 +1021,7 @@ function extractData() {
                         }
                     }
                 }
-            }
+            });
         }
     }
 
@@ -1007,9 +1040,9 @@ function extractData() {
     data.phone = extractPhoneFromElementOrPage(document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info') || document.body);
 
     // Also populate about summary if present
-    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
-    if (aboutSection) {
-        const aboutText = aboutSection.innerText || '';
+    const aboutSec = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSec && !data.about) {
+        const aboutText = aboutSec.innerText || '';
         data.about = aboutText.replace(/…see more|see less/gi, '').trim();
     }
 
@@ -1017,13 +1050,14 @@ function extractData() {
     console.log('📞 Extracted Phone:', data.phone);
 
     // 6. Extract Experience & Total Years (Strictly Scoped to Experience — NO education contamination)
-    data.totalExperienceYears = extractExperienceYears();
+    const helperExp = extractExperienceYears();
+    data.totalExperienceYears = Math.max(data.totalExperienceYears || 0, helperExp || 0);
     console.log('⏳ Total Experience Years:', data.totalExperienceYears);
 
     // 7. Universal Dynamic Skills Extractor (Pulls ANY skill from Skills Section, Headline, About, Page)
-    const skillsAnchor = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
-    if (skillsAnchor) {
-        const listItems = skillsAnchor.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
+    const skillsSectionEl = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
+    if (skillsSectionEl) {
+        const listItems = skillsSectionEl.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
         listItems.forEach(item => {
             // Find main skill title span
             const titleSpan = item.querySelector('span[aria-hidden="true"], .hoverable-link-text, .mr1 span');

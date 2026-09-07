@@ -215,7 +215,11 @@ async function saveToCRM(profileData) {
             : (profileData.languageSkills && profileData.languageSkills.length > 0)
                 ? profileData.languageSkills
                 : (initialCandidate?.languageSkills || []),
-        experience: profileData.totalExperienceYears || (initialCandidate?.experience || 0),
+        experience: (profileData.totalExperienceYears !== undefined && profileData.totalExperienceYears !== null && profileData.totalExperienceYears > 0)
+            ? profileData.totalExperienceYears
+            : (profileData.experience !== undefined && profileData.experience !== null && profileData.experience > 0
+                ? profileData.experience
+                : (initialCandidate?.experience || 0)),
         industry: profileData.industry || initialCandidate?.industry || 'Professional Services',
         country: profileData.country || initialCandidate?.country || '',
         locality: profileData.locality || profileData.location || initialCandidate?.locality || '',

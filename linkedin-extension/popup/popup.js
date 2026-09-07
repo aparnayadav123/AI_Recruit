@@ -510,6 +510,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         let totalMonths = 0;
+        let earliestCareerYear = 9999;
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+
         const expSection = document.querySelector('#experience')?.closest('section')
                         || document.querySelector('section:has(#experience)')
                         || document.querySelector('#experience')?.parentElement
@@ -519,12 +523,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
 
         if (expSection) {
-            const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
-            for (const it of items) {
+            let items = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+            if (!items || items.length === 0) items = expSection.querySelectorAll('li');
+
+            items.forEach((it) => {
                 const text = it.innerText || '';
-                const m = Math.max(parseDur(text), parseDateRangeMonths(text));
-                if (m > totalMonths) totalMonths = m;
-            }
+                const isGroup = it.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+                const subItems = isGroup ? it.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+                if (subItems.length > 0) {
+                    const groupDur = parseDur(text);
+                    let subSum = 0;
+                    subItems.forEach(sub => { subSum += parseDur(sub.innerText || ''); });
+                    totalMonths += groupDur > 0 ? groupDur : subSum;
+                } else {
+                    totalMonths += parseDur(text);
+                }
+
+                const dm = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+                if (dm) {
+                    dm.forEach(d => {
+                        const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
+                        if (y >= 1990 && y <= currentYear && y < earliestCareerYear) earliestCareerYear = y;
+                    });
+                }
+            });
+
             if (totalMonths === 0) {
                 const expText = expSection.innerText || '';
                 totalMonths = Math.max(parseDur(expText), parseDateRangeMonths(expText));
@@ -553,6 +577,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
+        if (earliestCareerYear < 9999 && earliestCareerYear <= currentYear) {
+            const spanYears = parseFloat(((currentYear - earliestCareerYear) + (currentMonth / 12)).toFixed(1));
+            if (spanYears > 0 && spanYears <= 40) {
+                if (data.totalExperienceYears === 0 || Math.abs(spanYears - data.totalExperienceYears) > 4) {
+                    data.totalExperienceYears = Math.max(data.totalExperienceYears, spanYears);
+                }
+            }
+        }
 
         // 9. Skills Extractor
         const skillsSection = document.querySelector('#skills')?.closest('section');
@@ -587,18 +619,72 @@ document.addEventListener('DOMContentLoaded', async () => {
         return data;
     }
 
-    // ── Extract Flow (Direct DOM Execution) ──────────────────────
+    // ── Extract Flow (Direct DOM Execution with Auto-Fallback) ──────────────────────
     extractBtn && extractBtn.addEventListener('click', async () => {
         setExtractLoading(true);
-
-        sendExtractMessage(tabId, (resp, err) => {
-            setExtractLoading(false);
-            if (err || !resp || resp.status !== 'success') {
-                showToast(err || resp?.message || 'Extraction failed. Please refresh the LinkedIn page (F5).', 'error');
+        try {
+            const activeTab = currentTab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+            const tabId = activeTab?.id;
+            if (!tabId) {
+                setExtractLoading(false);
+                showToast('No active LinkedIn tab found. Please open a profile.', 'error');
                 return;
             }
-            onExtracted(resp.data);
-        });
+
+            let done = false;
+            // 3.5-second safety timer so popup NEVER hangs infinitely on "Extracting..."
+            const fallbackTimer = setTimeout(async () => {
+                if (done) return;
+                done = true;
+                console.warn('Content script timed out. Executing direct DOM fallback scraper...');
+                try {
+                    const results = await chrome.scripting.executeScript({
+                        target: { tabId: tabId },
+                        func: directExtractLinkedInDOM
+                    });
+                    setExtractLoading(false);
+                    if (results && results[0] && results[0].result) {
+                        onExtracted(results[0].result);
+                    } else {
+                        showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                    }
+                } catch (e) {
+                    setExtractLoading(false);
+                    showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                }
+            }, 3500);
+
+            sendExtractMessage(tabId, async (resp, err) => {
+                if (done) return;
+                done = true;
+                clearTimeout(fallbackTimer);
+
+                if (err || !resp || resp.status !== 'success' || !resp.data) {
+                    // Try direct script execution immediately on error
+                    try {
+                        const results = await chrome.scripting.executeScript({
+                            target: { tabId: tabId },
+                            func: directExtractLinkedInDOM
+                        });
+                        setExtractLoading(false);
+                        if (results && results[0] && results[0].result) {
+                            onExtracted(results[0].result);
+                            return;
+                        }
+                    } catch (e) {}
+
+                    setExtractLoading(false);
+                    showToast(err || resp?.message || 'Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                    return;
+                }
+
+                setExtractLoading(false);
+                onExtracted(resp.data);
+            });
+        } catch (e) {
+            setExtractLoading(false);
+            showToast(e?.message || 'Extraction failed. Please refresh the page.', 'error');
+        }
     });
 
     function onExtracted(data) {
