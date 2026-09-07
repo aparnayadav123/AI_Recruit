@@ -42,7 +42,7 @@
     "content_scripts": [
         {
             "matches": [
-                "https://www.linkedin.com/in/*"
+                "*://*.linkedin.com/*"
             ],
             "js": [
                 "scripts/content.js"

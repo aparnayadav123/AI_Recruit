@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Candidate } from '../types';
 import { formatCandidateId, getCandidateHotlists } from '../utils';
@@ -763,11 +763,6 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                         <div className="text-[11px] font-bold text-gray-900 bg-gray-50 px-2 py-1 rounded border border-slate-300 inline-block leading-none w-fit max-w-[180px] truncate" title={candidate.role}>
                           {highlightText(candidate.role)}
                         </div>
-                        {candidate.currentOrganization && (
-                          <div className="text-[9px] font-black text-slate-600 uppercase tracking-tight mt-1 truncate max-w-[180px]">
-                            @ {candidate.currentOrganization}
-                          </div>
-                        )}
                       </td>
 
                       <td className="px-3 py-2.5 text-[11px] font-bold text-gray-700 whitespace-nowrap align-top pt-3">

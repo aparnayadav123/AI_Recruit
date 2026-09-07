@@ -111,7 +111,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function sendExtractMessage(tabId, callback) {
         chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp) => {
-            if (chrome.runtime.lastError) { callback(null, chrome.runtime.lastError.message); return; }
+            if (chrome.runtime.lastError) {
+                // If content script was disconnected (e.g. after extension reload), automatically inject and retry
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ['scripts/content.js']
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
+                        return;
+                    }
+                    setTimeout(() => {
+                        chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp2) => {
+                            if (chrome.runtime.lastError) {
+                                callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
+                                return;
+                            }
+                            callback(resp2, null);
+                        });
+                    }, 250);
+                });
+                return;
+            }
             callback(resp, null);
         });
     }
@@ -185,30 +206,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tabId = currentTab.id;
 
         sendExtractMessage(tabId, (resp, err) => {
-            if (err || !resp) {
-                // Content script not yet injected — inject it then retry
-                chrome.scripting.executeScript({ target: { tabId }, files: ['scripts/content.js'] }, () => {
-                    if (chrome.runtime.lastError) {
-                        setExtractLoading(false);
-                        showToast('Cannot inject script. Refresh the LinkedIn page.', 'error');
-                        return;
-                    }
-                    setTimeout(() => {
-                        sendExtractMessage(tabId, (resp2, err2) => {
-                            setExtractLoading(false);
-                            if (err2 || !resp2 || resp2.status !== 'success') {
-                                showToast(err2 || resp2?.message || 'Extraction failed. Refresh the page.', 'error');
-                                return;
-                            }
-                            onExtracted(resp2.data);
-                        });
-                    }, 600);
-                });
-                return;
-            }
             setExtractLoading(false);
-            if (!resp || resp.status !== 'success') {
-                showToast(resp?.message || 'Extraction failed. Is the page fully loaded?', 'error');
+            if (err || !resp || resp.status !== 'success') {
+                showToast(err || resp?.message || 'Extraction failed. Please refresh the LinkedIn page (F5).', 'error');
                 return;
             }
             onExtracted(resp.data);
