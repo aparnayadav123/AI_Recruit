@@ -12,13 +12,17 @@
     "externally_connectable": {
         "matches": [
             "http://localhost:3000/*",
+            "http://localhost:3007/*",
+            "http://localhost:*/*",
+            "http://127.0.0.1:*/*",
             "https://ai-recruit-eight.vercel.app/*"
         ]
     },
     "host_permissions": [
         "*://*.linkedin.com/*",
         "*://linkedin.com/*",
-        "http://localhost:8089/*",
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
         "https://ai-recruit-eight.vercel.app/*",
         "https://recruitai-backend-bvo0.onrender.com/*",
         "https://*.onrender.com/*"

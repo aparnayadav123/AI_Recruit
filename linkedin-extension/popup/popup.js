@@ -214,16 +214,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // ── Self-Contained Async LinkedIn DOM Extractor Function ──────────
+    // ── Self-Contained Sync LinkedIn DOM Extractor Function ──────────
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
-    async function directExtractLinkedInDOM() {
-        // Fast scroll to trigger LinkedIn lazy loading for Experience & Skills sections
+    function directExtractLinkedInDOM() {
         try {
-            window.scrollTo({ top: 1200, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 150));
-            window.scrollTo({ top: 2400, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 150));
-            window.scrollTo({ top: 0, behavior: 'instant' });
+            window.scrollBy(0, 400);
+            window.scrollBy(0, -400);
         } catch (_) {}
 
         const data = {
@@ -240,6 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             email: '',
             phone: '',
             totalExperienceYears: 0,
+            experience: 0,
             skills: [],
             languages: [],
             about: '',
@@ -530,52 +527,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 6. Check if Contact Info Modal is already open
+        // 6. Check Contact Info Modal if open or in DOM
         const existingModal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
         if (existingModal) {
             parseContactFromModal(existingModal);
         }
 
-        // 7. Auto-open Contact Info Modal if email or phone is missing
-        if (!data.email || !data.phone) {
-            const contactLink = document.querySelector('a[href*="/overlay/contact-info/"], #top-card-text-details-contact-info, a[data-control-name="contact_info"]')
-                || Array.from(document.querySelectorAll('a, button')).find(a => /contact\s*info/i.test(a.innerText || ''));
-
-            if (contactLink) {
-                try {
-                    contactLink.scrollIntoView({ behavior: 'instant', block: 'center' });
-                    contactLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                    
-                    // Wait for modal to render in DOM
-                    for (let t = 0; t < 10; t++) {
-                        await new Promise(r => setTimeout(r, 250));
-                        const modal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
-                        if (modal && modal.innerText.length > 20) {
-                            parseContactFromModal(modal);
-                            // Close modal cleanly once we got what we need or reached last attempt
-                            if (data.email && data.phone) {
-                                const closeBtn = modal.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
-                                if (closeBtn) closeBtn.click();
-                                break;
-                            }
-                        }
-                    }
-                    const modalToClose = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
-                    if (modalToClose) {
-                        const closeBtn = modalToClose.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
-                        if (closeBtn) closeBtn.click();
-                    }
-                } catch (e) {}
-            }
-        }
-
-        // Fallback email from mailto links or about
+        // 7. Check mailto & tel links across the page
         if (!data.email) {
             const mailto = document.querySelector('a[href^="mailto:"]');
             if (mailto) {
                 const m = (mailto.getAttribute('href') || mailto.innerText || '').replace(/^mailto:/i, '').split('?')[0].trim();
                 if (m.includes('@') && !isGenericEmail(m)) data.email = m;
             }
+        }
+        if (!data.phone) {
+            const tel = document.querySelector('a[href^="tel:"]');
+            if (tel) {
+                const p = (tel.getAttribute('href') || tel.innerText || '').replace(/^tel:/i, '').replace(/\s*\([^)]*\)/g, '').trim();
+                if (p.replace(/\D/g, '').length >= 7) data.phone = p;
+            }
+        }
+
+        // 8. Text Regex Scanning across About / Page for Email and Phone
+        if (!data.email) {
+            const allTxt = document.body.innerText || '';
+            const mMatch = allTxt.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+            for (const m of mMatch) {
+                if (!isGenericEmail(m)) { data.email = m.trim(); break; }
+            }
+        }
+        if (!data.phone) {
+            const allTxt = document.body.innerText || '';
+            const m10 = allTxt.match(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/);
+            if (m10) data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
         }
 
         // 8. Experience Duration Parsing (Strictly scoped, avoids Education degree contamination)
@@ -771,7 +756,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return data;
     }
 
-    // ── Extract Flow (Direct DOM Execution with Auto-Fallback) ──────────────────────
+    // ── Extract Flow (Fast Direct DOM Scraper + Auto-Fallback) ──────────────────────
     extractBtn && extractBtn.addEventListener('click', async () => {
         setExtractLoading(true);
         try {
@@ -783,55 +768,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            let done = false;
-            // 3.5-second safety timer so popup NEVER hangs infinitely on "Extracting..."
-            const fallbackTimer = setTimeout(async () => {
-                if (done) return;
-                done = true;
-                console.warn('Content script timed out. Executing direct DOM fallback scraper...');
-                try {
-                    const results = await chrome.scripting.executeScript({
-                        target: { tabId: tabId },
-                        func: directExtractLinkedInDOM
-                    });
+            // 1. Fast path: Direct DOM execution in the page context
+            try {
+                const results = await chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    func: directExtractLinkedInDOM
+                });
+                if (results && results[0] && results[0].result && results[0].result.name) {
                     setExtractLoading(false);
-                    if (results && results[0] && results[0].result) {
-                        onExtracted(results[0].result);
-                    } else {
-                        showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
-                    }
-                } catch (e) {
-                    setExtractLoading(false);
-                    showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
-                }
-            }, 3500);
-
-            sendExtractMessage(tabId, async (resp, err) => {
-                if (done) return;
-                done = true;
-                clearTimeout(fallbackTimer);
-
-                if (err || !resp || resp.status !== 'success' || !resp.data) {
-                    // Try direct script execution immediately on error
-                    try {
-                        const results = await chrome.scripting.executeScript({
-                            target: { tabId: tabId },
-                            func: directExtractLinkedInDOM
-                        });
-                        setExtractLoading(false);
-                        if (results && results[0] && results[0].result) {
-                            onExtracted(results[0].result);
-                            return;
-                        }
-                    } catch (e) {}
-
-                    setExtractLoading(false);
-                    showToast(err || resp?.message || 'Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                    onExtracted(results[0].result);
                     return;
                 }
+            } catch (scriptErr) {
+                console.warn('Direct DOM scraper fallback triggered:', scriptErr);
+            }
 
+            // 2. Fallback path: Message content script
+            sendExtractMessage(tabId, async (resp, err) => {
                 setExtractLoading(false);
-                onExtracted(resp.data);
+                if (resp && resp.status === 'success' && resp.data && resp.data.name) {
+                    onExtracted(resp.data);
+                } else {
+                    showToast('Please refresh this LinkedIn tab (F5) and try again.', 'error');
+                }
             });
         } catch (e) {
             setExtractLoading(false);
@@ -860,6 +819,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const existing = resp.data;
                     extractedData.id = existing.id;
                     extractedData.status = existing.status;
+                    if (existing.email && !extractedData.email) extractedData.email = existing.email;
                     showToast('This candidate is already in the candidates page!', 'info');
                     if (saveBtnText) saveBtnText.textContent = 'Update Candidate';
                 } else {
@@ -883,6 +843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const lnUrl = profileData.profileUrl || profileData.linkedinUrl || '';
         let existingId = profileData.id;
+        let existingEmail = profileData.email;
 
         // If no ID yet, check if candidate already exists in backend by LinkedIn URL
         if (!existingId && lnUrl) {
@@ -892,7 +853,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 if (checkRes.ok) {
                     const existing = await checkRes.json();
-                    if (existing && existing.id) existingId = existing.id;
+                    if (existing && existing.id) {
+                        existingId = existing.id;
+                        if (existing.email) existingEmail = existing.email;
+                    }
                 }
             } catch (e) {
                 console.warn('Duplicate check skipped:', e);
@@ -910,7 +874,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const match = searchResults.content?.find(c =>
                         (profileData.name && c.name && c.name.toLowerCase() === profileData.name.toLowerCase())
                     );
-                    if (match && match.id) existingId = match.id;
+                    if (match && match.id) {
+                        existingId = match.id;
+                        if (match.email) existingEmail = match.email;
+                    }
                 }
             } catch (e) {}
         }
@@ -920,17 +887,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? `https://recruitai-backend-bvo0.onrender.com/api/candidates/${existingId}`
             : 'https://recruitai-backend-bvo0.onrender.com/api/candidates';
 
+        const finalEmail = (profileData.email && profileData.email.includes('@'))
+            ? profileData.email
+            : (existingEmail && existingEmail.includes('@'))
+                ? existingEmail
+                : `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`;
+
         const payload = {
             id: existingId || undefined,
             name: profileData.name || 'LinkedIn Candidate',
-            email: (profileData.email && !profileData.email.startsWith('linkedin-')) ? profileData.email : (isUpdate ? undefined : `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`),
+            email: finalEmail,
             phone: profileData.phone || '',
             role: profileData.primaryRole || profileData.role || profileData.headline || 'Software Developer',
             company: profileData.company || profileData.currentOrganization || '',
             currentOrganization: profileData.currentOrganization || profileData.company || '',
             skills: profileData.skills || [],
             languageSkills: profileData.languages || profileData.languageSkills || [],
-            experience: profileData.totalExperienceYears !== undefined ? profileData.totalExperienceYears : (profileData.experience || 0),
+            experience: (profileData.totalExperienceYears !== undefined && profileData.totalExperienceYears !== null) ? profileData.totalExperienceYears : (profileData.experience || 0),
             locality: profileData.locality || profileData.location || '',
             country: profileData.country || '',
             linkedinUrl: lnUrl,
