@@ -556,10 +556,91 @@ function extractData() {
 
     console.log('🎯 Extracted Name:', data.name);
 
-    // 2. Extract Headline / Role — LinkedIn moved this DOM around in 2024-2026+, so
-    // we now hunt across many shapes plus the document title and h1 siblings.
+// Helper: Universal Clean Role Extraction across all LinkedIn profiles
+function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
+    let raw = (rawHeadline || '').trim();
+    if (!raw && aboutText) {
+        const firstSentence = aboutText.split(/[.!?\n]/)[0];
+        const m = firstSentence.match(/(?:working as an?|I am an?|passionate|experienced)\s+([^,.]+)/i);
+        if (m) raw = m[1].trim();
+    }
+    
+    // 1. Split headline into segments
+    const segments = (raw || '').split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
+
+    // List of recognized standard roles
+    const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+
+    for (const seg of segments) {
+        const match = seg.match(roleKeywordRegex);
+        if (match) {
+            let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+            cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+            cleaned = cleaned.replace(/\s*·.*$/, '').trim();
+            if (cleaned.length > 2) return cleaned;
+        }
+    }
+
+    // 2. Check general role keyword matches in segments
+    const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer'];
+    for (const seg of segments) {
+        if (singleRoleKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(seg))) {
+            let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+            cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+            if (cleaned.length > 2) return cleaned;
+        }
+    }
+
+    // 3. Check Experience list
+    if (experienceList && experienceList.length > 0 && experienceList[0].title) {
+        const expTitle = experienceList[0].title.split(/\s+(?:at|@|-)\s+/i)[0].trim();
+        if (expTitle.length > 2 && !/full-time|part-time|contract/i.test(expTitle)) {
+            return expTitle;
+        }
+    }
+
+    // 4. Synthesize from extracted skills
+    const skills = (skillsList || []).map(s => String(s).toLowerCase());
+    const hasSkill = (k) => skills.some(s => s.includes(k));
+
+    if (hasSkill('react') || hasSkill('html') || hasSkill('css') || hasSkill('vue') || hasSkill('angular') || hasSkill('frontend') || hasSkill('tailwind')) {
+        if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('sql') || hasSkill('mongodb')) {
+            return 'Full Stack Developer';
+        }
+        return 'Frontend Developer';
+    }
+    if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('django') || hasSkill('fastapi') || hasSkill('backend') || hasSkill('sql')) {
+        return 'Backend Developer';
+    }
+    if (hasSkill('qa') || hasSkill('selenium') || hasSkill('cypress') || hasSkill('testing') || hasSkill('test')) {
+        return 'QA Engineer';
+    }
+    if (hasSkill('scrum') || hasSkill('agile') || hasSkill('jira')) {
+        return 'Scrum Master';
+    }
+    if (hasSkill('aws') || hasSkill('azure') || hasSkill('docker') || hasSkill('kubernetes') || hasSkill('devops')) {
+        return 'DevOps Engineer';
+    }
+    if (hasSkill('machine learning') || hasSkill('ai') || hasSkill('pandas') || hasSkill('deep learning')) {
+        return 'Data Scientist';
+    }
+    if (skills.length > 0) {
+        return 'Software Developer';
+    }
+
+    // 5. First segment of headline
+    if (segments.length > 0 && segments[0].length > 1) {
+        return segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+    }
+
+    return 'Software Developer';
+}
+
+    // 2. Extract Headline / Role
     let headlineText = "";
     const headlineSelectors = [
+        'main section [data-view-name="profile-top-card"] .text-body-medium',
+        'main section:first-of-type .text-body-medium',
         '.pv-text-details__left-panel .text-body-medium.break-words',
         '.pv-text-details__left-panel .text-body-medium',
         '.text-body-medium.break-words',
@@ -568,40 +649,33 @@ function extractData() {
         '[data-test-id="headline"]',
         '.flex-1.mr5 h2',
         '.pv-text-details__left-panel div:nth-child(2)',
-        'main section [data-view-name="profile-top-card"] .text-body-medium',
         'main section .text-body-medium',
     ];
 
     for (const sel of headlineSelectors) {
         const el = document.querySelector(sel);
-        if (el && el.innerText && el.innerText.trim().length > 3) {
+        if (el && el.innerText && el.innerText.trim().length > 2) {
             const candidate = el.innerText.trim();
-            // Reject location-only strings and connection-count badges
             if (/(connections|followers|contact info)/i.test(candidate)) continue;
             if (candidate === data.name) continue;
             headlineText = candidate;
             data.rawHeadline = candidate;
-            data.headline = candidate
-                .replace(/JLPT\s*N[1-5],?\s*/i, '')
-                .split(/\s+(?:in|at|@|-|\|)\s+/i)[0]
-                .trim();
             break;
         }
     }
 
     // Top Card Sibling Walk: look for text immediately beneath the name h1
-    if (!data.headline || data.headline.length < 3) {
+    if (!data.rawHeadline || data.rawHeadline.length < 2) {
         const nameH1 = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1');
         if (nameH1) {
             const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
             if (container) {
-                const candidates = container.querySelectorAll('div, h2, span');
+                const candidates = container.querySelectorAll('div, h2, span, p');
                 for (const c of candidates) {
                     const txt = (c.innerText || '').trim();
-                    if (txt && txt.length > 3 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                    if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
                         headlineText = txt;
                         data.rawHeadline = txt;
-                        data.headline = txt.split(/\s+(?:in|at|@|-|\|)\s+/i)[0].trim();
                         break;
                     }
                 }
@@ -609,25 +683,20 @@ function extractData() {
         }
     }
 
-    // Final fallback — page title is reliably "<Name> - <Headline> | LinkedIn"
-    if (!data.headline || data.headline.length < 3) {
-        const t = (document.title || '').replace(/\s*\|\s*LinkedIn$/i, '');
-        const dashIdx = t.indexOf(' - ');
-        if (dashIdx > 0) {
-            const tail = t.substring(dashIdx + 3).trim();
-            if (tail.length > 3) {
-                data.headline = tail.split(/\s+(?:at|@)\s+/i)[0].trim();
-                data.rawHeadline = data.rawHeadline || tail;
-                console.log('🎯 Headline pulled from <title>:', data.headline);
-            }
+    // Final fallback — page title handles all dash types (-, –, —, |)
+    if (!data.rawHeadline || data.rawHeadline.length < 2) {
+        const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
+        const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
+        if (sepMatch && sepMatch[1]) {
+            data.rawHeadline = sepMatch[1].trim();
+            console.log('🎯 Headline pulled from <title>:', data.rawHeadline);
         }
     }
 
-    if (data.headline) {
-        data.role = data.headline;
-        data.primaryRole = data.headline;
-    }
-    console.log('🎯 Cleaned Headline:', data.headline);
+    data.headline = data.rawHeadline || headlineText;
+    data.primaryRole = extractCleanRole(data.rawHeadline, '', [], []);
+    data.role = data.primaryRole;
+    console.log('🎯 Initial Cleaned Role:', data.primaryRole);
 
     // 3. Extract Location — many class variants exist depending on LinkedIn
     // experiment cohort. Walk them and accept the first non-position one.
@@ -1179,43 +1248,19 @@ function extractData() {
     data.skills = [...new Set(data.skills)].slice(0, 50);
     data.languages = [...new Set(data.languages)];
 
-    // Smart Fallback for Role
-    if (!data.primaryRole && data.headline) {
-        // DETECT KEYWORD HEADLINES: If headline has many commas/pipes, it's a skill list
-        const isSkillList = (data.headline.match(/[,|]/g) || []).length > 3;
-        
-        if (isSkillList) {
-            // Option A: Try to find a role-like string (Software Engineer, QA, etc.)
-            const roleKeywords = ['Engineer', 'Developer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Testing', 'Tester', 'Specialist', 'Lead'];
-            const foundRole = data.headline.split(/[,|]/).find(part => roleKeywords.some(kw => part.toLowerCase().includes(kw.toLowerCase())));
-            
-            if (foundRole) {
-                data.primaryRole = foundRole.trim();
-            } else if (data.about) {
-                // Option B: Search first sentence of About section
-                const firstSentence = data.about.split(/[.!?]/)[0];
-                const aboutRoleMatch = firstSentence.match(/(?:working as a|I am a|passionate|Experienced)\s+([^,.]+)/i);
-                if (aboutRoleMatch) data.primaryRole = aboutRoleMatch[1].trim();
-            }
-        }
+    // 8. Final Clean Role Determination
+    data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, data.experience, data.skills);
+    data.role = data.primaryRole;
+    data.headline = data.primaryRole;
 
-        // Final generic cleanup if still using headline parts
-        if (!data.primaryRole) {
-            const firstPart = data.headline.split(/[,|@]/)[0].trim();
-            data.primaryRole = firstPart;
-        }
-        
-        if (data.primaryRole.length < 2) data.primaryRole = 'Professional';
-    }
-
-    // 8. Map About to Summary
+    // 9. Map About to Summary
     data.summary = data.about;
 
     console.log('📊 Full Extracted Data:', data);
 
     console.log('🩺 Extraction summary:', {
         name: !!data.name,
-        headline_role: !!data.headline,
+        role: data.primaryRole,
         location: !!data.location,
         locality: !!data.locality,
         country: !!data.country,
@@ -1223,6 +1268,7 @@ function extractData() {
         skills: (data.skills || []).length,
         languages: (data.languages || []).length,
         experience_items: (data.experience || []).length,
+        totalExperienceYears: data.totalExperienceYears,
         email: !!data.email,
         phone: !!data.phone,
         linkedinUrl: !!data.profileUrl,
@@ -1231,8 +1277,18 @@ function extractData() {
     return data;
 }
 
-// Asynchronous complete extraction (fetches Contact Info modal details if missing)
+// Asynchronous complete extraction (pre-scrolls for lazy-loading DOM & fetches Contact Info)
 async function extractProfileAsync() {
+    // Fast scroll to trigger lazy loading of Experience, Skills, Education
+    try {
+        window.scrollTo({ top: 1000, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 120));
+        window.scrollTo({ top: 2500, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 120));
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 80));
+    } catch (_) {}
+
     const data = extractData();
 
     // If email or phone is missing, try reading / fetching from Contact Info modal

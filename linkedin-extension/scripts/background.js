@@ -206,7 +206,7 @@ async function saveToCRM(profileData) {
         name: profileData.name || initialCandidate?.name || 'LinkedIn Candidate',
         email: profileData.email || initialCandidate?.email || `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`,
         phone: profileData.phone || initialCandidate?.phone || '',
-        role: profileData.primaryRole || profileData.headline || initialCandidate?.role || 'Professional',
+        role: profileData.primaryRole || profileData.role || profileData.headline || initialCandidate?.role || 'Software Developer',
         company: profileData.company || initialCandidate?.company || '',
         currentOrganization: profileData.currentOrganization || profileData.company || initialCandidate?.currentOrganization || '',
         skills: (profileData.skills && profileData.skills.length > 0) ? profileData.skills : (initialCandidate?.skills || []),

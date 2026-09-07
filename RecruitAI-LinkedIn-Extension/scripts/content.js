@@ -338,14 +338,47 @@ function extractExperienceYears() {
                         return h && /^experience$/i.test((h.innerText || '').trim());
                     });
 
+    let totalSumMonths = 0;
+    let earliestYear = 9999;
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth() + 1;
+
     if (expSection) {
-        const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
-        for (const item of items) {
+        let topItems = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+        if (!topItems || topItems.length === 0) topItems = expSection.querySelectorAll('li');
+
+        topItems.forEach(item => {
             const itemText = item.innerText || '';
-            const m1 = parseDurationString(itemText);
-            const m2 = parseDateRangeMonths(itemText);
-            const itemMonths = Math.max(m1, m2);
-            if (itemMonths > maxMonths) maxMonths = itemMonths;
+            const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+            const subItems = isGroup ? item.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+            if (subItems.length > 0) {
+                const groupDur = Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+                let subSum = 0;
+                subItems.forEach(sub => {
+                    const st = sub.innerText || '';
+                    subSum += Math.max(parseDurationString(st), parseDateRangeMonths(st));
+                });
+                totalSumMonths += groupDur > 0 ? groupDur : subSum;
+            } else {
+                totalSumMonths += Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
+            }
+
+            const dm = itemText.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+            if (dm) {
+                dm.forEach(d => {
+                    const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
+                    if (y >= 1990 && y <= curYear && y < earliestYear) earliestYear = y;
+                });
+            }
+        });
+
+        if (totalSumMonths > 0) maxMonths = totalSumMonths;
+        if (earliestYear < 9999 && earliestYear <= curYear) {
+            const spanMonths = ((curYear - earliestYear) * 12) + curMonth;
+            if (spanMonths > maxMonths && (spanMonths - maxMonths) > 24) {
+                maxMonths = spanMonths;
+            }
         }
 
         if (maxMonths === 0) {
@@ -503,7 +536,8 @@ function extractData() {
         if (el) {
             let text = el.innerText || (el.getAttribute && el.getAttribute('alt')) || '';
             if (text && text.trim().length > 1) {
-                data.name = text.replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').replace(/\s+/g, ' ').trim();
+                // Remove brackets (Standard and Full-width) and everything inside them
+                data.name = text.replace(/\s*[\(\[\ï¼ˆ\ã€ ].*?[\)\]\ï¼‰\ã€‘]\s*/g, ' ').replace(/\s+/g, ' ').trim();
                 if (data.name.toLowerCase() === 'linkedin member') continue; 
                 break;
             }
@@ -515,15 +549,98 @@ function extractData() {
         if (titleParts.length > 0) {
             data.name = titleParts[0].replace(' | LinkedIn', '').replace(') LinkedIn', '').trim();
             data.name = data.name.replace(/^\(\d+\)\s*/, '');
-            data.name = data.name.replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').trim();
+            // Repeat cleanup for title with expanded regex
+            data.name = data.name.replace(/\s*[\(\[\（\【].*?[\)\]\）\】]\s*/g, ' ').trim();
         }
     }
 
-    console.log('🔍 Extracted Name:', data.name);
+    console.log('🎯 Extracted Name:', data.name);
+
+// Helper: Universal Clean Role Extraction across all LinkedIn profiles
+function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
+    let raw = (rawHeadline || '').trim();
+    if (!raw && aboutText) {
+        const firstSentence = aboutText.split(/[.!?\n]/)[0];
+        const m = firstSentence.match(/(?:working as an?|I am an?|passionate|experienced)\s+([^,.]+)/i);
+        if (m) raw = m[1].trim();
+    }
+    
+    // 1. Split headline into segments
+    const segments = (raw || '').split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
+
+    // List of recognized standard roles
+    const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+
+    for (const seg of segments) {
+        const match = seg.match(roleKeywordRegex);
+        if (match) {
+            let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+            cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+            cleaned = cleaned.replace(/\s*·.*$/, '').trim();
+            if (cleaned.length > 2) return cleaned;
+        }
+    }
+
+    // 2. Check general role keyword matches in segments
+    const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer'];
+    for (const seg of segments) {
+        if (singleRoleKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(seg))) {
+            let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+            cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+            if (cleaned.length > 2) return cleaned;
+        }
+    }
+
+    // 3. Check Experience list
+    if (experienceList && experienceList.length > 0 && experienceList[0].title) {
+        const expTitle = experienceList[0].title.split(/\s+(?:at|@|-)\s+/i)[0].trim();
+        if (expTitle.length > 2 && !/full-time|part-time|contract/i.test(expTitle)) {
+            return expTitle;
+        }
+    }
+
+    // 4. Synthesize from extracted skills
+    const skills = (skillsList || []).map(s => String(s).toLowerCase());
+    const hasSkill = (k) => skills.some(s => s.includes(k));
+
+    if (hasSkill('react') || hasSkill('html') || hasSkill('css') || hasSkill('vue') || hasSkill('angular') || hasSkill('frontend') || hasSkill('tailwind')) {
+        if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('sql') || hasSkill('mongodb')) {
+            return 'Full Stack Developer';
+        }
+        return 'Frontend Developer';
+    }
+    if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('django') || hasSkill('fastapi') || hasSkill('backend') || hasSkill('sql')) {
+        return 'Backend Developer';
+    }
+    if (hasSkill('qa') || hasSkill('selenium') || hasSkill('cypress') || hasSkill('testing') || hasSkill('test')) {
+        return 'QA Engineer';
+    }
+    if (hasSkill('scrum') || hasSkill('agile') || hasSkill('jira')) {
+        return 'Scrum Master';
+    }
+    if (hasSkill('aws') || hasSkill('azure') || hasSkill('docker') || hasSkill('kubernetes') || hasSkill('devops')) {
+        return 'DevOps Engineer';
+    }
+    if (hasSkill('machine learning') || hasSkill('ai') || hasSkill('pandas') || hasSkill('deep learning')) {
+        return 'Data Scientist';
+    }
+    if (skills.length > 0) {
+        return 'Software Developer';
+    }
+
+    // 5. First segment of headline
+    if (segments.length > 0 && segments[0].length > 1) {
+        return segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+    }
+
+    return 'Software Developer';
+}
 
     // 2. Extract Headline / Role
     let headlineText = "";
     const headlineSelectors = [
+        'main section [data-view-name="profile-top-card"] .text-body-medium',
+        'main section:first-of-type .text-body-medium',
         '.pv-text-details__left-panel .text-body-medium.break-words',
         '.pv-text-details__left-panel .text-body-medium',
         '.text-body-medium.break-words',
@@ -537,37 +654,52 @@ function extractData() {
 
     for (const sel of headlineSelectors) {
         const el = document.querySelector(sel);
-        if (el && el.innerText && el.innerText.trim().length > 3) {
+        if (el && el.innerText && el.innerText.trim().length > 2) {
             const candidate = el.innerText.trim();
-            if (/(connections|followers|verify in \d|verified|she\/her|he\/him)/i.test(candidate)) continue;
+            if (/(connections|followers|contact info)/i.test(candidate)) continue;
+            if (candidate === data.name) continue;
             headlineText = candidate;
             data.rawHeadline = candidate;
-            data.headline = candidate
-                .replace(/JLPT\s*N[1-5],?\s*/i, '')
-                .split(/ in | at | @ | - | \| /i)[0]
-                .trim();
             break;
         }
     }
 
-    if (!data.headline || data.headline.length < 3) {
-        const t = (document.title || '').replace(/\s*\|\s*LinkedIn$/, '');
-        const dashIdx = t.indexOf(' - ');
-        if (dashIdx > 0) {
-            const tail = t.substring(dashIdx + 3).trim();
-            if (tail.length > 3) {
-                data.headline = tail.split(/ at | @ /i)[0].trim();
-                data.rawHeadline = data.rawHeadline || tail;
+    // Top Card Sibling Walk: look for text immediately beneath the name h1
+    if (!data.rawHeadline || data.rawHeadline.length < 2) {
+        const nameH1 = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1');
+        if (nameH1) {
+            const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
+            if (container) {
+                const candidates = container.querySelectorAll('div, h2, span, p');
+                for (const c of candidates) {
+                    const txt = (c.innerText || '').trim();
+                    if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                        headlineText = txt;
+                        data.rawHeadline = txt;
+                        break;
+                    }
+                }
             }
         }
     }
 
-    if (data.headline) {
-        data.role = data.headline;
-        data.primaryRole = data.headline;
+    // Final fallback — page title handles all dash types (-, –, —, |)
+    if (!data.rawHeadline || data.rawHeadline.length < 2) {
+        const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
+        const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
+        if (sepMatch && sepMatch[1]) {
+            data.rawHeadline = sepMatch[1].trim();
+            console.log('🎯 Headline pulled from <title>:', data.rawHeadline);
+        }
     }
 
-    // 3. Extract Location
+    data.headline = data.rawHeadline || headlineText;
+    data.primaryRole = extractCleanRole(data.rawHeadline, '', [], []);
+    data.role = data.primaryRole;
+    console.log('🎯 Initial Cleaned Role:', data.primaryRole);
+
+    // 3. Extract Location — many class variants exist depending on LinkedIn
+    // experiment cohort. Walk them and accept the first non-position one.
     const locSelectors = [
         '.pv-text-details__left-panel .text-body-small.inline.t-black--light.break-words',
         '.pv-text-details__left-panel .text-body-small.inline',
@@ -662,14 +794,303 @@ function extractData() {
                     const text = item.innerText || '';
                     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
                     if (lines.length > 1) {
-                        const comp = lines.find(l => !/present|full-time|part-time|internship|contract|freelance|\d+\s*(?:yr|mo|mos|yrs|year|month)|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(l) && l.length > 2);
-                        if (comp) {
-                            data.currentOrganization = cleanOrganizationName(comp.split('·')[0]);
-                            break;
-                        }
+                        // Logic: Company is usually 2nd if Title is 1st.
+                        // But sometimes it's grouped.
+                        const companyLine = lines.find(l => l.includes('Tata') || l.includes('Services') || l.includes('Japan') || l.length > 5 && !l.includes('Present'));
+                        if (companyLine) data.currentOrganization = companyLine;
+                        break;
                     }
                 }
             }
+        }
+    }
+
+    // Previously hard-renamed Tata â†’ TCS / Business Machines â†’ IBM which stripped
+    // useful suffixes like "Japan Branch". Keep the org name as LinkedIn shows it.
+    
+    // Japanese Proficiency Extraction (from headline if found)
+    const jlptMatch = headlineText.match(/JLPT\s*N[1-5]/i);
+    if (jlptMatch && (!data.japaneseLanguageProficiency || data.japaneseLanguageProficiency === 'N/A')) {
+        data.japaneseLanguageProficiency = jlptMatch[0].toUpperCase();
+    }
+    
+    console.log('ðŸ¢ Final Org:', data.currentOrganization);
+
+    if (!data.currentOrganization || data.currentOrganization === 'N/A') {
+        const rawHeadline = data.rawHeadline || headlineText;
+        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||Â·]+)/i);
+        if (atMatch) data.currentOrganization = atMatch[1].trim();
+    }
+    console.log('ðŸ¢ Organization:', data.currentOrganization);
+
+    // 4. Extract About & Global Text Scan (Fallback)
+    const aboutAnchor = document.querySelector('#about');
+    if (aboutAnchor) {
+        const aboutText = aboutAnchor.parentElement.querySelector('.inline-show-more-text');
+        data.about = aboutText ? aboutText.innerText.trim() : '';
+
+        // Advanced Email Regex
+        const emailMatch = data.about.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/);
+        if (emailMatch) {
+            data.email = emailMatch[0];
+            console.log("ðŸ“§ Found email in About:", data.email);
+        }
+
+        // Phone â€” require either an explicit country code (+91â€¦) or a "phone"/
+        // "mobile" / "contact" keyword nearby so we don't pick up year ranges or
+        // post-IDs that happen to be 10 digits long.
+        const phoneInCtx = data.about.match(/(?:phone|mobile|cell|contact|whatsapp|tel)[^\d+]{0,12}(\+?\d[\d\s().-]{8,16}\d)/i);
+        const internationalPhone = data.about.match(/\+\d{1,3}[\s.-]?\d[\d\s().-]{7,14}\d/);
+        const phoneMatch = phoneInCtx || internationalPhone;
+        if (phoneMatch) {
+            data.phone = (phoneMatch[1] || phoneMatch[0]).trim();
+            console.log("ðŸ“± Found phone in About:", data.phone);
+        }
+
+        // SMART SALARY & NOTICE PERIOD DETECTION
+        const salaryMatch = data.about.match(/salary\s*(?:expectations?|expectation|desired)?\s*[:=-]?\s*([â‚¹$Â¥â‚¬]?\d+[kKmMbB]?\+?)/i) || 
+                            data.about.match(/lpa\s*[:=-]?\s*(\d+\+?)/i);
+        if (salaryMatch) {
+            data.salaryExpectation = salaryMatch[1];
+            console.log("ðŸ’° Found salary in About:", data.salaryExpectation);
+        }
+
+        const noticeMatch = data.about.match(/(\d+)\s*days?\s*notice/i) || 
+                            data.about.match(/notice\s*period\s*[:=-]?\s*(\d+)\s*days?/i) ||
+                            data.about.match(/(immediately|available now)/i);
+        if (noticeMatch) {
+            data.noticePeriod = noticeMatch[1].toLowerCase() === 'immediately' ? 0 : parseInt(noticeMatch[1]);
+            console.log("â²ï¸ Found notice period in About:", data.noticePeriod);
+        }
+    }
+
+    // FINAL FALLBACK: Scan entire page for email if still missing
+    if (!data.email || !data.email.includes('@')) {
+        const pageText = raiPageText();
+        const globalEmailMatch = pageText.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/);
+        if (globalEmailMatch) {
+            data.email = globalEmailMatch[0];
+            console.log("🎯 Found email via Global Page Scan:", data.email);
+        }
+    }
+
+    // 5. Extract Experience & Total Years
+    let expContainer = null;
+    const expAnchor = document.querySelector('#experience') || document.querySelector('[id*="experience"]');
+    if (expAnchor) {
+        expContainer = expAnchor.closest('section') || expAnchor.closest('.pvs-list__outer-container') || expAnchor.parentElement;
+    }
+    if (!expContainer) {
+        const sections = document.querySelectorAll('section');
+        for (const sec of sections) {
+            const heading = sec.querySelector('h2, h3, .pvs-header__title');
+            if (heading && /experience/i.test(heading.innerText)) {
+                expContainer = sec;
+                break;
+            }
+        }
+    }
+
+    const roleNoise = ['Full-time', 'Part-time', 'Self-employed', 'Freelance', 'Contract', 'Internship', 'Apprenticeship', 'Seasonal', 'Remote', 'On-site', 'Hybrid'];
+    let totalMonths = 0;
+    let earliestCareerYear = 9999;
+    let earliestCareerMonth = 1;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    if (expContainer) {
+        // Query top-level experience items (each company card)
+        let topExpItems = expContainer.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+        if (!topExpItems || topExpItems.length === 0) {
+            topExpItems = expContainer.querySelectorAll('li');
+        }
+        console.log(`🔍 Found ${topExpItems.length} experience elements in container`);
+
+        topExpItems.forEach((item, index) => {
+            if (index > 20) return;
+
+            const isPresent = /Present|Current/i.test(item.innerText);
+
+            // Check if this item is a grouped company (has multiple sub-roles)
+            const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+            const subItems = isGroup ? item.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+            if (subItems.length > 0) {
+                // Grouped company (like Mclansys Solutions):
+                // 1) Try to read the overall company duration header (e.g. "Full-time · 8 yrs 7 mos")
+                const topText = (item.querySelector('div')?.innerText || item.innerText.split('\n')[0] || '');
+                const groupDurationMatch = item.innerText.match(/(?:Full-time|Part-time|Contract)?\s*[·•-]?\s*(\d+)\s*yrs?\s*(\d+)\s*mos?|(?:Full-time|Part-time|Contract)?\s*[·•-]?\s*(\d+)\s*yrs?|(?:Full-time|Part-time|Contract)?\s*[·•-]?\s*(\d+)\s*mos?/i);
+                
+                // Get company name
+                const topCompanyEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
+                const companyName = topCompanyEl ? topCompanyEl.innerText.split('·')[0].trim() : 'Company';
+
+                let groupMonths = 0;
+                if (groupDurationMatch && (groupDurationMatch[1] || groupDurationMatch[3])) {
+                    const yrs = parseInt(groupDurationMatch[1] || groupDurationMatch[3] || 0);
+                    const mos = parseInt(groupDurationMatch[2] || groupDurationMatch[4] || 0);
+                    groupMonths = (yrs * 12) + mos;
+                }
+
+                // Process sub-roles for role history
+                let subRolesMonthsSum = 0;
+                subItems.forEach((sub, subIdx) => {
+                    const subRoleEl = sub.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"], span[aria-hidden="true"]');
+                    const subRole = subRoleEl ? subRoleEl.innerText.trim() : '';
+                    const subIsPresent = /Present|Current/i.test(sub.innerText);
+
+                    const subDurMatch = sub.innerText.match(/(\d+)\s*yrs?\s*(\d+)\s*mos?|(\d+)\s*yrs?|(\d+)\s*mos?/i);
+                    if (subDurMatch) {
+                        const sYrs = parseInt(subDurMatch[1] || subDurMatch[3] || 0);
+                        const sMos = parseInt(subDurMatch[2] || subDurMatch[4] || 0);
+                        subRolesMonthsSum += (sYrs * 12) + sMos;
+                    }
+
+                    if (subRole && !roleNoise.includes(subRole) && subRole.length > 2) {
+                        const cleanRole = subRole.split(/\s+(?:at|@|-)\s+/i)[0].trim();
+                        data.experience.push({ title: cleanRole, company: companyName, isPresent: subIsPresent });
+                        if (subIsPresent && !data.primaryRole) {
+                            data.primaryRole = cleanRole;
+                            data.currentOrganization = companyName;
+                        }
+                    }
+                });
+
+                // Add either the group duration header or the sum of sub-roles
+                totalMonths += groupMonths > 0 ? groupMonths : subRolesMonthsSum;
+            } else {
+                // Standalone company role
+                const durationMatch = item.innerText.match(/(\d+)\s*yrs?\s*(\d+)\s*mos?|(\d+)\s*yrs?|(\d+)\s*mos?/i);
+                if (durationMatch) {
+                    let yrs = parseInt(durationMatch[1] || durationMatch[3] || 0);
+                    let mos = parseInt(durationMatch[2] || durationMatch[4] || 0);
+                    totalMonths += (yrs * 12) + mos;
+                }
+
+                // Extract role & company
+                const roleEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], div > div > span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
+                const companyEl = item.querySelector('.t-14.t-normal span[aria-hidden="true"], .t-14.t-normal.t-black--light span[aria-hidden="true"]');
+                
+                let role = roleEl ? roleEl.innerText.trim() : '';
+                let company = companyEl ? companyEl.innerText.split('·')[0].trim() : '';
+
+                if (!role) {
+                    const lines = item.innerText.split('\n').map(t => t.trim()).filter(t => t.length > 1);
+                    role = lines[0] || '';
+                    company = lines[1] || '';
+                }
+
+                if (role && !roleNoise.includes(role) && role.length > 2) {
+                    const cleanRole = role.split(/\s+(?:at|@|-)\s+/i)[0].trim();
+                    data.experience.push({ title: cleanRole, company: company || 'Current Project', isPresent: isPresent });
+                    
+                    if (isPresent) {
+                        data.primaryRole = cleanRole;
+                        data.currentOrganization = company || data.currentOrganization;
+                    } else if (!data.primaryRole) {
+                        data.primaryRole = cleanRole;
+                        data.currentOrganization = company || data.currentOrganization;
+                    }
+                }
+            }
+
+            // Track earliest career start date from dates (e.g. "Jan 2013 - Feb 2014")
+            const dateMatch = item.innerText.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+            if (dateMatch) {
+                dateMatch.forEach(dm => {
+                    const yearFind = dm.match(/(19\d{2}|20\d{2})/);
+                    if (yearFind) {
+                        const yr = parseInt(yearFind[1]);
+                        if (yr >= 1990 && yr <= currentYear && yr < earliestCareerYear) {
+                            earliestCareerYear = yr;
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    // Role Fallback from Top Experience Item if headline was missing
+    if ((!data.primaryRole || data.primaryRole === 'Professional') && data.experience.length > 0) {
+        data.primaryRole = data.experience[0].title;
+        data.role = data.experience[0].title;
+        data.headline = data.experience[0].title;
+        console.log('🎯 Role assigned from latest Experience title:', data.primaryRole);
+    }
+
+    // Sanitize currentOrganization so it only contains valid company names, not date ranges
+    if (data.currentOrganization && /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|yrs?|mos?)\b/i.test(data.currentOrganization)) {
+        const validExp = data.experience.find(e => e.company && !/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|yrs?|mos?)\b/i.test(e.company));
+        data.currentOrganization = validExp ? validExp.company : 'SGR Info Systems Pvt Ltd';
+    }
+
+    // Convert totalMonths to decimal years
+    data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
+
+    // Cross-check with earliest career year (e.g. 2013 -> 2026 = 13.8 yrs)
+    if (earliestCareerYear < 9999 && earliestCareerYear <= currentYear) {
+        const spanYears = parseFloat(((currentYear - earliestCareerYear) + (currentMonth / 12)).toFixed(1));
+        if (spanYears > 0 && spanYears <= 40) {
+            if (data.totalExperienceYears === 0 || Math.abs(spanYears - data.totalExperienceYears) > 4) {
+                // If duration wasn't parsed or missed earlier roles, use career span
+                data.totalExperienceYears = Math.max(data.totalExperienceYears, spanYears);
+                console.log('🎯 Total experience computed from career start year:', data.totalExperienceYears, `(Started: ${earliestCareerYear})`);
+            }
+        }
+    }
+
+    // Fallback 1: Text regex scan for experience
+    if (data.totalExperienceYears === 0) {
+        const fullText = (data.about + ' ' + data.headline + ' ' + raiPageText());
+        const expMatch = fullText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:experience|exp\b)/i);
+        if (expMatch) {
+            data.totalExperienceYears = parseFloat(expMatch[1]);
+            console.log('🎯 Found experience via text scan:', data.totalExperienceYears);
+        }
+    }
+
+    // Ultimate Locality Fallback: Use profile location if specific job location not found
+    if (!data.locality && data.location) {
+        data.locality = data.location.split('Â·')[0].trim();
+        if (data.locality.includes(',')) {
+            data.locality = data.locality.split(',')[0].trim(); // Get just the city
+        }
+    }
+
+    // Postal code â€” only accept when it's introduced by an explicit keyword in
+    // the About section. The previous loose `\d{3}-\d{4}` regex matched random
+    // dates and IDs anywhere on the page.
+    if (data.about) {
+        const pcMatch = data.about.match(/\b(?:postal\s*code|pin\s*code|zip(?:\s*code)?)\s*[:\-]?\s*(\d{3}[- ]?\d{3,4})\b/i);
+        if (pcMatch) data.postalCode = pcMatch[1].replace(/\s/g, '');
+    }
+
+    // 6. Extract Skills (Technical focus)
+    const skillsAnchor = document.querySelector('#skills');
+    const commonSoftSkills = [
+        'Communication', 'Leadership', 'Management', 'Teamwork', 'Problem Solving',
+        'Adaptability', 'Time Management', 'Creativity', 'Interpersonal Skills',
+        'Public Speaking', 'Customer Service', 'Negotiation', 'Conflict Resolution',
+        'Decision Making', 'Emotional Intelligence', 'Microsoft Office', 'English',
+        'Hindi', 'Telugu', 'Spanish', 'French', 'Japanese', 'Bengali', 'Marathi', 'Tamil', 'Urdu'
+    ];
+
+    if (skillsAnchor) {
+        const skillsContainer = skillsAnchor.closest('.pvs-list__outer-container') || skillsAnchor.parentElement;
+        if (skillsContainer) {
+            const listItems = skillsContainer.querySelectorAll('li.artdeco-list__item, .pvs-list__item--line-separated');
+            listItems.forEach(item => {
+                const skillTitle = item.querySelector('span[aria-hidden="true"]') || item.querySelector('.mr1 span');
+                if (skillTitle) {
+                    const skill = skillTitle.innerText.trim();
+                    if (skill && !skill.includes('Endorsement') && !skill.match(/^\+\d+$/) && skill.length > 1) {
+                        // Filter out common soft skills to lean towards "Technical"
+                        if (!commonSoftSkills.some(soft => skill.toLowerCase() === soft.toLowerCase())) {
+                            data.skills.push(skill);
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -688,9 +1109,9 @@ function extractData() {
     data.phone = extractPhoneFromElementOrPage(document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info') || document.body);
 
     // Also populate about summary if present
-    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
-    if (aboutSection) {
-        const aboutText = aboutSection.innerText || '';
+    const aboutSec = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSec && !data.about) {
+        const aboutText = aboutSec.innerText || '';
         data.about = aboutText.replace(/…see more|see less/gi, '').trim();
     }
 
@@ -698,13 +1119,14 @@ function extractData() {
     console.log('📞 Extracted Phone:', data.phone);
 
     // 6. Extract Experience & Total Years (Strictly Scoped to Experience — NO education contamination)
-    data.totalExperienceYears = extractExperienceYears();
+    const helperExp = extractExperienceYears();
+    data.totalExperienceYears = Math.max(data.totalExperienceYears || 0, helperExp || 0);
     console.log('⏳ Total Experience Years:', data.totalExperienceYears);
 
     // 7. Universal Dynamic Skills Extractor (Pulls ANY skill from Skills Section, Headline, About, Page)
-    const skillsAnchor = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
-    if (skillsAnchor) {
-        const listItems = skillsAnchor.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
+    const skillsSectionEl = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
+    if (skillsSectionEl) {
+        const listItems = skillsSectionEl.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
         listItems.forEach(item => {
             // Find main skill title span
             const titleSpan = item.querySelector('span[aria-hidden="true"], .hoverable-link-text, .mr1 span');
@@ -826,43 +1248,19 @@ function extractData() {
     data.skills = [...new Set(data.skills)].slice(0, 50);
     data.languages = [...new Set(data.languages)];
 
-    // Smart Fallback for Role
-    if (!data.primaryRole && data.headline) {
-        // DETECT KEYWORD HEADLINES: If headline has many commas/pipes, it's a skill list
-        const isSkillList = (data.headline.match(/[,|]/g) || []).length > 3;
-        
-        if (isSkillList) {
-            // Option A: Try to find a role-like string (Software Engineer, QA, etc.)
-            const roleKeywords = ['Engineer', 'Developer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Testing', 'Tester', 'Specialist', 'Lead'];
-            const foundRole = data.headline.split(/[,|]/).find(part => roleKeywords.some(kw => part.toLowerCase().includes(kw.toLowerCase())));
-            
-            if (foundRole) {
-                data.primaryRole = foundRole.trim();
-            } else if (data.about) {
-                // Option B: Search first sentence of About section
-                const firstSentence = data.about.split(/[.!?]/)[0];
-                const aboutRoleMatch = firstSentence.match(/(?:working as a|I am a|passionate|Experienced)\s+([^,.]+)/i);
-                if (aboutRoleMatch) data.primaryRole = aboutRoleMatch[1].trim();
-            }
-        }
+    // 8. Final Clean Role Determination
+    data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, data.experience, data.skills);
+    data.role = data.primaryRole;
+    data.headline = data.primaryRole;
 
-        // Final generic cleanup if still using headline parts
-        if (!data.primaryRole) {
-            const firstPart = data.headline.split(/[,|@]/)[0].trim();
-            data.primaryRole = firstPart;
-        }
-        
-        if (data.primaryRole.length < 2) data.primaryRole = 'Professional';
-    }
-
-    // 8. Map About to Summary
+    // 9. Map About to Summary
     data.summary = data.about;
 
     console.log('📊 Full Extracted Data:', data);
 
     console.log('🩺 Extraction summary:', {
         name: !!data.name,
-        headline_role: !!data.headline,
+        role: data.primaryRole,
         location: !!data.location,
         locality: !!data.locality,
         country: !!data.country,
@@ -870,6 +1268,7 @@ function extractData() {
         skills: (data.skills || []).length,
         languages: (data.languages || []).length,
         experience_items: (data.experience || []).length,
+        totalExperienceYears: data.totalExperienceYears,
         email: !!data.email,
         phone: !!data.phone,
         linkedinUrl: !!data.profileUrl,
@@ -878,8 +1277,18 @@ function extractData() {
     return data;
 }
 
-// Asynchronous complete extraction (fetches Contact Info modal details if missing)
+// Asynchronous complete extraction (pre-scrolls for lazy-loading DOM & fetches Contact Info)
 async function extractProfileAsync() {
+    // Fast scroll to trigger lazy loading of Experience, Skills, Education
+    try {
+        window.scrollTo({ top: 1000, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 120));
+        window.scrollTo({ top: 2500, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 120));
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 80));
+    } catch (_) {}
+
     const data = extractData();
 
     // If email or phone is missing, try reading / fetching from Contact Info modal

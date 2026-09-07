@@ -125,7 +125,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function sendExtractMessage(tabId, callback) {
         chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp) => {
-            if (chrome.runtime.lastError) { callback(null, chrome.runtime.lastError.message); return; }
+            if (chrome.runtime.lastError) {
+                // If content script was disconnected (e.g. after extension reload), automatically inject and retry
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ['scripts/content.js']
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
+                        return;
+                    }
+                    setTimeout(() => {
+                        chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp2) => {
+                            if (chrome.runtime.lastError) {
+                                callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
+                                return;
+                            }
+                            callback(resp2, null);
+                        });
+                    }, 250);
+                });
+                return;
+            }
             callback(resp, null);
         });
     }
@@ -298,14 +319,121 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.length > 1) data.name = t;
         }
 
+        // Helper: Universal Clean Role Extraction across all LinkedIn profiles
+        function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
+            let raw = (rawHeadline || '').trim();
+            if (!raw && aboutText) {
+                const firstSentence = aboutText.split(/[.!?\n]/)[0];
+                const m = firstSentence.match(/(?:working as an?|I am an?|passionate|experienced)\s+([^,.]+)/i);
+                if (m) raw = m[1].trim();
+            }
+            
+            const segments = (raw || '').split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
+
+            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+
+            for (const seg of segments) {
+                const match = seg.match(roleKeywordRegex);
+                if (match) {
+                    let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+                    cleaned = cleaned.replace(/\s*·.*$/, '').trim();
+                    if (cleaned.length > 2) return cleaned;
+                }
+            }
+
+            const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer'];
+            for (const seg of segments) {
+                if (singleRoleKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(seg))) {
+                    let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+                    if (cleaned.length > 2) return cleaned;
+                }
+            }
+
+            const skills = (skillsList || []).map(s => String(s).toLowerCase());
+            const hasSkill = (k) => skills.some(s => s.includes(k));
+
+            if (hasSkill('react') || hasSkill('html') || hasSkill('css') || hasSkill('vue') || hasSkill('angular') || hasSkill('frontend') || hasSkill('tailwind')) {
+                if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('sql') || hasSkill('mongodb')) {
+                    return 'Full Stack Developer';
+                }
+                return 'Frontend Developer';
+            }
+            if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('django') || hasSkill('fastapi') || hasSkill('backend') || hasSkill('sql')) {
+                return 'Backend Developer';
+            }
+            if (hasSkill('qa') || hasSkill('selenium') || hasSkill('cypress') || hasSkill('testing') || hasSkill('test')) {
+                return 'QA Engineer';
+            }
+            if (hasSkill('scrum') || hasSkill('agile') || hasSkill('jira')) {
+                return 'Scrum Master';
+            }
+            if (hasSkill('aws') || hasSkill('azure') || hasSkill('docker') || hasSkill('kubernetes') || hasSkill('devops')) {
+                return 'DevOps Engineer';
+            }
+            if (hasSkill('machine learning') || hasSkill('ai') || hasSkill('pandas') || hasSkill('deep learning')) {
+                return 'Data Scientist';
+            }
+            if (skills.length > 0) {
+                return 'Software Developer';
+            }
+
+            if (segments.length > 0 && segments[0].length > 1) {
+                return segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+            }
+
+            return 'Software Developer';
+        }
+
         // 3. Headline / Role
-        if (!data.headline) {
-            const headEl = document.querySelector('.pv-text-details__left-panel .text-body-medium, .text-body-medium.break-words, .top-card-layout__headline');
-            if (headEl && headEl.innerText) {
-                data.rawHeadline = headEl.innerText.trim();
-                data.headline = data.rawHeadline.replace(/JLPT\s*N[1-5],?\s*/i, '').split(/ in | at | @ | - | \| /i)[0].trim();
-                data.role = data.headline;
-                data.primaryRole = data.headline;
+        const headSelectors = [
+            'main section [data-view-name="profile-top-card"] .text-body-medium',
+            'main section:first-of-type .text-body-medium',
+            '.pv-text-details__left-panel .text-body-medium.break-words',
+            '.pv-text-details__left-panel .text-body-medium',
+            '.text-body-medium.break-words',
+            '.top-card-layout__headline',
+            '.profile-info-subheader__headline',
+            '[data-test-id="headline"]',
+            '.flex-1.mr5 h2',
+            '.pv-text-details__left-panel div:nth-child(2)',
+            'main section .text-body-medium',
+        ];
+
+        for (const sel of headSelectors) {
+            const headEl = document.querySelector(sel);
+            if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
+                const candidate = headEl.innerText.trim();
+                if (/(connections|followers|contact info)/i.test(candidate)) continue;
+                if (candidate === data.name) continue;
+                data.rawHeadline = candidate;
+                break;
+            }
+        }
+
+        if (!data.rawHeadline || data.rawHeadline.length < 2) {
+            const nameH1 = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1');
+            if (nameH1) {
+                const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
+                if (container) {
+                    const candidates = container.querySelectorAll('div, h2, span, p');
+                    for (const c of candidates) {
+                        const txt = (c.innerText || '').trim();
+                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                            data.rawHeadline = txt;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!data.rawHeadline || data.rawHeadline.length < 2) {
+            const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
+            const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
+            if (sepMatch && sepMatch[1]) {
+                data.rawHeadline = sepMatch[1].trim();
             }
         }
 
@@ -489,6 +617,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         let totalMonths = 0;
+        let earliestCareerYear = 9999;
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+
         const expSection = document.querySelector('#experience')?.closest('section')
                         || document.querySelector('section:has(#experience)')
                         || document.querySelector('#experience')?.parentElement
@@ -498,12 +630,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
 
         if (expSection) {
-            const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
-            for (const it of items) {
+            let items = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
+            if (!items || items.length === 0) items = expSection.querySelectorAll('li');
+
+            items.forEach((it) => {
                 const text = it.innerText || '';
-                const m = Math.max(parseDur(text), parseDateRangeMonths(text));
-                if (m > totalMonths) totalMonths = m;
-            }
+                const isGroup = it.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
+                const subItems = isGroup ? it.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
+
+                if (subItems.length > 0) {
+                    const groupDur = parseDur(text);
+                    let subSum = 0;
+                    subItems.forEach(sub => { subSum += parseDur(sub.innerText || ''); });
+                    totalMonths += groupDur > 0 ? groupDur : subSum;
+                } else {
+                    totalMonths += parseDur(text);
+                }
+
+                const dm = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
+                if (dm) {
+                    dm.forEach(d => {
+                        const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
+                        if (y >= 1990 && y <= currentYear && y < earliestCareerYear) earliestCareerYear = y;
+                    });
+                }
+            });
+
             if (totalMonths === 0) {
                 const expText = expSection.innerText || '';
                 totalMonths = Math.max(parseDur(expText), parseDateRangeMonths(expText));
@@ -532,6 +684,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
+        if (earliestCareerYear < 9999 && earliestCareerYear <= currentYear) {
+            const spanYears = parseFloat(((currentYear - earliestCareerYear) + (currentMonth / 12)).toFixed(1));
+            if (spanYears > 0 && spanYears <= 40) {
+                if (data.totalExperienceYears === 0 || Math.abs(spanYears - data.totalExperienceYears) > 4) {
+                    data.totalExperienceYears = Math.max(data.totalExperienceYears, spanYears);
+                }
+            }
+        }
 
         // 9. Skills Extractor
         const skillsSection = document.querySelector('#skills')?.closest('section');
@@ -563,52 +723,79 @@ document.addEventListener('DOMContentLoaded', async () => {
             data.summary = data.about;
         }
 
+        // Final Clean Role Assignment
+        data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, [], data.skills);
+        data.role = data.primaryRole;
+        data.headline = data.primaryRole;
+
         return data;
     }
 
-    // ── Extract Flow (Direct DOM Execution) ──────────────────────
+    // ── Extract Flow (Direct DOM Execution with Auto-Fallback) ──────────────────────
     extractBtn && extractBtn.addEventListener('click', async () => {
         setExtractLoading(true);
-
         try {
-            // 1. Get active tab
-            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-            const activeTab = (tabs && tabs[0]) || currentTab;
-
-            if (!activeTab || !activeTab.id) {
+            const activeTab = currentTab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+            const tabId = activeTab?.id;
+            if (!tabId) {
                 setExtractLoading(false);
-                showToast('Please open a LinkedIn profile tab.', 'error');
+                showToast('No active LinkedIn tab found. Please open a profile.', 'error');
                 return;
             }
 
-            // 2. Direct DOM execution via chrome.scripting.executeScript
-            chrome.scripting.executeScript({
-                target: { tabId: activeTab.id },
-                func: directExtractLinkedInDOM
-            }, (results) => {
-                setExtractLoading(false);
+            let done = false;
+            // 3.5-second safety timer so popup NEVER hangs infinitely on "Extracting..."
+            const fallbackTimer = setTimeout(async () => {
+                if (done) return;
+                done = true;
+                console.warn('Content script timed out. Executing direct DOM fallback scraper...');
+                try {
+                    const results = await chrome.scripting.executeScript({
+                        target: { tabId: tabId },
+                        func: directExtractLinkedInDOM
+                    });
+                    setExtractLoading(false);
+                    if (results && results[0] && results[0].result) {
+                        onExtracted(results[0].result);
+                    } else {
+                        showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                    }
+                } catch (e) {
+                    setExtractLoading(false);
+                    showToast('Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
+                }
+            }, 3500);
 
-                if (chrome.runtime.lastError || !results || !results[0] || !results[0].result) {
-                    console.warn('Direct execution fallback to message passing...', chrome.runtime.lastError);
-                    // Fallback to message passing
-                    sendExtractMessage(activeTab.id, (resp, err) => {
-                        if (err || !resp || resp.status !== 'success') {
-                            showToast('Please refresh the LinkedIn profile page and click Extract again.', 'error');
+            sendExtractMessage(tabId, async (resp, err) => {
+                if (done) return;
+                done = true;
+                clearTimeout(fallbackTimer);
+
+                if (err || !resp || resp.status !== 'success' || !resp.data) {
+                    // Try direct script execution immediately on error
+                    try {
+                        const results = await chrome.scripting.executeScript({
+                            target: { tabId: tabId },
+                            func: directExtractLinkedInDOM
+                        });
+                        setExtractLoading(false);
+                        if (results && results[0] && results[0].result) {
+                            onExtracted(results[0].result);
                             return;
                         }
-                        onExtracted(resp.data);
-                    });
+                    } catch (e) {}
+
+                    setExtractLoading(false);
+                    showToast(err || resp?.message || 'Extraction failed. Please refresh LinkedIn tab (F5).', 'error');
                     return;
                 }
 
-                // SUCCESS! Directly render the extracted profile
-                const extractedProfileData = results[0].result;
-                onExtracted(extractedProfileData);
+                setExtractLoading(false);
+                onExtracted(resp.data);
             });
-        } catch (err) {
+        } catch (e) {
             setExtractLoading(false);
-            console.error('Extract error:', err);
-            showToast('Extraction error. Please refresh the page.', 'error');
+            showToast(e?.message || 'Extraction failed. Please refresh the page.', 'error');
         }
     });
 
@@ -698,7 +885,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             name: profileData.name || 'LinkedIn Candidate',
             email: (profileData.email && !profileData.email.startsWith('linkedin-')) ? profileData.email : (isUpdate ? undefined : `linkedin-${Math.random().toString(36).substr(2, 5)}@recruitai.com`),
             phone: profileData.phone || '',
-            role: profileData.primaryRole || profileData.headline || 'Professional',
+            role: profileData.primaryRole || profileData.role || profileData.headline || 'Software Developer',
             company: profileData.company || profileData.currentOrganization || '',
             currentOrganization: profileData.currentOrganization || profileData.company || '',
             skills: profileData.skills || [],
