@@ -288,16 +288,20 @@ function extractExperienceYears() {
     // Helper: Parse months from a duration string
     function parseDurationString(text) {
         if (!text) return 0;
-        // e.g. "1 yr 2 mos", "1 year and 2 months", "1 year 2 months", "1 yr, 2 mos"
-        const durMatch = text.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,)?\s*(\d+)\s*(?:mos?|months?)/i);
-        if (durMatch) {
-            return (parseInt(durMatch[1], 10) * 12) + parseInt(durMatch[2], 10);
+        const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
+        
+        // Match 'X yrs Y mos', 'X years Y months', 'X yr Y mo'
+        const fullMatch = clean.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,|·|•|-)?\s*(\d+)\s*(?:mos?|months?)/i);
+        if (fullMatch) {
+            return (parseInt(fullMatch[1], 10) * 12) + parseInt(fullMatch[2], 10);
         }
-        const yrMatch = text.match(/(\d+)\s*(?:yrs?|years?)(?!\s*(?:and|,)?\s*\d+\s*(?:mos?|months?))/i);
+        // Match 'X yrs' or 'X years'
+        const yrMatch = clean.match(/(\d+)\s*(?:yrs?|years?)/i);
         if (yrMatch) {
             return parseInt(yrMatch[1], 10) * 12;
         }
-        const moMatch = text.match(/(?:^|\s|\(|·)(\d+)\s*(?:mos?|months?)/i);
+        // Match 'X mos' or 'X months'
+        const moMatch = clean.match(/(?:^|[·•\-\(\s])(\d+)\s*(?:mos?|months?)/i);
         if (moMatch) {
             return parseInt(moMatch[1], 10);
         }
@@ -305,14 +309,15 @@ function extractExperienceYears() {
     }
 
     // Helper: Calculate months from a date range: "Jun 2023 - Present"
-    const MONTH_MAP = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+    const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
     function parseDateRangeMonths(text) {
         if (!text) return 0;
-        const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+        const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+        const rangeMatch = clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
         if (rangeMatch) {
-            const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 0;
+            const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 1;
             const startYear = parseInt(rangeMatch[2], 10);
-            let endMonth = new Date().getMonth();
+            let endMonth = new Date().getMonth() + 1;
             let endYear = new Date().getFullYear();
             if (!/present|current|now/i.test(rangeMatch[3])) {
                 endYear = parseInt(rangeMatch[4], 10);
@@ -329,6 +334,80 @@ function extractExperienceYears() {
         return 0;
     }
 
+// Helper: Calculate total experience by summing all company tenures and cross-checking career dates
+function calculateTotalExperienceFromBlock(block) {
+    if (!block) return 0;
+    const cleanBlock = String(block).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+    const lines = cleanBlock.split('\n').map(l => l.trim()).filter(Boolean);
+    let totalMonths = 0;
+    let earliestYear = 9999;
+    let earliestMonth = 1;
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth() + 1;
+
+    // Find all 4-digit years in range
+    const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/gi);
+    for (const dm of dateMatches) {
+        const mStr = dm[1].substr(0, 3).toLowerCase();
+        const m = MONTH_MAP[mStr] || 1;
+        const y = parseInt(dm[2], 10);
+        if (y >= 1990 && y <= curYear) {
+            if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
+                earliestYear = y;
+                earliestMonth = m;
+            }
+        }
+    }
+
+    const companyDurations = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const hasDurationPattern = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/i.test(line);
+        if (!hasDurationPattern) continue;
+
+        const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
+        if (!hasDateRange) {
+            const dur = parseDurationString(line);
+            if (dur > 0) {
+                companyDurations.push(dur);
+            }
+        }
+    }
+
+    if (companyDurations.length > 0) {
+        totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
+    } else {
+        // Fallback: match all individual durations or date ranges
+        const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/gi;
+        const ranges = [...cleanBlock.matchAll(dateRangeRegex)];
+        for (const r of ranges) {
+            const sM = MONTH_MAP[r[1].substr(0, 3).toLowerCase()] || 1;
+            const sY = parseInt(r[2], 10);
+            let eM = curMonth;
+            let eY = curYear;
+            if (!/present|current|now/i.test(r[3])) {
+                eY = parseInt(r[4], 10);
+                const emStr = r[3].match(/^[a-zA-Z]+/);
+                if (emStr) eM = MONTH_MAP[emStr[0].substr(0, 3).toLowerCase()] || 1;
+            }
+            if (sY >= 1990 && eY >= sY) {
+                totalMonths += Math.max(1, ((eY - sY) * 12) + (eM - sM) + 1);
+            }
+        }
+    }
+
+    if (earliestYear < 9999 && earliestYear <= curYear) {
+        const careerSpanMonths = ((curYear - earliestYear) * 12) + (curMonth - earliestMonth) + 1;
+        if (totalMonths === 0 || (careerSpanMonths - totalMonths) > 24) {
+            totalMonths = Math.max(totalMonths, careerSpanMonths);
+        }
+    }
+
+    return totalMonths;
+}
+
+// Helper: Robust experience calculation that safely parses Experience section & page text without degree contamination
+function extractExperienceYears() {
     // 1. Check DOM Experience section
     const expSection = document.querySelector('#experience')?.closest('section')
                     || document.querySelector('section:has(#experience)')
@@ -338,90 +417,42 @@ function extractExperienceYears() {
                         return h && /^experience$/i.test((h.innerText || '').trim());
                     });
 
-    let totalSumMonths = 0;
-    let earliestYear = 9999;
-    const curYear = new Date().getFullYear();
-    const curMonth = new Date().getMonth() + 1;
-
     if (expSection) {
-        let topItems = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
-        if (!topItems || topItems.length === 0) topItems = expSection.querySelectorAll('li');
-
-        topItems.forEach(item => {
-            const itemText = item.innerText || '';
-            const isGroup = item.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
-            const subItems = isGroup ? item.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
-
-            if (subItems.length > 0) {
-                const groupDur = Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
-                let subSum = 0;
-                subItems.forEach(sub => {
-                    const st = sub.innerText || '';
-                    subSum += Math.max(parseDurationString(st), parseDateRangeMonths(st));
-                });
-                totalSumMonths += groupDur > 0 ? groupDur : subSum;
-            } else {
-                totalSumMonths += Math.max(parseDurationString(itemText), parseDateRangeMonths(itemText));
-            }
-
-            const dm = itemText.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
-            if (dm) {
-                dm.forEach(d => {
-                    const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
-                    if (y >= 1990 && y <= curYear && y < earliestYear) earliestYear = y;
-                });
-            }
-        });
-
-        if (totalSumMonths > 0) maxMonths = totalSumMonths;
-        if (earliestYear < 9999 && earliestYear <= curYear) {
-            const spanMonths = ((curYear - earliestYear) * 12) + curMonth;
-            if (spanMonths > maxMonths && (spanMonths - maxMonths) > 24) {
-                maxMonths = spanMonths;
-            }
-        }
-
-        if (maxMonths === 0) {
-            const expText = expSection.innerText || '';
-            maxMonths = Math.max(parseDurationString(expText), parseDateRangeMonths(expText));
-        }
+        const expText = expSection.innerText || '';
+        const months = calculateTotalExperienceFromBlock(expText);
+        if (months > 0) return parseFloat((months / 12).toFixed(1));
     }
 
     // 2. Sliced Text Scanning (Page text between "Experience" heading and next heading)
-    if (maxMonths === 0) {
-        const allText = (document.querySelector('main')?.innerText || document.body.innerText || '');
-        const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
-        const expIdx = lines.findIndex(l => /^experience$/i.test(l));
-        if (expIdx >= 0) {
-            const nextStopRegex = /^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i;
-            const expLines = [];
-            for (let i = expIdx + 1; i < lines.length && i < expIdx + 100; i++) {
-                if (nextStopRegex.test(lines[i])) break;
-                expLines.push(lines[i]);
-            }
-            const expBlock = expLines.join('\n');
-            const m1 = parseDurationString(expBlock);
-            const m2 = parseDateRangeMonths(expBlock);
-            maxMonths = Math.max(m1, m2);
+    const allText = (document.querySelector('main')?.innerText || document.body.innerText || '');
+    const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
+    const expIdx = lines.findIndex(l => /^experience$/i.test(l));
+    if (expIdx >= 0) {
+        const nextStopRegex = /^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i;
+        const expLines = [];
+        for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
+            if (nextStopRegex.test(lines[i])) break;
+            expLines.push(lines[i]);
         }
+        const expBlock = expLines.join('\n');
+        const months = calculateTotalExperienceFromBlock(expBlock);
+        if (months > 0) return parseFloat((months / 12).toFixed(1));
     }
 
     // 3. Fallback: Highlights & About section
-    if (maxMonths === 0) {
-        const aboutText = document.querySelector('#about')?.closest('section')?.innerText || '';
-        const highlightsText = document.querySelector('.pv-highlights-section, #highlights')?.innerText || '';
-        const combined = aboutText + '\n' + highlightsText;
+    const aboutText = document.querySelector('#about')?.closest('section')?.innerText || '';
+    const highlightsText = document.querySelector('.pv-highlights-section, #highlights')?.innerText || '';
+    const combined = aboutText + '\n' + highlightsText;
 
-        const explicitMatch = combined.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i);
-        if (explicitMatch) {
-            maxMonths = Math.round(parseFloat(explicitMatch[1]) * 12);
-        } else {
-            const dur = parseDurationString(combined);
-            if (dur > 0 && dur < 480) maxMonths = dur;
-        }
+    const explicitMatch = combined.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i);
+    if (explicitMatch) {
+        return parseFloat(explicitMatch[1]);
     }
 
-    return maxMonths > 0 ? parseFloat((maxMonths / 12).toFixed(1)) : 0;
+    const dur = parseDurationString(combined);
+    if (dur > 0 && dur < 480) return parseFloat((dur / 12).toFixed(1));
+
+    return 0;
 }
 
 // ROBUST PRIMARY SOURCE: LinkedIn embeds a structured Person object as JSON-LD
@@ -925,25 +956,16 @@ function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
                 const topCompanyEl = item.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
                 const companyName = topCompanyEl ? topCompanyEl.innerText.split('·')[0].trim() : 'Company';
 
-                let groupMonths = 0;
-                if (groupDurationMatch && (groupDurationMatch[1] || groupDurationMatch[3])) {
-                    const yrs = parseInt(groupDurationMatch[1] || groupDurationMatch[3] || 0);
-                    const mos = parseInt(groupDurationMatch[2] || groupDurationMatch[4] || 0);
-                    groupMonths = (yrs * 12) + mos;
-                }
-
-                // Process sub-roles for role history
+                const topCompanyDur = parseDurationString(topText || item.innerText);
                 let subRolesMonthsSum = 0;
                 subItems.forEach((sub, subIdx) => {
                     const subRoleEl = sub.querySelector('.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"], span[aria-hidden="true"]');
                     const subRole = subRoleEl ? subRoleEl.innerText.trim() : '';
                     const subIsPresent = /Present|Current/i.test(sub.innerText);
 
-                    const subDurMatch = sub.innerText.match(/(\d+)\s*yrs?\s*(\d+)\s*mos?|(\d+)\s*yrs?|(\d+)\s*mos?/i);
-                    if (subDurMatch) {
-                        const sYrs = parseInt(subDurMatch[1] || subDurMatch[3] || 0);
-                        const sMos = parseInt(subDurMatch[2] || subDurMatch[4] || 0);
-                        subRolesMonthsSum += (sYrs * 12) + sMos;
+                    const subDur = parseDurationString(sub.innerText) || parseDateRangeMonths(sub.innerText);
+                    if (subDur > 0) {
+                        subRolesMonthsSum += subDur;
                     }
 
                     if (subRole && !roleNoise.includes(subRole) && subRole.length > 2) {
@@ -957,14 +979,12 @@ function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
                 });
 
                 // Add either the group duration header or the sum of sub-roles
-                totalMonths += groupMonths > 0 ? groupMonths : subRolesMonthsSum;
+                totalMonths += topCompanyDur > 0 ? topCompanyDur : subRolesMonthsSum;
             } else {
                 // Standalone company role
-                const durationMatch = item.innerText.match(/(\d+)\s*yrs?\s*(\d+)\s*mos?|(\d+)\s*yrs?|(\d+)\s*mos?/i);
-                if (durationMatch) {
-                    let yrs = parseInt(durationMatch[1] || durationMatch[3] || 0);
-                    let mos = parseInt(durationMatch[2] || durationMatch[4] || 0);
-                    totalMonths += (yrs * 12) + mos;
+                const standaloneDur = parseDurationString(item.innerText) || parseDateRangeMonths(item.innerText);
+                if (standaloneDur > 0) {
+                    totalMonths += standaloneDur;
                 }
 
                 // Extract role & company
@@ -2585,10 +2605,14 @@ function saveToCRM() {
     try {
         const orgFromInput = valOf('rai-company-input', '');
         const orgFinal = orgFromInput || (extractedProfile && extractedProfile.currentOrganization) || '';
+        const liveExp = extractExperienceYears();
+        const finalExpYears = liveExp > 0 ? liveExp : (extractedProfile?.totalExperienceYears || 0);
+
         finalData = {
             ...extractedProfile,
             name: `${valOf('rai-fname-input')} ${valOf('rai-lname-input')}`.trim(),
-            primaryRole: valOf('rai-role-input'),
+            primaryRole: valOf('rai-role-input') || extractedProfile?.primaryRole || extractedProfile?.role || 'Software Developer',
+            role: valOf('rai-role-input') || extractedProfile?.primaryRole || extractedProfile?.role || 'Software Developer',
             email: valOf('rai-email-input'),
             phone: valOf('rai-phone-input'),
             location: valOf('rai-location-input'),
@@ -2599,6 +2623,8 @@ function saveToCRM() {
             salaryExpectation: valOf('rai-exp-salary-input'),
             noticePeriod: parseInt(valOf('rai-notice-input', '0')) || 0,
             relevantExperience: parseInt(valOf('rai-rel-exp-input', '0')) || 0,
+            totalExperienceYears: finalExpYears,
+            experience: finalExpYears,
             visaType: valOf('rai-visa-input'),
             country: extractedProfile && extractedProfile.country,
             skills: valOf('rai-skills-input').split(',').map(s => s.trim()).filter(s => s),

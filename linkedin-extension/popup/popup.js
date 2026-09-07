@@ -579,14 +579,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 8. Experience Duration Parsing (Strictly scoped, avoids Education degree contamination)
-        const MONTH_MAP = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+        const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
         function parseDateRangeMonths(text) {
             if (!text) return 0;
-            const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+            const rangeMatch = clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
             if (rangeMatch) {
-                const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 0;
+                const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 1;
                 const startYear = parseInt(rangeMatch[2], 10);
-                let endMonth = new Date().getMonth();
+                let endMonth = new Date().getMonth() + 1;
                 let endYear = new Date().getFullYear();
                 if (!/present|current|now/i.test(rangeMatch[3])) {
                     endYear = parseInt(rangeMatch[4], 10);
@@ -605,22 +606,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function parseDur(text) {
             if (!text) return 0;
-            const mFull = text.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,)?\s*(\d+)\s*(?:mos?|months?)/i);
+            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
+            const mFull = clean.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,|·|•|-)?\s*(\d+)\s*(?:mos?|months?)/i);
             if (mFull) return (parseInt(mFull[1], 10) * 12) + parseInt(mFull[2], 10);
-            const mYr = text.match(/(\d+)\s*(?:yrs?|years?)(?!\s*(?:and|,)?\s*\d+\s*(?:mos?|months?))/i);
+            const mYr = clean.match(/(\d+)\s*(?:yrs?|years?)/i);
             if (mYr) return parseInt(mYr[1], 10) * 12;
-            const mMo = text.match(/(?:^|\s|\(|·)(\d+)\s*(?:mos?|months?)/i);
+            const mMo = clean.match(/(?:^|[·•\-\(\s])(\d+)\s*(?:mos?|months?)/i);
             if (mMo) return parseInt(mMo[1], 10);
-            const dateMonths = parseDateRangeMonths(text);
+            const dateMonths = parseDateRangeMonths(clean);
             if (dateMonths > 0) return dateMonths;
             return 0;
         }
 
-        let totalMonths = 0;
-        let earliestCareerYear = 9999;
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
+        function calculateTotalExperienceFromBlock(block) {
+            if (!block) return 0;
+            const cleanBlock = String(block).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+            const lines = cleanBlock.split('\n').map(l => l.trim()).filter(Boolean);
+            let totalMonths = 0;
+            let earliestYear = 9999;
+            let earliestMonth = 1;
+            const curYear = new Date().getFullYear();
+            const curMonth = new Date().getMonth() + 1;
 
+            const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/gi);
+            for (const dm of dateMatches) {
+                const mStr = dm[1].substr(0, 3).toLowerCase();
+                const m = MONTH_MAP[mStr] || 1;
+                const y = parseInt(dm[2], 10);
+                if (y >= 1990 && y <= curYear) {
+                    if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
+                        earliestYear = y;
+                        earliestMonth = m;
+                    }
+                }
+            }
+
+            const companyDurations = [];
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const hasDurationPattern = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/i.test(line);
+                if (!hasDurationPattern) continue;
+
+                const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
+                if (!hasDateRange) {
+                    const dur = parseDur(line);
+                    if (dur > 0) companyDurations.push(dur);
+                }
+            }
+
+            if (companyDurations.length > 0) {
+                totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
+            } else {
+                const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/gi;
+                const ranges = [...cleanBlock.matchAll(dateRangeRegex)];
+                for (const r of ranges) {
+                    const sM = MONTH_MAP[r[1].substr(0, 3).toLowerCase()] || 1;
+                    const sY = parseInt(r[2], 10);
+                    let eM = curMonth;
+                    let eY = curYear;
+                    if (!/present|current|now/i.test(r[3])) {
+                        eY = parseInt(r[4], 10);
+                        const emStr = r[3].match(/^[a-zA-Z]+/);
+                        if (emStr) eM = MONTH_MAP[emStr[0].substr(0, 3).toLowerCase()] || 1;
+                    }
+                    if (sY >= 1990 && eY >= sY) {
+                        totalMonths += Math.max(1, ((eY - sY) * 12) + (eM - sM) + 1);
+                    }
+                }
+            }
+
+            if (earliestYear < 9999 && earliestYear <= curYear) {
+                const careerSpanMonths = ((curYear - earliestYear) * 12) + (curMonth - earliestMonth) + 1;
+                if (totalMonths === 0 || (careerSpanMonths - totalMonths) > 24) {
+                    totalMonths = Math.max(totalMonths, careerSpanMonths);
+                }
+            }
+
+            return totalMonths;
+        }
+
+        let totalMonths = 0;
         const expSection = document.querySelector('#experience')?.closest('section')
                         || document.querySelector('section:has(#experience)')
                         || document.querySelector('#experience')?.parentElement
@@ -630,36 +695,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
 
         if (expSection) {
-            let items = expSection.querySelectorAll(':scope > div > ul > li, :scope .pvs-list > li, li.artdeco-list__item');
-            if (!items || items.length === 0) items = expSection.querySelectorAll('li');
-
-            items.forEach((it) => {
-                const text = it.innerText || '';
-                const isGroup = it.querySelector('.pvs-entity__sub-components, .pvs-list__item--line-separated, ul');
-                const subItems = isGroup ? it.querySelectorAll('.pvs-list__item--line-separated, ul > li') : [];
-
-                if (subItems.length > 0) {
-                    const groupDur = parseDur(text);
-                    let subSum = 0;
-                    subItems.forEach(sub => { subSum += parseDur(sub.innerText || ''); });
-                    totalMonths += groupDur > 0 ? groupDur : subSum;
-                } else {
-                    totalMonths += parseDur(text);
-                }
-
-                const dm = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19\d{2}|20\d{2})\b/gi);
-                if (dm) {
-                    dm.forEach(d => {
-                        const y = parseInt(d.match(/(19\d{2}|20\d{2})/)?.[1] || 0);
-                        if (y >= 1990 && y <= currentYear && y < earliestCareerYear) earliestCareerYear = y;
-                    });
-                }
-            });
-
-            if (totalMonths === 0) {
-                const expText = expSection.innerText || '';
-                totalMonths = Math.max(parseDur(expText), parseDateRangeMonths(expText));
-            }
+            const expText = expSection.innerText || '';
+            const months = calculateTotalExperienceFromBlock(expText);
+            if (months > 0) totalMonths = months;
         }
 
         if (totalMonths === 0) {
@@ -669,12 +707,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const expIdx = lines.findIndex(l => /^experience$/i.test(l));
             if (expIdx >= 0) {
                 const expLines = [];
-                for (let i = expIdx + 1; i < lines.length && i < expIdx + 80; i++) {
+                for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
                     if (/^(education|skills|languages|licenses|certifications)/i.test(lines[i])) break;
                     expLines.push(lines[i]);
                 }
                 const block = expLines.join('\n');
-                totalMonths = Math.max(parseDur(block), parseDateRangeMonths(block));
+                totalMonths = calculateTotalExperienceFromBlock(block);
             }
         }
 
@@ -684,11 +722,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
+        data.experience = data.totalExperienceYears;
         if (earliestCareerYear < 9999 && earliestCareerYear <= currentYear) {
             const spanYears = parseFloat(((currentYear - earliestCareerYear) + (currentMonth / 12)).toFixed(1));
             if (spanYears > 0 && spanYears <= 40) {
                 if (data.totalExperienceYears === 0 || Math.abs(spanYears - data.totalExperienceYears) > 4) {
                     data.totalExperienceYears = Math.max(data.totalExperienceYears, spanYears);
+                    data.experience = data.totalExperienceYears;
                 }
             }
         }
