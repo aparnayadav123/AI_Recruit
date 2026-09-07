@@ -1,0 +1,1249 @@
+
+
+QA REFERENCE · FIELD VALIDATION
+
+RecruitAI ATS — UI Field Validation Specification
+
+Every user-editable field across the application, with its rule (mandatory/optional, length, allowed format), the expected validation message, and where the rule is actually enforced today. Fields with no validation are flagged as gaps to test and close.
+
+Scope: Recruiter dashboard (React/TS) + Spring Boot API      Areas: 11      Method: source audit — client forms & server constraints
+
+How to read the “Enforced” column
+
+Both = validated on client & server      Client = browser/JS only (bypassable via API)      Server = API only (no inline UI feedback)      Gap = not validated anywhere (message is a recommendation)
+
+Mandatory blocks submit when empty      Optional may be left blank      REC = recommended, not yet implemented
+
+01  Authentication
+
+Sign In, Sign Up and server checks in AuthController.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Sign In · Email
+
+email
+
+Mandatory
+
+—
+
+—
+
+Valid email format
+
+Email and password are required. / Invalid email or password.
+
+Both
+
+Sign In · Password
+
+password
+
+Mandatory
+
+—
+
+—
+
+Any
+
+Invalid email or password.
+
+Both
+
+Sign Up · Full Name
+
+text
+
+Mandatory
+
+1
+
+100  REC
+
+Letters, spaces, .&apos;-  REC
+
+Full name is required.
+
+Both
+
+Sign Up · Email
+
+email
+
+Mandatory
+
+—
+
+—
+
+^[A-Za-z0-9+_.-]+@…\.[A-Za-z]{2,}$
+
+Please enter a valid email address. / An account with that email already exists. Please sign in.
+
+Both
+
+Sign Up · Password
+
+password
+
+Mandatory
+
+6
+
+72  REC
+
+Any
+
+Password must be at least 6 characters long.
+
+Both
+
+Sign Up · Confirm Password
+
+password
+
+Mandatory
+
+—
+
+—
+
+Must equal Password
+
+Passwords do not match.  REC
+
+Client
+
+02  Settings
+
+My Profile, Company (HR-Manager only), Notifications. Profile email is validated both sides.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Profile · Photo
+
+file
+
+Optional
+
+—
+
+2 MB
+
+image/* (JPG, PNG, GIF)
+
+Max 2MB
+
+Client
+
+Profile · First Name
+
+text
+
+Optional
+
+—
+
+50  REC
+
+Letters, spaces  REC
+
+Enter a valid first name.  REC
+
+Gap
+
+Profile · Last Name
+
+text
+
+Optional
+
+—
+
+50  REC
+
+Letters, spaces  REC
+
+Enter a valid last name.  REC
+
+Gap
+
+Profile · Email Address
+
+email
+
+Mandatory
+
+—
+
+—
+
+^[^\s@]+@[^\s@]+\.[^\s@]+$
+
+Please enter a valid email address. / Email already in use
+
+Both
+
+Company · Name
+
+text
+
+Optional
+
+—
+
+100  REC
+
+Any
+
+Company name is too long (max 100).  REC
+
+Gap
+
+Company · Website
+
+text
+
+Optional
+
+—
+
+—
+
+URL (http/https)  REC
+
+Enter a valid URL (https://…).  REC
+
+Gap
+
+Company · Description
+
+textarea
+
+Optional
+
+—
+
+500  REC
+
+Any
+
+Description is too long (max 500).  REC
+
+Gap
+
+Company · Headquarters
+
+text
+
+Optional
+
+—
+
+100  REC
+
+Any
+
+—  REC
+
+Gap
+
+Company · Logo
+
+file
+
+Optional
+
+—
+
+2 MB  REC
+
+image/*
+
+Logo must be an image under 2 MB.  REC
+
+Gap
+
+Company · Size
+
+select
+
+Optional
+
+—
+
+—
+
+Fixed list (4 options)
+
+n/a — constrained
+
+Both
+
+Notifications · 4 toggles
+
+checkbox
+
+Optional
+
+—
+
+—
+
+Boolean
+
+n/a
+
+Both
+
+03  Candidates — Add / Edit
+
+Name & Email enforced both sides (@NotBlank, @Size(max=100), @Email). * Number fields enforce only HTML min=0 — no upper bound, no JS check.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Full Name
+
+text
+
+Mandatory
+
+1
+
+100
+
+Letters, spaces, .&apos;-
+
+Name is required. / Name must not exceed 100 characters
+
+Both
+
+Email
+
+email
+
+Mandatory
+
+—
+
+—
+
+Email format
+
+A valid email is required. / Candidate with email … already exists in the system.
+
+Both
+
+Phone
+
+text
+
+Optional
+
+10  REC
+
+15  REC
+
+Digits, +, spaces  REC
+
+Enter a valid phone number (10–15 digits).  REC
+
+Gap
+
+Experience (yrs)
+
+number
+
+Optional
+
+0
+
+60  REC
+
+Numeric ≥ 0
+
+Experience must be between 0 and 60.  REC
+
+Client*
+
+Notice (days)
+
+number
+
+Optional
+
+0
+
+365  REC
+
+Numeric ≥ 0
+
+Notice must be between 0 and 365 days.  REC
+
+Client*
+
+Locality / Country
+
+text
+
+Optional
+
+—
+
+100  REC
+
+Any
+
+—
+
+Gap
+
+Role / Headline
+
+text
+
+Optional
+
+—
+
+100  REC
+
+Any
+
+—
+
+Gap
+
+Current Organization
+
+text
+
+Optional
+
+—
+
+100  REC
+
+Any
+
+—
+
+Gap
+
+Postal Code
+
+text
+
+Optional
+
+—
+
+10  REC
+
+Alphanumeric  REC
+
+—
+
+Gap
+
+Current / Expected Salary
+
+text
+
+Optional
+
+—
+
+—
+
+Any
+
+—
+
+Gap
+
+Languages
+
+text
+
+Optional
+
+—
+
+—
+
+Comma-separated
+
+—
+
+Gap
+
+Visa Type / Status
+
+text
+
+Optional
+
+—
+
+—
+
+Any
+
+—
+
+Gap
+
+Japanese Proficiency
+
+select
+
+Optional
+
+—
+
+—
+
+Fixed list (N1–N5 / Native / BJT)
+
+n/a — constrained
+
+Both
+
+Status
+
+select
+
+Optional
+
+—
+
+—
+
+Fixed list (New…Rejected)
+
+n/a — constrained
+
+Both
+
+04  Jobs — Create / Edit
+
+The most thoroughly validated form in the app (computeErrors). † Location is optional when Remote is checked. ⚠ Department: client allows 60 but server rejects > 50 (@Size(max=50)).
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Job Title
+
+text
+
+Mandatory
+
+3
+
+100
+
+Any
+
+Job Title is required / …at least 3 characters / …at most 100 characters
+
+Both
+
+Company
+
+text
+
+Mandatory
+
+2
+
+80
+
+Any
+
+Company is required / at least 2 / at most 80 characters
+
+Both
+
+Department
+
+text
+
+Mandatory
+
+2
+
+60 ⚠
+
+Any
+
+Department is required / at least 2 / at most 60 characters
+
+Both
+
+Industry
+
+text
+
+Mandatory
+
+2
+
+60
+
+Any
+
+Industry is required / at least 2 / at most 60 characters
+
+Client
+
+Job Description
+
+textarea
+
+Mandatory
+
+30
+
+5000
+
+Any · live counter
+
+Job Description is required / at least 30 / at most 5000 characters
+
+Both
+
+Location
+
+text
+
+Mandatory †
+
+2
+
+80
+
+Any (disabled if Remote)
+
+Location is required / at least 2 / at most 80 characters
+
+Both
+
+Salary Range
+
+text
+
+Mandatory
+
+—
+
+—
+
+Rupee format (₹50,000 - ₹1,00,000)
+
+Salary is required (in rupees…) / Salary must be in rupees (e.g. ₹5L - ₹10L)
+
+Client
+
+Required Skills
+
+list
+
+≥ 1 required
+
+1
+
+—
+
+Trimmed, deduped
+
+At least one required skill must be added
+
+Client
+
+Application Deadline
+
+date
+
+Mandatory
+
+today
+
+—
+
+Date ≥ today
+
+Application deadline is required / is invalid / must be today or in the future
+
+Client
+
+Employment Type
+
+select
+
+Optional
+
+—
+
+—
+
+Fixed list
+
+n/a — constrained
+
+Both
+
+Experience Level
+
+select
+
+Optional
+
+—
+
+—
+
+Fixed list
+
+n/a — constrained
+
+Both
+
+Skill Weight
+
+range
+
+Optional
+
+1
+
+100
+
+Slider
+
+n/a — constrained
+
+Both
+
+Education / Benefits
+
+list
+
+Optional
+
+—
+
+—
+
+Trimmed, deduped
+
+—
+
+Client
+
+Remote / Job Status
+
+checkbox / select
+
+Optional
+
+—
+
+—
+
+Boolean / Hold·Open
+
+n/a — constrained
+
+Both
+
+05  Candidate Details — Actions & Modals
+
+Reject, Add Note, Update Stage, Meeting Scheduler, Add-to-Hotlist, inline edit. ‡ Add-Note blocks Save when empty but shows no message.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Reject · Reason
+
+select
+
+Preset
+
+—
+
+—
+
+Fixed reasons list
+
+n/a — always has a value
+
+Both
+
+Add Note · Message
+
+textarea
+
+Mandatory
+
+1  REC
+
+1000  REC
+
+Any
+
+Please enter a note before saving.  REC
+
+Client‡
+
+Meeting · Date
+
+date
+
+Optional
+
+today  REC
+
+—
+
+Date
+
+Interview date can&apos;t be in the past.  REC
+
+Gap
+
+Meeting · Link / Location
+
+text
+
+Optional
+
+—
+
+—
+
+URL  REC
+
+—
+
+Gap
+
+Add to Hotlist · Name
+
+select / text
+
+One required
+
+—
+
+—
+
+Existing or new name
+
+Please select or enter a hotlist name.
+
+Client
+
+Update Stage · Status / Stage / Remark
+
+select / textarea
+
+Optional
+
+—
+
+—
+
+Fixed lists / free text
+
+—
+
+Gap
+
+Inline &apos;Edit Details&apos; (14 fields)
+
+text / number
+
+Optional
+
+—
+
+—
+
+Any (salary, org, exp, notice, visa…)
+
+—
+
+Gap
+
+06  Schedule Interview
+
+Schedule Interview modal (ShortlistReport). Date & Time are required together; no future-date restriction.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Date
+
+date
+
+Mandatory
+
+today  REC
+
+—
+
+Date
+
+Please select both date and time
+
+Client
+
+Time
+
+time
+
+Mandatory
+
+—
+
+—
+
+HH:mm
+
+Please select both date and time
+
+Client
+
+Type
+
+select
+
+Optional
+
+—
+
+—
+
+Video / Phone / On-site
+
+n/a — constrained
+
+Both
+
+Meeting Link
+
+text
+
+Optional
+
+—
+
+—
+
+URL (auto-generates if blank)  REC
+
+—
+
+Gap
+
+Notes
+
+textarea
+
+Optional
+
+—
+
+2000  REC
+
+Any
+
+—
+
+Gap
+
+Interview · Start / End time (API)
+
+datetime
+
+Mandatory
+
+—
+
+—
+
+ISO datetime
+
+Start time is required / End time is required
+
+Server
+
+07  Resume Upload & Deletion Requests
+
+Resume upload, HR deletion-request reason, and manager reject-notes.
+Field
+Type
+Required
+Min
+Max
+Allowed / format
+Expected message
+Enforced
+
+Resume file(s)
+
+file
+
+Mandatory
+
+—
+
+10 MB
+
+.pdf · .doc · .docx · .txt
+
+&quot;…&quot; was skipped: only PDF/DOC/DOCX/TXT up to 10MB are allowed.
+
+Both
+
+Resume · parse result
+
+server
+
+—
+
+—
+
+—
+
+Must yield Name or Email
+
+Validation Failed: Could not extract Name or Email from resume.
+
+Server
+
+Re-apply cooldown
+
+server
+
+—
+
+—
+
+—
+
+Once / 6 months
+
+You applied on … . Re-applications open on … .
+
+Server
+
+Deletion Request · Reason
+
+textarea
+
+Mandatory
+
+5
+
+500  REC
+
+Any
+
+Please provide a reason of at least 5 characters.
+
+Client
+
+Reject Deletion · Decision notes
+
+textarea
+
+Optional
+
+—
+
+500  REC
+
+Any
+
+—
+
+Gap
+
+08  Server-side rules & error format
+
+These apply to every path into the API, including direct calls that bypass the UI. Upload cap is 10 MB.
+Rule / source
+Constraint
+Message
+HTTP
+
+Register — email exists
+
+Duplicate account
+
+An account with that email already exists. Please sign in.
+
+409
+
+Register — password
+
+length ≥ 6
+
+Password must be at least 6 characters long.
+
+400
+
+Login — credentials
+
+match required
+
+Invalid email or password.
+
+401
+
+Profile — email
+
+regex + unique
+
+Please enter a valid email address. / Email already in use
+
+400
+
+Candidate — name
+
+@NotBlank, @Size(max=100)
+
+Name is required / Name must not exceed 100 characters
+
+400
+
+Candidate — email
+
+@Email, @NotBlank, unique
+
+Email should be valid / Candidate with email … already exists
+
+400 · 409
+
+Job — title / description / company
+
+@NotBlank (+ title max 100)
+
+Job title is required / Description is required / must not be blank
+
+400
+
+Job — department / location
+
+@Size(max=50) / @Size(max=100)
+
+Department must not exceed 50 characters / Location must not exceed 100 characters
+
+400
+
+Add Note — message
+
+not blank
+
+Note message is required.
+
+400
+
+Deletion — approve / reject
+
+Manager/Admin only
+
+Only Manager or Admin can approve/reject deletion requests.
+
+403
+
+Error envelope (global)
+
+All @Valid failures
+
+{ timestamp, message: &quot;Validation Failed&quot;, status: &quot;error&quot;, details: { field: msg } }
+
+400
+
+Upload cap
+
+multipart.max-file-size
+
+(request rejected)
+
+10 MB
+
+!  Known gaps & inconsistencies to test
+
+Client ↔ server mismatches (surface as confusing errors)
+
+
+Job · Department length: UI accepts up to 60 characters, but the API rejects anything over 50 (@Size(max=50)). A 51–60 char department passes the form and fails on save — align both to one limit.
+
+
+Edit-Candidate modal email: the Add/Edit modal validates email with a regex, but the secondary Edit modal does not — an invalid email can be saved from one screen and not the other.
+
+
+Resume errors return different codes: the same parse/cooldown failure is 400 via ResumeController but an uncaught 500 via IngestionController.
+
+
+createCandidate error shape differs: it returns {errors:[…]} while every other @Valid endpoint returns {details:{…}} — tests asserting one shape miss the other.
+
+Missing validations worth adding (currently “Gap”)
+
+
+Dates in the past: the Meeting Scheduler date has no min; Schedule-Interview date isn&apos;t restricted to the future. Interviews can be booked in the past.
+
+
+Number fields (Experience, Notice): enforce only min=0 in HTML — no upper bound, no JS check; out-of-range values post fine via API.
+
+
+Free-text fields have no max length: across Candidate, Company and note/remark fields — recommend server-side @Size caps to prevent oversized documents.
+
+
+Silent required fields: Add-Note and the LinkedIn message block Save when empty but show no message — add an inline hint.
+
+
+Company logo & profile photo (server): only the 10 MB multipart cap applies; no image-type check server-side.
+
+
+Grounded in a source audit of the recruiter dashboard (React/TypeScript) and the Spring Boot API. “Expected message” quotes the exact string in code where present; entries marked REC are recommended rules not yet implemented. Length/format values without a code citation are recommendations for the QA baseline.
+
+

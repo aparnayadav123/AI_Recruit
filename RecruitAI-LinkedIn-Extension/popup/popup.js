@@ -214,9 +214,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // ── Self-Contained Sync LinkedIn DOM Extractor Function ──────────
+    // ── Self-Contained Async LinkedIn DOM Extractor Function ──────────
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
-    function directExtractLinkedInDOM() {
+    async function directExtractLinkedInDOM() {
         try {
             window.scrollBy(0, 400);
             window.scrollBy(0, -400);
@@ -245,6 +245,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             extractedAt: new Date().toISOString()
         };
 
+        // Constants and Helpers
+        const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+        let earliestCareerYear = 9999;
+        let earliestCareerMonth = 1;
+
         // Generic email filter
         function isGenericEmail(mail) {
             if (!mail || !mail.includes('@')) return true;
@@ -265,55 +272,112 @@ document.addEventListener('DOMContentLoaded', async () => {
             return text.replace(/^[•·\s\-]+/, '').trim();
         }
 
-        // 1. JSON-LD Structured Data
-        try {
-            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-            for (const s of scripts) {
-                let json;
-                try { json = JSON.parse(s.textContent); } catch (_) { continue; }
-                const graph = json['@graph'] || (Array.isArray(json) ? json : [json]);
-                const person = (graph || []).find(o => o && (o['@type'] === 'Person' || (Array.isArray(o['@type']) && o['@type'].includes('Person'))));
-                if (!person) continue;
-
-                if (person.name) {
-                    data.name = String(person.name).replace(/\s*[\(\[\（\【].*?[\)\]\）\】]\s*/g, ' ').replace(/\s+/g, ' ').trim();
-                }
-                if (person.jobTitle) {
-                    const jt = Array.isArray(person.jobTitle) ? person.jobTitle[0] : person.jobTitle;
-                    if (jt) {
-                        data.headline = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
-                        data.role = data.headline; data.primaryRole = data.headline;
+        // Date Range parser
+        function parseDateRangeMonths(text) {
+            if (!text) return 0;
+            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+            const rangeMatch = clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+            if (rangeMatch) {
+                const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 1;
+                const startYear = parseInt(rangeMatch[2], 10);
+                let endMonth = currentMonth;
+                let endYear = currentYear;
+                if (!/present|current|now/i.test(rangeMatch[3])) {
+                    endYear = parseInt(rangeMatch[4], 10);
+                    const endMStr = rangeMatch[3].match(/^[a-zA-Z]+/);
+                    if (endMStr && MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()] !== undefined) {
+                        endMonth = MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()];
                     }
                 }
-                const addr = person.address;
-                if (addr && typeof addr === 'object') {
-                    const loc = addr.addressLocality || '';
-                    const reg = addr.addressRegion || '';
-                    let c = addr.addressCountry || '';
-                    if (c && typeof c === 'object') c = c.name || '';
-                    data.location = [loc, reg, c].filter(Boolean).join(', ');
-                    data.locality = [loc, reg].filter(Boolean).join(', ') || loc;
-                    data.country = c;
+                if (startYear >= 1990 && endYear >= startYear) {
+                    const totalM = ((endYear - startYear) * 12) + (endMonth - startMonth) + 1;
+                    return Math.max(1, totalM);
                 }
-                const works = person.worksFor;
-                if (works) {
-                    const w = Array.isArray(works) ? works[0] : works;
-                    if (w && w.name) data.currentOrganization = cleanOrg(w.name);
-                }
-                break;
             }
-        } catch (_) {}
-
-        // 2. Name
-        if (!data.name) {
-            const nameEl = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1.v-align-middle, .pv-text-details__left-panel h1, main h1');
-            if (nameEl && nameEl.innerText && nameEl.innerText.trim().length > 1) {
-                data.name = nameEl.innerText.replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').replace(/\s+/g, ' ').trim();
-            }
+            return 0;
         }
-        if (!data.name) {
-            const t = (document.title || '').split('|')[0].replace('LinkedIn', '').replace(/^\(\d+\)\s*/, '').replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').trim();
-            if (t.length > 1) data.name = t;
+
+        function parseDur(text) {
+            if (!text) return 0;
+            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
+            const mFull = clean.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,|·|•|-)?\s*(\d+)\s*(?:mos?|months?)/i);
+            if (mFull) return (parseInt(mFull[1], 10) * 12) + parseInt(mFull[2], 10);
+            const mYr = clean.match(/(\d+)\s*(?:yrs?|years?)/i);
+            if (mYr) return parseInt(mYr[1], 10) * 12;
+            const mMo = clean.match(/(?:^|[·•\-\(\s])(\d+)\s*(?:mos?|months?)/i);
+            if (mMo) return parseInt(mMo[1], 10);
+            const dateMonths = parseDateRangeMonths(clean);
+            if (dateMonths > 0) return dateMonths;
+            return 0;
+        }
+
+        function calculateTotalExperienceFromBlock(block) {
+            if (!block) return 0;
+            const cleanBlock = String(block).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+            const lines = cleanBlock.split('\n').map(l => l.trim()).filter(Boolean);
+            let totalMonths = 0;
+            let earliestYear = 9999;
+            let earliestMonth = 1;
+
+            const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/gi);
+            for (const dm of dateMatches) {
+                const mStr = dm[1].substr(0, 3).toLowerCase();
+                const m = MONTH_MAP[mStr] || 1;
+                const y = parseInt(dm[2], 10);
+                if (y >= 1990 && y <= currentYear) {
+                    if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
+                        earliestYear = y;
+                        earliestMonth = m;
+                    }
+                    if (y < earliestCareerYear || (y === earliestCareerYear && m < earliestCareerMonth)) {
+                        earliestCareerYear = y;
+                        earliestCareerMonth = m;
+                    }
+                }
+            }
+
+            const companyDurations = [];
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const hasDurationPattern = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/i.test(line);
+                if (!hasDurationPattern) continue;
+
+                const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
+                if (!hasDateRange) {
+                    const dur = parseDur(line);
+                    if (dur > 0) companyDurations.push(dur);
+                }
+            }
+
+            if (companyDurations.length > 0) {
+                totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
+            } else {
+                const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/gi;
+                const ranges = [...cleanBlock.matchAll(dateRangeRegex)];
+                for (const r of ranges) {
+                    const sM = MONTH_MAP[r[1].substr(0, 3).toLowerCase()] || 1;
+                    const sY = parseInt(r[2], 10);
+                    let eM = currentMonth;
+                    let eY = currentYear;
+                    if (!/present|current|now/i.test(r[3])) {
+                        eY = parseInt(r[4], 10);
+                        const emStr = r[3].match(/^[a-zA-Z]+/);
+                        if (emStr) eM = MONTH_MAP[emStr[0].substr(0, 3).toLowerCase()] || 1;
+                    }
+                    if (sY >= 1990 && eY >= sY) {
+                        totalMonths += Math.max(1, ((eY - sY) * 12) + (eM - sM) + 1);
+                    }
+                }
+            }
+
+            if (earliestYear < 9999 && earliestYear <= currentYear) {
+                const careerSpanMonths = ((currentYear - earliestYear) * 12) + (currentMonth - earliestMonth) + 1;
+                if (totalMonths === 0 || (careerSpanMonths - totalMonths) > 24) {
+                    totalMonths = Math.max(totalMonths, careerSpanMonths);
+                }
+            }
+
+            return totalMonths;
         }
 
         // Helper: Universal Clean Role Extraction across all LinkedIn profiles
@@ -327,7 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const segments = (raw || '').split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
 
-            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Systems\s+Analyst|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
 
             for (const seg of segments) {
                 const match = seg.match(roleKeywordRegex);
@@ -382,75 +446,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             return 'Software Developer';
         }
-
-        // 3. Headline / Role
-        const headSelectors = [
-            'main section [data-view-name="profile-top-card"] .text-body-medium',
-            'main section:first-of-type .text-body-medium',
-            '.pv-text-details__left-panel .text-body-medium.break-words',
-            '.pv-text-details__left-panel .text-body-medium',
-            '.text-body-medium.break-words',
-            '.top-card-layout__headline',
-            '.profile-info-subheader__headline',
-            '[data-test-id="headline"]',
-            '.flex-1.mr5 h2',
-            '.pv-text-details__left-panel div:nth-child(2)',
-            'main section .text-body-medium',
-        ];
-
-        for (const sel of headSelectors) {
-            const headEl = document.querySelector(sel);
-            if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
-                const candidate = headEl.innerText.trim();
-                if (/(connections|followers|contact info)/i.test(candidate)) continue;
-                if (candidate === data.name) continue;
-                data.rawHeadline = candidate;
-                break;
-            }
-        }
-
-        if (!data.rawHeadline || data.rawHeadline.length < 2) {
-            const nameH1 = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1');
-            if (nameH1) {
-                const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
-                if (container) {
-                    const candidates = container.querySelectorAll('div, h2, span, p');
-                    for (const c of candidates) {
-                        const txt = (c.innerText || '').trim();
-                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
-                            data.rawHeadline = txt;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!data.rawHeadline || data.rawHeadline.length < 2) {
-            const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
-            const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
-            if (sepMatch && sepMatch[1]) {
-                data.rawHeadline = sepMatch[1].trim();
-            }
-        }
-
-        // 4. Location
-        if (!data.location) {
-            const locEl = document.querySelector('.pv-text-details__left-panel .text-body-small.inline, .top-card-layout__first-subline span');
-            if (locEl && locEl.innerText) {
-                data.location = locEl.innerText.split('·')[0].split('Contact info')[0].trim();
-                data.locality = data.location;
-            }
-        }
-
-        // 5. Current Organization / Company
-        if (!data.currentOrganization) {
-            const orgEl = document.querySelector('.pv-text-details__right-panel button span, .pv-text-details__right-panel a span, button[aria-label^="Current company"], a[href*="/company/"]');
-            if (orgEl && orgEl.innerText) {
-                data.currentOrganization = cleanOrg(orgEl.innerText.split('\n')[0]);
-            }
-        }
-        data.company = data.currentOrganization;
 
         // Helper: Extract contact fields from any modal element
         function parseContactFromModal(modal) {
@@ -527,10 +522,148 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 6. Check Contact Info Modal if open or in DOM
-        const existingModal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+        // 1. JSON-LD Structured Data
+        try {
+            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+            for (const s of scripts) {
+                let json;
+                try { json = JSON.parse(s.textContent); } catch (_) { continue; }
+                const graph = json['@graph'] || (Array.isArray(json) ? json : [json]);
+                const person = (graph || []).find(o => o && (o['@type'] === 'Person' || (Array.isArray(o['@type']) && o['@type'].includes('Person'))));
+                if (!person) continue;
+
+                if (person.name) {
+                    data.name = String(person.name).replace(/\s*[\(\[\（\【].*?[\)\]\）\】]\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                }
+                if (person.jobTitle) {
+                    const jt = Array.isArray(person.jobTitle) ? person.jobTitle[0] : person.jobTitle;
+                    if (jt) {
+                        data.headline = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
+                        data.role = data.headline; data.primaryRole = data.headline;
+                    }
+                }
+                const addr = person.address;
+                if (addr && typeof addr === 'object') {
+                    const loc = addr.addressLocality || '';
+                    const reg = addr.addressRegion || '';
+                    let c = addr.addressCountry || '';
+                    if (c && typeof c === 'object') c = c.name || '';
+                    data.location = [loc, reg, c].filter(Boolean).join(', ');
+                    data.locality = [loc, reg].filter(Boolean).join(', ') || loc;
+                    data.country = c;
+                }
+                const works = person.worksFor;
+                if (works) {
+                    const w = Array.isArray(works) ? works[0] : works;
+                    if (w && w.name) data.currentOrganization = cleanOrg(w.name);
+                }
+                break;
+            }
+        } catch (_) {}
+
+        // 2. Name
+        if (!data.name) {
+            const nameEl = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1.v-align-middle, .pv-text-details__left-panel h1, main h1');
+            if (nameEl && nameEl.innerText && nameEl.innerText.trim().length > 1) {
+                data.name = nameEl.innerText.replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+        }
+        if (!data.name) {
+            const t = (document.title || '').split('|')[0].replace('LinkedIn', '').replace(/^\(\d+\)\s*/, '').replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ').trim();
+            if (t.length > 1) data.name = t;
+        }
+
+        // 3. Headline / Role
+        const headSelectors = [
+            'main section [data-view-name="profile-top-card"] .text-body-medium',
+            'main section:first-of-type .text-body-medium',
+            '.pv-text-details__left-panel .text-body-medium.break-words',
+            '.pv-text-details__left-panel .text-body-medium',
+            '.text-body-medium.break-words',
+            '.top-card-layout__headline',
+            '.profile-info-subheader__headline',
+            '[data-test-id="headline"]',
+            '.flex-1.mr5 h2',
+            '.pv-text-details__left-panel div:nth-child(2)',
+            'main section .text-body-medium',
+        ];
+
+        for (const sel of headSelectors) {
+            const headEl = document.querySelector(sel);
+            if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
+                const candidate = headEl.innerText.trim();
+                if (/(connections|followers|contact info)/i.test(candidate)) continue;
+                if (candidate === data.name) continue;
+                data.rawHeadline = candidate;
+                break;
+            }
+        }
+
+        if (!data.rawHeadline || data.rawHeadline.length < 2) {
+            const nameH1 = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1');
+            if (nameH1) {
+                const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
+                if (container) {
+                    const candidates = container.querySelectorAll('div, h2, span, p');
+                    for (const c of candidates) {
+                        const txt = (c.innerText || '').trim();
+                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                            data.rawHeadline = txt;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!data.rawHeadline || data.rawHeadline.length < 2) {
+            const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
+            const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
+            if (sepMatch && sepMatch[1]) {
+                data.rawHeadline = sepMatch[1].trim();
+            }
+        }
+
+        // 4. Location
+        if (!data.location) {
+            const locEl = document.querySelector('.pv-text-details__left-panel .text-body-small.inline, .top-card-layout__first-subline span');
+            if (locEl && locEl.innerText) {
+                data.location = locEl.innerText.split('·')[0].split('Contact info')[0].trim();
+                data.locality = data.location;
+            }
+        }
+
+        // 5. Current Organization / Company
+        if (!data.currentOrganization) {
+            const orgEl = document.querySelector('.pv-text-details__right-panel button span, .pv-text-details__right-panel a span, button[aria-label^="Current company"], a[href*="/company/"]');
+            if (orgEl && orgEl.innerText) {
+                data.currentOrganization = cleanOrg(orgEl.innerText.split('\n')[0]);
+            }
+        }
+        data.company = data.currentOrganization;
+
+        // 6. Contact Info Modal
+        let openedModal = false;
+        let existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info');
+        if (!existingModal) {
+            const contactLink = document.querySelector('a[href*="/overlay/contact-info/"], #top-card-text-details-contact-info, a[data-control-name="contact_info"]');
+            if (contactLink) {
+                try {
+                    contactLink.click();
+                    openedModal = true;
+                    await new Promise(r => setTimeout(r, 200));
+                    existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info');
+                } catch (_) {}
+            }
+        }
         if (existingModal) {
             parseContactFromModal(existingModal);
+            if (openedModal) {
+                try {
+                    const closeBtn = document.querySelector('button[aria-label="Dismiss"], button[aria-label="Close"], .artdeco-modal__dismiss');
+                    if (closeBtn) closeBtn.click();
+                } catch (_) {}
+            }
         }
 
         // 7. Check mailto & tel links across the page
@@ -563,113 +696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (m10) data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
         }
 
-        // 8. Experience Duration Parsing (Strictly scoped, avoids Education degree contamination)
-        const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-        function parseDateRangeMonths(text) {
-            if (!text) return 0;
-            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
-            const rangeMatch = clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
-            if (rangeMatch) {
-                const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 1;
-                const startYear = parseInt(rangeMatch[2], 10);
-                let endMonth = new Date().getMonth() + 1;
-                let endYear = new Date().getFullYear();
-                if (!/present|current|now/i.test(rangeMatch[3])) {
-                    endYear = parseInt(rangeMatch[4], 10);
-                    const endMStr = rangeMatch[3].match(/^[a-zA-Z]+/);
-                    if (endMStr && MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()] !== undefined) {
-                        endMonth = MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()];
-                    }
-                }
-                if (startYear >= 1990 && endYear >= startYear) {
-                    const totalM = ((endYear - startYear) * 12) + (endMonth - startMonth) + 1;
-                    return Math.max(1, totalM);
-                }
-            }
-            return 0;
-        }
-
-        function parseDur(text) {
-            if (!text) return 0;
-            const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
-            const mFull = clean.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,|·|•|-)?\s*(\d+)\s*(?:mos?|months?)/i);
-            if (mFull) return (parseInt(mFull[1], 10) * 12) + parseInt(mFull[2], 10);
-            const mYr = clean.match(/(\d+)\s*(?:yrs?|years?)/i);
-            if (mYr) return parseInt(mYr[1], 10) * 12;
-            const mMo = clean.match(/(?:^|[·•\-\(\s])(\d+)\s*(?:mos?|months?)/i);
-            if (mMo) return parseInt(mMo[1], 10);
-            const dateMonths = parseDateRangeMonths(clean);
-            if (dateMonths > 0) return dateMonths;
-            return 0;
-        }
-
-        function calculateTotalExperienceFromBlock(block) {
-            if (!block) return 0;
-            const cleanBlock = String(block).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
-            const lines = cleanBlock.split('\n').map(l => l.trim()).filter(Boolean);
-            let totalMonths = 0;
-            let earliestYear = 9999;
-            let earliestMonth = 1;
-            const curYear = new Date().getFullYear();
-            const curMonth = new Date().getMonth() + 1;
-
-            const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/gi);
-            for (const dm of dateMatches) {
-                const mStr = dm[1].substr(0, 3).toLowerCase();
-                const m = MONTH_MAP[mStr] || 1;
-                const y = parseInt(dm[2], 10);
-                if (y >= 1990 && y <= curYear) {
-                    if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
-                        earliestYear = y;
-                        earliestMonth = m;
-                    }
-                }
-            }
-
-            const companyDurations = [];
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const hasDurationPattern = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/i.test(line);
-                if (!hasDurationPattern) continue;
-
-                const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
-                if (!hasDateRange) {
-                    const dur = parseDur(line);
-                    if (dur > 0) companyDurations.push(dur);
-                }
-            }
-
-            if (companyDurations.length > 0) {
-                totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
-            } else {
-                const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/gi;
-                const ranges = [...cleanBlock.matchAll(dateRangeRegex)];
-                for (const r of ranges) {
-                    const sM = MONTH_MAP[r[1].substr(0, 3).toLowerCase()] || 1;
-                    const sY = parseInt(r[2], 10);
-                    let eM = curMonth;
-                    let eY = curYear;
-                    if (!/present|current|now/i.test(r[3])) {
-                        eY = parseInt(r[4], 10);
-                        const emStr = r[3].match(/^[a-zA-Z]+/);
-                        if (emStr) eM = MONTH_MAP[emStr[0].substr(0, 3).toLowerCase()] || 1;
-                    }
-                    if (sY >= 1990 && eY >= sY) {
-                        totalMonths += Math.max(1, ((eY - sY) * 12) + (eM - sM) + 1);
-                    }
-                }
-            }
-
-            if (earliestYear < 9999 && earliestYear <= curYear) {
-                const careerSpanMonths = ((curYear - earliestYear) * 12) + (curMonth - earliestMonth) + 1;
-                if (totalMonths === 0 || (careerSpanMonths - totalMonths) > 24) {
-                    totalMonths = Math.max(totalMonths, careerSpanMonths);
-                }
-            }
-
-            return totalMonths;
-        }
-
+        // 9. Experience Duration Parsing
         let totalMonths = 0;
         const expSection = document.querySelector('#experience')?.closest('section')
                         || document.querySelector('section:has(#experience)')
@@ -686,7 +713,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (totalMonths === 0) {
-            // Sliced text between Experience and Education
             const allText = document.body.innerText || '';
             const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
             const expIdx = lines.findIndex(l => /^experience$/i.test(l));
@@ -708,6 +734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
         data.experience = data.totalExperienceYears;
+
         if (earliestCareerYear < 9999 && earliestCareerYear <= currentYear) {
             const spanYears = parseFloat(((currentYear - earliestCareerYear) + (currentMonth / 12)).toFixed(1));
             if (spanYears > 0 && spanYears <= 40) {
@@ -718,7 +745,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 9. Skills Extractor
+        // 10. Skills Extractor
         const skillsSection = document.querySelector('#skills')?.closest('section');
         if (skillsSection) {
             const items = skillsSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
@@ -741,14 +768,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         data.skills = [...new Set(data.skills)].slice(0, 30);
 
-        // 10. About
+        // 11. About
         const aboutEl = document.querySelector('#about')?.closest('section');
         if (aboutEl) {
             data.about = (aboutEl.innerText || '').replace(/…see more|see less/gi, '').trim();
             data.summary = data.about;
         }
 
-        // Final Clean Role Assignment
+        // 12. Final Clean Role Assignment
         data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, [], data.skills);
         data.role = data.primaryRole;
         data.headline = data.primaryRole;
@@ -789,7 +816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (resp && resp.status === 'success' && resp.data && resp.data.name) {
                     onExtracted(resp.data);
                 } else {
-                    showToast('Please refresh this LinkedIn tab (F5) and try again.', 'error');
+                    showToast(err || 'Please refresh this LinkedIn tab (F5) and try again.', 'error');
                 }
             });
         } catch (e) {
