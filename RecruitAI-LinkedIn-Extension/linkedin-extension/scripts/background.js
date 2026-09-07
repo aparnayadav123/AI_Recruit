@@ -161,7 +161,18 @@ async function saveToCRM(profileData) {
         candidateId = initialCandidate.id;
         console.log('✅ Resume Uploaded. Candidate Created:', candidateId);
     } else {
-        // Name/Email based lookup fallback if candidate exists
+        // LinkedIn URL / Name / Email based lookup fallback if candidate exists
+        if (!candidateId && (profileData.linkedinUrl || profileData.profileUrl)) {
+            try {
+                const dup = await checkDuplicate(profileData.linkedinUrl || profileData.profileUrl);
+                if (dup && dup.id) {
+                    candidateId = dup.id;
+                    initialCandidate = dup;
+                    console.log('🔄 Found existing candidate by LinkedIn URL:', candidateId);
+                }
+            } catch (e) {}
+        }
+
         if (!candidateId && (profileData.email || profileData.name)) {
             const query = profileData.email && !profileData.email.startsWith('linkedin-')
                 ? profileData.email
@@ -179,7 +190,7 @@ async function saveToCRM(profileData) {
                     if (match) {
                         initialCandidate = match;
                         candidateId = initialCandidate.id;
-                        console.log('🔄 Found existing candidate:', candidateId);
+                        console.log('🔄 Found existing candidate by search:', candidateId);
                     }
                 }
             } catch (e) {

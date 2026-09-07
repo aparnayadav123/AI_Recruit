@@ -2,17 +2,23 @@
  * LinkedIn Profile Content Scraper
  */
 
+(() => {
+if (window.__RECRUITAI_CONTENT_SCRIPT_INJECTED__) {
+    console.log('[RecruitAI] Content script already active in this tab.');
+}
+window.__RECRUITAI_CONTENT_SCRIPT_INJECTED__ = true;
+
 console.log('[RecruitAI] Content Script Loaded');
 
-// Listen for messages from the popup
+/// Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'EXTRACT_PROFILE') {
-        try {
-            const profileData = extractData();
+        extractProfileAsync().then(profileData => {
             sendResponse({ status: 'success', data: profileData });
-        } catch (error) {
+        }).catch(error => {
             sendResponse({ status: 'error', message: error.message });
-        }
+        });
+        return true; // Keep message channel open for async response
     }
     if (request.action === 'TOGGLE_SIDEBAR') {
         const sidebar = document.getElementById('recruitai-sidebar');
@@ -32,7 +38,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 
 // LinkedIn page text that EXCLUDES the injected RecruitAI panel. The panel lives in
-// <body> as a sibling of <main>, so reading <main> gives the profile content only â€”
+// <body> as a sibling of <main>, so reading <main> gives the profile content only —
 // without this, the text parsers matched our OWN UI labels ("Candidate", "Notes",
 // "Contact Info") as if they were profile data.
 function raiPageText() {
@@ -40,11 +46,334 @@ function raiPageText() {
     return (main && main.innerText) ? main.innerText : (document.body.innerText || '');
 }
 
+// Helper: Check if an email address is a generic/corporate mailbox that should NOT be assigned as a candidate's personal email
+function isGenericOrCorporateEmail(email) {
+    if (!email || !email.includes('@')) return true;
+    const local = email.split('@')[0].toLowerCase();
+    const genericPrefixes = [
+        'hr', 'careers', 'career', 'jobs', 'job', 'info', 'support', 'admin',
+        'contact', 'help', 'sales', 'press', 'media', 'marketing', 'team',
+        'privacy', 'legal', 'security', 'notifications', 'no-reply', 'noreply',
+        'hello', 'welcome', 'office', 'enquiry', 'inquiries', 'feedback', 'billing'
+    ];
+    return genericPrefixes.includes(local);
+}
+
+// Helper: Extract email from element, modal, or page text
+function extractEmailFromElementOrPage(rootEl) {
+    const containers = [
+        rootEl,
+        document.querySelector('[role="dialog"]'),
+        document.querySelector('.artdeco-modal'),
+        document.querySelector('#artdeco-modal-outlet'),
+        document.querySelector('.pv-contact-info'),
+        document.body
+    ].filter(Boolean);
+
+    // 1. Check mailto: links
+    for (const c of containers) {
+        const mailtoLinks = c.querySelectorAll('a[href^="mailto:"]');
+        for (const link of mailtoLinks) {
+            const rawHref = link.getAttribute('href') || link.innerText || '';
+            const mail = rawHref.replace(/^mailto:/i, '').split('?')[0].trim();
+            if (mail.includes('@') && !isGenericOrCorporateEmail(mail)) {
+                return mail;
+            }
+        }
+    }
+
+    // 2. Scan text in modal / dialog / contact section
+    const modal = document.querySelector('[role="dialog"], .artdeco-modal, #artdeco-modal-outlet, .pv-contact-info, [aria-label*="Contact info" i]');
+    if (modal) {
+        const text = modal.innerText || '';
+        const matches = text.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+        for (const m of matches) {
+            if (!isGenericOrCorporateEmail(m)) {
+                return m.trim();
+            }
+        }
+    }
+
+    // 3. Scan About section
+    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSection) {
+        const text = aboutSection.innerText || '';
+        const matches = text.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+        for (const m of matches) {
+            if (!isGenericOrCorporateEmail(m)) {
+                return m.trim();
+            }
+        }
+    }
+
+    // 4. If URL is /overlay/contact-info/ or entire page text
+    const pageText = raiPageText();
+    const allMatches = pageText.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+    for (const m of allMatches) {
+        if (!isGenericOrCorporateEmail(m)) {
+            return m.trim();
+        }
+    }
+
+    return '';
+}
+
+// Helper: Extract phone from element, modal, or page text
+function extractPhoneFromElementOrPage(rootEl) {
+    const containers = [
+        rootEl,
+        document.querySelector('[role="dialog"]'),
+        document.querySelector('.artdeco-modal'),
+        document.querySelector('#artdeco-modal-outlet'),
+        document.querySelector('.pv-contact-info'),
+        document.body
+    ].filter(Boolean);
+
+    // 1. Check tel: links
+    for (const c of containers) {
+        const telLinks = c.querySelectorAll('a[href^="tel:"]');
+        for (const link of telLinks) {
+            const rawHref = (link.getAttribute('href') || link.innerText || '').replace(/^tel:/i, '').trim();
+            const cleaned = rawHref.replace(/\s*\([^)]*\)/g, '').trim();
+            if (cleaned.replace(/\D/g, '').length >= 7) {
+                return cleaned;
+            }
+        }
+    }
+
+    // 2. Scan text in modal / dialog / contact section
+    const modal = document.querySelector('[role="dialog"], .artdeco-modal, #artdeco-modal-outlet, .pv-contact-info, [aria-label*="Contact info" i]');
+    if (modal) {
+        const text = modal.innerText || '';
+        
+        // Pattern A: "Phone\n6304930942 (Mobile)"
+        const phoneLabelMatch = text.match(/(?:Phone|Mobile|Contact Number)\s*[\n\r:]+\s*([^\n\r<]+)/i);
+        if (phoneLabelMatch) {
+            const candidate = phoneLabelMatch[1].replace(/\s*\([^)]*\)/g, '').trim();
+            if (candidate.replace(/\D/g, '').length >= 7 && !/^(address|email|birthday|connected|website|profile)$/i.test(candidate)) {
+                return candidate;
+            }
+        }
+
+        // Pattern B: Lines in modal
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length; i++) {
+            if (/^(?:Phone|Mobile|Contact)$/i.test(lines[i]) && i + 1 < lines.length) {
+                const candidate = lines[i + 1].replace(/\s*\([^)]*\)/g, '').trim();
+                if (candidate.replace(/\D/g, '').length >= 7) return candidate;
+            }
+        }
+
+        // Pattern C: Any 7-15 digit phone number regex in modal
+        const numMatches = text.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g) || [];
+        for (const num of numMatches) {
+            const digits = num.replace(/\D/g, '');
+            if (digits.length >= 8 && digits.length <= 15) {
+                return num.trim();
+            }
+        }
+    }
+
+    // 3. Scan About section
+    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSection) {
+        const text = aboutSection.innerText || '';
+        const phoneMatch = text.match(/(?:phone|mobile|call|contact|whatsapp)?\s*[:=-]?\s*((?:\+?\d{1,4}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5})/i);
+        if (phoneMatch && phoneMatch[1].replace(/\D/g, '').length >= 10) {
+            return phoneMatch[1].trim();
+        }
+    }
+
+    return '';
+}
+
+// Helper: Parse email, phone, and vanity URL from a LinkedIn contact modal element
+function extractFromContactModal(modalEl) {
+    const res = {
+        email: extractEmailFromElementOrPage(modalEl),
+        phone: extractPhoneFromElementOrPage(modalEl),
+        linkedinUrl: ''
+    };
+    if (modalEl) {
+        const vanity = modalEl.querySelector('section.ci-vanity-url a, a[href*="linkedin.com/in/"]');
+        if (vanity) {
+            res.linkedinUrl = (vanity.getAttribute('href') || vanity.innerText || '').split('?')[0].trim();
+        }
+    }
+    return res;
+}
+
+// Asynchronously open / inspect the Contact Info modal to fetch candidate email & phone
+async function fetchContactDetailsFromPage() {
+    // 1. Check if Contact Info modal is ALREADY rendered in DOM
+    const openModal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+    if (openModal) {
+        const details = extractFromContactModal(openModal);
+        if (details.email || details.phone) return details;
+    }
+
+    // 2. Find Contact Info link on profile page
+    const contactLink = document.querySelector('a[href*="/overlay/contact-info/"], #top-card-text-details-contact-info, a[data-control-name="contact_info"]')
+        || Array.from(document.querySelectorAll('a, button')).find(a => /contact\s*info/i.test(a.innerText || ''));
+
+    if (!contactLink) {
+        const email = extractEmailFromElementOrPage(document.body);
+        const phone = extractPhoneFromElementOrPage(document.body);
+        return { email, phone, linkedinUrl: '' };
+    }
+
+    return new Promise((resolve) => {
+        let resolved = false;
+        const done = (data) => {
+            if (resolved) return;
+            resolved = true;
+            resolve(data || { email: '', phone: '', linkedinUrl: '' });
+        };
+
+        // Click to open modal
+        try {
+            contactLink.scrollIntoView({ behavior: 'instant', block: 'center' });
+            contactLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        } catch (e) {
+            console.warn('Contact link click error:', e);
+        }
+
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            const activeModal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+            if (activeModal && (activeModal.innerText.length > 30 || activeModal.querySelector('a[href^="mailto:"], a[href^="tel:"]'))) {
+                clearInterval(interval);
+                const details = extractFromContactModal(activeModal);
+                // Close modal
+                const closeBtn = activeModal.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
+                if (closeBtn) closeBtn.click();
+                done(details);
+            } else if (attempts >= 12) { // 3 seconds timeout
+                clearInterval(interval);
+                done({
+                    email: extractEmailFromElementOrPage(document.body),
+                    phone: extractPhoneFromElementOrPage(document.body),
+                    linkedinUrl: ''
+                });
+            }
+        }, 250);
+    });
+// Helper: Robust experience calculation that safely parses Experience section & page text without degree contamination
+function extractExperienceYears() {
+    let maxMonths = 0;
+
+    // Helper: Parse months from a duration string
+    function parseDurationString(text) {
+        if (!text) return 0;
+        // e.g. "1 yr 2 mos", "1 year and 2 months", "1 year 2 months", "1 yr, 2 mos"
+        const durMatch = text.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,)?\s*(\d+)\s*(?:mos?|months?)/i);
+        if (durMatch) {
+            return (parseInt(durMatch[1], 10) * 12) + parseInt(durMatch[2], 10);
+        }
+        const yrMatch = text.match(/(\d+)\s*(?:yrs?|years?)(?!\s*(?:and|,)?\s*\d+\s*(?:mos?|months?))/i);
+        if (yrMatch) {
+            return parseInt(yrMatch[1], 10) * 12;
+        }
+        const moMatch = text.match(/(?:^|\s|\(|·)(\d+)\s*(?:mos?|months?)/i);
+        if (moMatch) {
+            return parseInt(moMatch[1], 10);
+        }
+        return 0;
+    }
+
+    // Helper: Calculate months from a date range: "Jun 2023 - Present"
+    const MONTH_MAP = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+    function parseDateRangeMonths(text) {
+        if (!text) return 0;
+        const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—]\s*(Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+        if (rangeMatch) {
+            const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 0;
+            const startYear = parseInt(rangeMatch[2], 10);
+            let endMonth = new Date().getMonth();
+            let endYear = new Date().getFullYear();
+            if (rangeMatch[3].toLowerCase() !== 'present') {
+                endYear = parseInt(rangeMatch[4], 10);
+                const endMStr = rangeMatch[3].match(/^[a-zA-Z]+/);
+                if (endMStr && MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()] !== undefined) {
+                    endMonth = MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()];
+                }
+            }
+            if (startYear >= 1990 && endYear >= startYear) {
+                const totalM = ((endYear - startYear) * 12) + (endMonth - startMonth) + 1;
+                return Math.max(1, totalM);
+            }
+        }
+        return 0;
+    }
+
+    // 1. Check DOM Experience section
+    const expSection = document.querySelector('#experience')?.closest('section')
+                    || document.querySelector('section:has(#experience)')
+                    || document.querySelector('#experience')?.parentElement
+                    || Array.from(document.querySelectorAll('section')).find(s => {
+                        const h = s.querySelector('h2, h3, span');
+                        return h && /^experience$/i.test((h.innerText || '').trim());
+                    });
+
+    if (expSection) {
+        const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
+        for (const item of items) {
+            const itemText = item.innerText || '';
+            const m1 = parseDurationString(itemText);
+            const m2 = parseDateRangeMonths(itemText);
+            const itemMonths = Math.max(m1, m2);
+            if (itemMonths > maxMonths) maxMonths = itemMonths;
+        }
+
+        if (maxMonths === 0) {
+            const expText = expSection.innerText || '';
+            maxMonths = Math.max(parseDurationString(expText), parseDateRangeMonths(expText));
+        }
+    }
+
+    // 2. Sliced Text Scanning (Page text between "Experience" heading and next heading)
+    if (maxMonths === 0) {
+        const allText = (document.querySelector('main')?.innerText || document.body.innerText || '');
+        const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
+        const expIdx = lines.findIndex(l => /^experience$/i.test(l));
+        if (expIdx >= 0) {
+            const nextStopRegex = /^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i;
+            const expLines = [];
+            for (let i = expIdx + 1; i < lines.length && i < expIdx + 100; i++) {
+                if (nextStopRegex.test(lines[i])) break;
+                expLines.push(lines[i]);
+            }
+            const expBlock = expLines.join('\n');
+            const m1 = parseDurationString(expBlock);
+            const m2 = parseDateRangeMonths(expBlock);
+            maxMonths = Math.max(m1, m2);
+        }
+    }
+
+    // 3. Fallback: Highlights & About section
+    if (maxMonths === 0) {
+        const aboutText = document.querySelector('#about')?.closest('section')?.innerText || '';
+        const highlightsText = document.querySelector('.pv-highlights-section, #highlights')?.innerText || '';
+        const combined = aboutText + '\n' + highlightsText;
+
+        const explicitMatch = combined.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i);
+        if (explicitMatch) {
+            maxMonths = Math.round(parseFloat(explicitMatch[1]) * 12);
+        } else {
+            const dur = parseDurationString(combined);
+            if (dur > 0 && dur < 480) maxMonths = dur;
+        }
+    }
+
+    return maxMonths > 0 ? parseFloat((maxMonths / 12).toFixed(1)) : 0;
+}
+
 // ROBUST PRIMARY SOURCE: LinkedIn embeds a structured Person object as JSON-LD
 // (and og: meta tags) for SEO. These DON'T depend on CSS class names, so they
-// survive LinkedIn's frequent markup changes â€” unlike the selector scraping below.
+// survive LinkedIn's frequent markup changes — unlike the selector scraping below.
 function extractFromStructuredData(data) {
-    // 1) JSON-LD â€” the most reliable source
+    // 1) JSON-LD — the most reliable source
     try {
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const s of scripts) {
@@ -59,7 +388,7 @@ function extractFromStructuredData(data) {
 
             if (person.name) {
                 data.name = String(person.name)
-                    .replace(/\s*[\(\[\ï¼ˆ\ã€].*?[\)\]\ï¼‰\ã€‘]\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                    .replace(/\s*[\(\[\（\【].*?[\)\]\）\】]\s*/g, ' ').replace(/\s+/g, ' ').trim();
             }
             if (person.jobTitle) {
                 const jt = Array.isArray(person.jobTitle) ? person.jobTitle[0] : person.jobTitle;
@@ -91,7 +420,7 @@ function extractFromStructuredData(data) {
                 const names = langs.map(l => (l && typeof l === 'object') ? l.name : l).filter(Boolean);
                 if (names.length) data.languages = names;
             }
-            console.log('âœ… JSON-LD extracted:', { name: data.name, role: data.headline, location: data.location, org: data.currentOrganization });
+            console.log('✅ JSON-LD extracted:', { name: data.name, role: data.headline, location: data.location, org: data.currentOrganization });
             break;
         }
     } catch (e) { console.warn('JSON-LD parse failed', e); }
@@ -135,7 +464,6 @@ function extractData() {
     };
 
     // Fill from LinkedIn's embedded structured data FIRST (class-agnostic, reliable).
-    // The CSS-selector scraping below then only overrides when it finds something.
     extractFromStructuredData(data);
 
     const nameSelectors = [
@@ -254,8 +582,6 @@ function extractData() {
         '.text-body-small.inline.t-black--light.break-words',
         '.text-body-small.inline.break-words',
         '.top-card-layout__first-subline .profile-info-subheader span:first-child',
-        '.pv-text-details__left-panel span.text-body-small:not(.text-body-medium)',
-        // Newer 2024+ DOM
         'main section span.text-body-small.inline.t-black--light',
     ];
 
@@ -263,13 +589,11 @@ function extractData() {
         const els = document.querySelectorAll(sel);
         for (const el of els) {
             const raw = (el.innerText || '')
-                .split('Â·')[0]
+                .split('·')[0]
                 .split('Contact info')[0]
                 .trim();
-            // Skip role-like strings (the same class can wrap an experience subtitle)
-            // and connection-count badges.
             if (raw.length < 3) continue;
-            if (/JLPT|connections|followers/i.test(raw)) continue;
+            if (/JLPT|connections|followers|verify in/i.test(raw)) continue;
             if (/engineer|developer|analyst|manager|designer|consultant|lead|architect/i.test(raw) && !/,/.test(raw)) continue;
             data.location = raw;
             break;
@@ -277,9 +601,6 @@ function extractData() {
         if (data.location) break;
     }
 
-    // Split "Bengaluru, Karnataka, India" â†’ locality + country. The last comma-
-    // separated segment is the country; everything before it joined back is the
-    // locality. Without this, candidate.country was always empty.
     if (data.location) {
         const parts = data.location.split(',').map(s => s.trim()).filter(Boolean);
         if (parts.length >= 2) {
@@ -289,151 +610,65 @@ function extractData() {
             data.locality = parts[0] || data.location;
         }
     }
-    console.log('ðŸ“ Final Location:', data.location, 'â†’ locality:', data.locality, 'country:', data.country);
 
-    // ---- ROBUST TOP-CARD FALLBACK (class-agnostic) ----
-    // LinkedIn renames CSS classes per experiment cohort, which breaks the selectors
-    // above and leaves Role/Location blank. As a safety net, read the raw text block
-    // under the name <h1> and pick the headline + location by shape, not by class.
-    if (!data.headline || !data.location) {
-        const h1el = document.querySelector('main h1') || document.querySelector('h1');
-        // Walk UP from the name until we reach the container that also holds the
-        // "Contact info" link / connection count â€” that's the full top card and it
-        // contains the headline + location regardless of CSS class names.
-        let card = h1el;
-        for (let i = 0; i < 8 && card; i++) {
-            const t = card.innerText || '';
-            if (/contact info/i.test(t) || /\bconnection/i.test(t)) break;
-            card = card.parentElement;
-        }
-        if (card) {
-            const firstName = (data.name || '').split(' ')[0];
-            // Drop blank lines and the stray "Â·" separators LinkedIn renders.
-            const lines = (card.innerText || '').split('\n').map(s => s.trim())
-                .filter(s => s && s !== 'Â·');
-            const isNoise = (l) =>
-                /^(He\/Him|She\/Her|They\/Them)$/i.test(l) ||
-                /(connection|follower|mutual|^message$|^follow$|^more$|pending|contact info|status is|Â·\s*(1st|2nd|3rd)|^(1st|2nd|3rd)$)/i.test(l) ||
-                /^\d+(st|nd|rd|th)?\+?$/.test(l) ||
-                (data.name && l === data.name);
-            const looksLikeOrg = (l) => /university|college|institute|school|ltd|inc\.?|llc|pvt|technolog|solutions|services|systems|labs|corp/i.test(l);
-            const looksLikeLocation = (l) =>
-                (/\barea\b|metropolitan|region|greater\s/i.test(l) ||
-                 (/,/.test(l) && l.split(',').length >= 2)) &&
-                l.length < 60 && !looksLikeOrg(l);
-
-            const ciIdx = lines.findIndex(l => /contact info/i.test(l));
-            const nameIdx = lines.findIndex(l => l === data.name || (firstName && l.includes(firstName)));
-
-            // HEADLINE: first substantive, non-location, non-org line after the name.
-            if (!data.headline) {
-                for (let i = (nameIdx >= 0 ? nameIdx + 1 : 0); i < lines.length; i++) {
-                    const l = lines[i];
-                    if (isNoise(l) || looksLikeLocation(l) || looksLikeOrg(l)) continue;
-                    if (l.length >= 4 && /[A-Za-z]{3,}/.test(l) && !/^[^A-Za-z0-9]*\d+(st|nd|rd|th)\b/i.test(l)) {
-                        data.headline = l.split('||')[0].split('|')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
-                        data.role = data.role || data.headline;
-                        data.primaryRole = data.primaryRole || data.headline;
-                        break;
-                    }
-                }
-            }
-            // LOCATION: prefer a location-shaped line; else the line just before "Contact info".
-            if (!data.location) {
-                let loc = lines.find(l => looksLikeLocation(l) && l !== data.headline);
-                if (!loc && ciIdx >= 0) {
-                    for (let j = ciIdx - 1; j >= 0; j--) {
-                        const l = lines[j];
-                        if (!isNoise(l) && l !== data.headline && !looksLikeOrg(l) && l.length > 2 && /[a-zA-Z]/.test(l)) { loc = l; break; }
-                    }
-                }
-                if (loc) data.location = loc;
-            }
-            if (data.location && !data.locality) {
-                const parts = data.location.split(',').map(s => s.trim()).filter(Boolean);
-                if (parts.length >= 2) { data.country = parts[parts.length - 1]; data.locality = parts.slice(0, -1).join(', '); }
-                else data.locality = parts[0];
-            }
-            console.log('ðŸªª Top-card fallback â†’ headline:', data.headline, '| location:', data.location);
-        }
+    // Helper: Clean organization names from social highlights, connection prefixes, and suffixes
+    function cleanOrganizationName(raw) {
+        if (!raw) return '';
+        let text = String(raw).trim();
+        // Remove social highlight prefixes: "You both work at...", "Works at...", etc.
+        text = text.replace(/^(?:You\s+both\s+(?:work|worked)\s+at|You\s+and\s+[\w\s]+\s+(?:work|worked)\s+at|Works?\s+at|Working\s+at)\s+/i, '');
+        text = text.replace(/^(?:Current\s+Company|Company)\s*[:=-]?\s*/i, '');
+        // Remove timeline text: "started at Ory Folks 1 year and 2 months after you did"
+        text = text.replace(/\s+(?:started\s+at|after\s+you\s+did|before\s+you\s+did).*$/i, '');
+        // Remove trailing suffixes like '· Full-time', '· 1 yr', 'and N others'
+        text = text.replace(/\s*·.*$/, '');
+        text = text.replace(/\s+(?:and|&)\s+\d+\s+other.*$/i, '');
+        // Remove leading bullets and whitespace
+        text = text.replace(/^[•·\s\-]+/, '').trim();
+        return text;
     }
 
-    // ---- BODY-TEXT FALLBACK (no DOM elements/classes at all) ----
-    // Most bulletproof: the top card reads "Name / pronouns / Headline / [school] /
-    // Location Â· Contact info / N connections". Anchor on the "Contact info" text in
-    // the full page text and read headline + location relative to the name.
-    if (!data.headline || !data.location) {
-        const allLines = (raiPageText() || '').split('\n').map(s => s.trim()).filter(Boolean);
-        const firstName = (data.name || '').split(' ')[0];
-        const isNoise = (l) =>
-            /^(He\/Him|She\/Her|They\/Them)$/i.test(l) ||
-            /(connection|follower|mutual|^message$|^follow$|^more$|^connect$|^save$|pending|status is|Â·\s*(1st|2nd|3rd)|^(1st|2nd|3rd)$)/i.test(l) ||
-            /^[Â·â€¢]$/.test(l) || /^\d+(st|nd|rd|th)?\+?$/.test(l) ||
-            (data.name && l === data.name);
-        const looksLikeOrg = (l) => /university|college|institute|school|ltd|inc\.?|llc|pvt|technolog|solutions|services|systems|labs|\bcorp/i.test(l);
-
-        const ciIdx = allLines.findIndex(l => /contact info/i.test(l));
-        if (ciIdx > 0) {
-            // LOCATION: the "Contact info" line's prefix, else the nearest text line above it.
-            if (!data.location) {
-                let loc = allLines[ciIdx].split(/Â·|â€¢/)[0].replace(/contact info/i, '').trim();
-                if (!loc || loc.length < 2 || isNoise(loc)) {
-                    for (let j = ciIdx - 1; j >= Math.max(0, ciIdx - 5); j--) {
-                        const l = allLines[j].split(/Â·|â€¢/)[0].trim();
-                        if (l.length > 2 && !isNoise(l) && !looksLikeOrg(l)) { loc = l; break; }
-                    }
-                }
-                if (loc && loc.length > 2 && !isNoise(loc)) data.location = loc;
-            }
-            // HEADLINE: first substantive line after the name (within the window above Contact info).
-            if (!data.headline) {
-                const winStart = Math.max(0, ciIdx - 12);
-                const rel = allLines.slice(winStart, ciIdx).findIndex(l => l === data.name || (firstName && l.includes(firstName)));
-                const nameIdx = rel >= 0 ? winStart + rel : winStart;
-                for (let i = nameIdx + 1; i < ciIdx; i++) {
-                    const l = allLines[i];
-                    if (isNoise(l) || looksLikeOrg(l) || l === data.location || /contact info/i.test(l)) continue;
-                    if (l.length >= 4 && /[A-Za-z]{3,}/.test(l) && !/^[^A-Za-z0-9]*\d+(st|nd|rd|th)\b/i.test(l)) {
-                        data.headline = l.split('||')[0].split('|')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
-                        data.role = data.role || data.headline;
-                        data.primaryRole = data.primaryRole || data.headline;
-                        break;
-                    }
-                }
-            }
-            if (data.location && !data.locality) {
-                const parts = data.location.split(',').map(s => s.trim()).filter(Boolean);
-                if (parts.length >= 2) { data.country = parts[parts.length - 1]; data.locality = parts.slice(0, -1).join(', '); }
-                else data.locality = parts[0];
-            }
-        }
-        console.log('ðŸ§¾ Body-text fallback â†’ headline:', data.headline, '| location:', data.location);
-    }
-
-    // 4. Extract Organization (ULTIMATE EXPERIENCE SCAN)
+    // 4. Extract Organization / Current Company (Universal Dynamic Scraper for ANY company)
     const orgSelectors = [
-        'ul.pv-text-details__right-panel li.pv-text-details__right-panel-item:first-child',
+        '.pv-text-details__right-panel button span[aria-hidden="true"]',
+        '.pv-text-details__right-panel a span[aria-hidden="true"]',
+        '.pv-text-details__right-panel button',
+        '.pv-text-details__right-panel a',
+        'ul.pv-text-details__right-panel li',
         'button[aria-label^="Current company"]',
+        'a[href*="/company/"]',
+        '[data-field="experience_company_logo"]',
+        '.pv-top-card--experience-list li',
         '[data-tracking-control-name="public_profile_topcard-current-company"]'
     ];
     
     for (const sel of orgSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.innerText.trim().length > 1 && !el.innerText.includes('connections')) {
-            data.currentOrganization = el.innerText.trim().split('\n')[0];
-            break;
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+            const rawText = (el.innerText || '').trim().split('\n')[0].trim();
+            const text = cleanOrganizationName(rawText);
+            if (text && text.length > 1 && !/connections|followers|contact info|verified|see more/i.test(text)) {
+                data.currentOrganization = text;
+                break;
+            }
         }
+        if (data.currentOrganization) break;
     }
 
-    // NUCLEAR EXPERIENCE PARSER: Find the specific 'Present' entry
+    // Dynamic Experience Section Company Scan (reads topmost job)
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
-        const expSection = document.querySelector('#experience')?.parentElement;
+        const expSection = document.querySelector('#experience')?.closest('section') || document.querySelector('#experience')?.parentElement;
         if (expSection) {
-            const expItems = expSection.querySelectorAll('li.artdeco-list__item');
-            for (const item of expItems) {
-                if (item.innerText.includes('Present')) {
-                    // Current structure: 1st line is Title, 2nd is Company
-                    const lines = item.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+            const compLink = expSection.querySelector('a[href*="/company/"]');
+            if (compLink) {
+                const compText = cleanOrganizationName((compLink.innerText || '').trim().split('\n')[0]);
+                if (compText && compText.length > 1) data.currentOrganization = compText;
+            }
+            if (!data.currentOrganization) {
+                const expItems = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
+                for (const item of expItems) {
+                    const text = item.innerText || '';
+                    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
                     if (lines.length > 1) {
                         // Logic: Company is usually 2nd if Title is 1st.
                         // But sometimes it's grouped.
@@ -731,20 +966,85 @@ function extractData() {
                         }
                     }
                 }
-            });
+            }
         }
     }
 
-    // Global search for skills across the whole page text as fallback
-    if (data.skills.length < 5) {
-        const pageText = raiPageText();
-        const commonTech = ['Java', 'Python', 'React', 'Angular', 'AWS', 'Azure', 'SQL', 'Node', 'Spring', 'Docker', 'Kubernetes', 'Manual Testing', 'Automation', 'Selenium', 'Jira', 'Agile', 'DevOps', 'CI/CD'];
-        commonTech.forEach(k => {
-            if (pageText.toLowerCase().includes(k.toLowerCase()) && !data.skills.includes(k)) {
-                data.skills.push(k);
+    // Headline fallback for company (e.g. "Software Engineer at Google" -> "Google")
+    if (!data.currentOrganization || data.currentOrganization === 'N/A') {
+        const rawHeadline = data.rawHeadline || headlineText;
+        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||·|\n]+)/i);
+        if (atMatch && atMatch[1].trim().length > 1) data.currentOrganization = cleanOrganizationName(atMatch[1]);
+    }
+
+    data.currentOrganization = cleanOrganizationName(data.currentOrganization);
+    console.log('🏢 Extracted Org:', data.currentOrganization);
+
+    // 5. Extract Email & Phone from Contact Info / About / Page
+    data.email = extractEmailFromElementOrPage(document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info') || document.body);
+    data.phone = extractPhoneFromElementOrPage(document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info') || document.body);
+
+    // Also populate about summary if present
+    const aboutSection = document.querySelector('#about')?.closest('section') || document.querySelector('#about')?.parentElement;
+    if (aboutSection) {
+        const aboutText = aboutSection.innerText || '';
+        data.about = aboutText.replace(/…see more|see less/gi, '').trim();
+    }
+
+    console.log('📧 Extracted Email:', data.email);
+    console.log('📞 Extracted Phone:', data.phone);
+
+    // 6. Extract Experience & Total Years (Strictly Scoped to Experience — NO education contamination)
+    data.totalExperienceYears = extractExperienceYears();
+    console.log('⏳ Total Experience Years:', data.totalExperienceYears);
+
+    // 7. Universal Dynamic Skills Extractor (Pulls ANY skill from Skills Section, Headline, About, Page)
+    const skillsAnchor = document.querySelector('#skills')?.closest('section') || document.querySelector('#skills')?.parentElement;
+    if (skillsAnchor) {
+        const listItems = skillsAnchor.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__item--line-separated');
+        listItems.forEach(item => {
+            // Find main skill title span
+            const titleSpan = item.querySelector('span[aria-hidden="true"], .hoverable-link-text, .mr1 span');
+            const skillText = (titleSpan ? titleSpan.innerText : item.innerText || '').split('\n')[0].trim();
+            if (skillText && skillText.length > 1 && skillText.length < 40 && !/endorsement|skill|show all|\+\d+/i.test(skillText)) {
+                const cleanSkill = skillText.replace(/^[•·\s]+/, '').trim();
+                if (cleanSkill && !data.skills.includes(cleanSkill)) data.skills.push(cleanSkill);
             }
         });
     }
+
+    // Dynamic extraction from Headline delimiters (e.g., "Java · Spring Boot · React · AWS · AI")
+    const headlineSegments = (data.rawHeadline || headlineText).split(/[·|•,\/]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 30);
+    
+    // Comprehensive 120+ Technology & Skill Dictionary for Deep Text Recognition
+    const masterTechList = [
+        'HTML', 'HTML5', 'CSS', 'CSS3', 'JavaScript', 'TypeScript', 'React', 'React.js', 'React Native', 'Next.js', 'Vue', 'Vue.js', 'Nuxt.js', 'Angular', 'AngularJS', 'Svelte', 'Redux', 'Tailwind CSS', 'Bootstrap', 'jQuery',
+        'Java', 'Spring', 'Spring Boot', 'Hibernate', 'Python', 'Django', 'Flask', 'FastAPI', 'Node.js', 'Express', 'Express.js', 'NestJS', 'Go', 'Golang', 'Rust', 'C#', '.NET', 'ASP.NET', 'C++', 'C', 'PHP', 'Laravel', 'Ruby', 'Ruby on Rails', 'Kotlin', 'Swift', 'Dart', 'Scala',
+        'SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'Redis', 'Oracle', 'SQLite', 'Cassandra', 'DynamoDB', 'Elasticsearch', 'Firebase', 'Supabase', 'GraphQL', 'REST API', 'Microservices', 'Kafka', 'RabbitMQ',
+        'AWS', 'Amazon Web Services', 'Azure', 'Microsoft Azure', 'GCP', 'Google Cloud', 'Docker', 'Kubernetes', 'Terraform', 'Ansible', 'Jenkins', 'CI/CD', 'Git', 'GitHub', 'GitLab', 'Linux', 'Unix',
+        'AI', 'Artificial Intelligence', 'Machine Learning', 'Deep Learning', 'NLP', 'LLM', 'OpenAI', 'TensorFlow', 'PyTorch', 'Pandas', 'NumPy', 'Scikit-learn', 'OpenCV',
+        'Manual Testing', 'Automation Testing', 'Selenium', 'Cypress', 'Playwright', 'JUnit', 'Jest', 'Postman', 'JMeter', 'Jira', 'Agile', 'Scrum', 'Figma', 'Japanese', 'JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5'
+    ];
+
+    headlineSegments.forEach(hs => {
+        const found = masterTechList.find(t => t.toLowerCase() === hs.toLowerCase() || hs.toLowerCase() === t.toLowerCase());
+        const skillToAdd = found || hs;
+        if (skillToAdd.length > 1 && !/engineer|developer|analyst|manager|lead|architect|consultant|pursuing|bilingual/i.test(skillToAdd)) {
+            if (!data.skills.includes(skillToAdd)) data.skills.push(skillToAdd);
+        }
+    });
+
+    // Deep text scanner for known master technologies across About and whole page
+    const entirePageLower = (raiPageText() + ' ' + (document.body.innerText || '')).toLowerCase();
+    masterTechList.forEach(tech => {
+        const techRegex = new RegExp(`\\b${tech.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (techRegex.test(entirePageLower) && !data.skills.some(s => s.toLowerCase() === tech.toLowerCase())) {
+            data.skills.push(tech);
+        }
+    });
+
+    data.skills = [...new Set(data.skills)].slice(0, 40);
+    console.log('🛠️ Final Extracted Skills:', data.skills);
 
     // 6b. Extract Education â€” degree + institution per entry
     const educationAnchor = document.querySelector('#education');
@@ -855,32 +1155,9 @@ function extractData() {
     // 8. Map About to Summary
     data.summary = data.about;
 
-    // 9. Global Page Scan for Email/Phone (Fallback if modal not opened)
-    const pageText = raiPageText();
-    
-    if (!data.email) {
-        const emailMatch = pageText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) {
-            data.email = emailMatch[0];
-            console.log('ðŸ“§ Auto-detected Email from page text:', data.email);
-        }
-    }
+    console.log('📊 Full Extracted Data:', data);
 
-    if (!data.phone) {
-        // Only accept a phone if it has an explicit `+` country code prefix.
-        // The looser pattern was matching 10-digit IDs / years on the page.
-        const phoneMatch = pageText.match(/\+\d{1,3}[\s.-]?\d[\d\s().-]{7,14}\d/);
-        if (phoneMatch) {
-            data.phone = phoneMatch[0].trim();
-            console.log('ðŸ“ž Auto-detected Phone from page text:', data.phone);
-        }
-    }
-
-    console.log('ðŸ“Š Full Extracted Data:', data);
-
-    // Diagnostic â€” a one-liner the user can quote back when reporting an
-    // extraction problem. Tells us which fields filled and which didn't.
-    console.log('ðŸ©º Extraction summary:', {
+    console.log('🩺 Extraction summary:', {
         name: !!data.name,
         headline_role: !!data.headline,
         location: !!data.location,
@@ -894,6 +1171,31 @@ function extractData() {
         phone: !!data.phone,
         linkedinUrl: !!data.profileUrl,
     });
+
+    return data;
+}
+
+// Asynchronous complete extraction (fetches Contact Info modal details if missing)
+async function extractProfileAsync() {
+    const data = extractData();
+
+    // If email or phone is missing, try reading / fetching from Contact Info modal
+    if (!data.email || !data.phone) {
+        try {
+            const contactDetails = await fetchContactDetailsFromPage();
+            if (contactDetails.email && !isGenericOrCorporateEmail(contactDetails.email)) {
+                data.email = contactDetails.email;
+            }
+            if (contactDetails.phone) {
+                data.phone = contactDetails.phone;
+            }
+            if (contactDetails.linkedinUrl && !data.profileUrl) {
+                data.profileUrl = contactDetails.linkedinUrl;
+            }
+        } catch (e) {
+            console.warn('Contact info async fetch skipped:', e);
+        }
+    }
 
     return data;
 }
@@ -1722,33 +2024,32 @@ async function fetchContactInfo() {
             if (!chrome.runtime || !chrome.runtime.id) { clearInterval(poll); return; }
             attempts++;
             // Check for various modal wrappers
-            const modal = document.querySelector('.artdeco-modal') || 
+            const modal = document.querySelector('#artdeco-modal-outlet .artdeco-modal') ||
+                          document.querySelector('.artdeco-modal') || 
                           document.querySelector('[role="dialog"]') ||
                           document.querySelector('.pv-contact-info');
 
-            if (modal && modal.innerText.length > 50) {
+            if (modal && modal.innerText.length > 30) {
                 clearInterval(poll);
-                console.log("ðŸ” Scanning Contact Modal Text...");
-                const fullText = modal.innerText;
+                console.log("🔍 Scanning Contact Modal...");
+                const details = extractFromContactModal(modal);
 
                 let foundAny = false;
 
-                // Improved Email Regex
-                const emailMatch = fullText.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/);
-                if (emailMatch) {
+                if (details.email && !isGenericOrCorporateEmail(details.email)) {
                     const emailInput = document.getElementById('rai-email-input');
-                    if (emailInput) emailInput.value = emailMatch[0];
+                    if (emailInput) emailInput.value = details.email;
+                    if (extractedProfile) extractedProfile.email = details.email;
                     foundAny = true;
-                    console.log("âœ… Found Email in Modal:", emailMatch[0]);
+                    console.log("✅ Found Email in Modal:", details.email);
                 }
 
-                // Generic Phone Regex (works better for various formats)
-                const phoneMatch = fullText.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{4,6}/);
-                if (phoneMatch) {
+                if (details.phone) {
                     const phoneInput = document.getElementById('rai-phone-input');
-                    if (phoneInput) phoneInput.value = phoneMatch[0];
+                    if (phoneInput) phoneInput.value = details.phone;
+                    if (extractedProfile) extractedProfile.phone = details.phone;
                     foundAny = true;
-                    console.log("âœ… Found Phone in Modal:", phoneMatch[0]);
+                    console.log("✅ Found Phone in Modal:", details.phone);
                 }
 
                 if (foundAny) {
@@ -1756,20 +2057,16 @@ async function fetchContactInfo() {
                     btn.style.background = '#059669';
                     const emailShortcut = document.getElementById('rai-fetch-email-btn');
                     const phoneShortcut = document.getElementById('rai-fetch-phone-btn');
-                    if (emailShortcut && emailMatch) {
+                    if (emailShortcut && details.email) {
                         emailShortcut.textContent = 'DONE';
                         emailShortcut.style.background = '#dcfce7';
                         emailShortcut.style.color = '#15803d';
                     }
-                    if (phoneShortcut && phoneMatch) {
+                    if (phoneShortcut && details.phone) {
                         phoneShortcut.textContent = 'DONE';
                         phoneShortcut.style.background = '#dcfce7';
                         phoneShortcut.style.color = '#15803d';
                     }
-                    
-                    // Trigger a re-extraction of other small details if needed
-                    extractedProfile.email = emailMatch ? emailMatch[0] : extractedProfile.email;
-                    extractedProfile.phone = phoneMatch ? phoneMatch[0] : extractedProfile.phone;
                 } else {
                     btn.textContent = 'No Details Found';
                     btn.style.background = '#ef4444';
@@ -1880,6 +2177,22 @@ function populateSidebar() {
         document.getElementById('rai-phone-input').value = extractedProfile.phone || '';
         if (!extractedProfile.phone) {
             document.getElementById('rai-phone-input').placeholder = "Phone not found";
+        }
+
+        // Auto-fetch Contact Info silently if email or phone is missing
+        if (!extractedProfile.email || !extractedProfile.phone) {
+            fetchContactDetailsFromPage().then(contact => {
+                if (contact.email && !isGenericOrCorporateEmail(contact.email)) {
+                    extractedProfile.email = contact.email;
+                    const emailInput = document.getElementById('rai-email-input');
+                    if (emailInput) emailInput.value = contact.email;
+                }
+                if (contact.phone) {
+                    extractedProfile.phone = contact.phone;
+                    const phoneInput = document.getElementById('rai-phone-input');
+                    if (phoneInput) phoneInput.value = contact.phone;
+                }
+            }).catch(() => {});
         }
 
         const avatarText = document.getElementById('rai-avatar-text');
@@ -2364,3 +2677,4 @@ if (document.readyState === 'loading') {
 } else {
     initRecruitAI();
 }
+})();

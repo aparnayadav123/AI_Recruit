@@ -17,6 +17,7 @@
     },
     "host_permissions": [
         "*://*.linkedin.com/*",
+        "*://linkedin.com/*",
         "http://localhost:8089/*",
         "https://ai-recruit-eight.vercel.app/*",
         "https://recruitai-backend-bvo0.onrender.com/*",

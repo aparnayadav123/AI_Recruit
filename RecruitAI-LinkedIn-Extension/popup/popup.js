@@ -125,28 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function sendExtractMessage(tabId, callback) {
         chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp) => {
-            if (chrome.runtime.lastError) {
-                // If content script was disconnected (e.g. after extension reload), automatically inject and retry
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    files: ['scripts/content.js']
-                }, () => {
-                    if (chrome.runtime.lastError) {
-                        callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
-                        return;
-                    }
-                    setTimeout(() => {
-                        chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PROFILE' }, (resp2) => {
-                            if (chrome.runtime.lastError) {
-                                callback(null, 'Please refresh this LinkedIn tab (F5) and try again.');
-                                return;
-                            }
-                            callback(resp2, null);
-                        });
-                    }, 250);
-                });
-                return;
-            }
+            if (chrome.runtime.lastError) { callback(null, chrome.runtime.lastError.message); return; }
             callback(resp, null);
         });
     }
@@ -217,6 +196,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── Self-Contained Async LinkedIn DOM Extractor Function ──────────
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
     async function directExtractLinkedInDOM() {
+        // Fast scroll to trigger LinkedIn lazy loading for Experience & Skills sections
+        try {
+            window.scrollTo({ top: 1200, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 150));
+            window.scrollTo({ top: 2400, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 150));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } catch (_) {}
+
         const data = {
             name: '',
             headline: '',
@@ -343,7 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         function parseContactFromModal(modal) {
             if (!modal) return;
             const text = modal.innerText || '';
-            // Email
+
+            // Email extraction
             const mailto = modal.querySelector('a[href^="mailto:"]');
             if (mailto) {
                 const m = (mailto.getAttribute('href') || mailto.innerText || '').replace(/^mailto:/i, '').split('?')[0].trim();
@@ -355,27 +344,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!isGenericEmail(m)) { data.email = m.trim(); break; }
                 }
             }
-            // Phone
+
+            // Phone extraction
             const tel = modal.querySelector('a[href^="tel:"]');
             if (tel) {
                 const p = (tel.getAttribute('href') || tel.innerText || '').replace(/^tel:/i, '').replace(/\s*\([^)]*\)/g, '').trim();
                 if (p.replace(/\D/g, '').length >= 7) data.phone = p;
             }
+
+            // DOM Section for Phone
             if (!data.phone) {
-                const pMatch = text.match(/(?:Phone|Mobile|Contact Number)\s*[\n\r:]+\s*([^\n\r<]+)/i);
+                const phoneSection = modal.querySelector('section.ci-phone, .pv-contact-info__contact-type.ci-phone, [class*="ci-phone"]')
+                    || Array.from(modal.querySelectorAll('section, div')).find(s => /phone|mobile/i.test(s.querySelector('h3, h4, span, header')?.innerText || ''));
+                if (phoneSection) {
+                    const secText = phoneSection.innerText || '';
+                    const m10 = secText.match(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/);
+                    if (m10) {
+                        data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
+                    } else {
+                        const cleaned = secText.replace(/phone|mobile/gi, '').replace(/\([^)]*\)/g, '').trim();
+                        if (cleaned.replace(/\D/g, '').length >= 7) {
+                            data.phone = cleaned.split('\n').map(l => l.trim()).find(l => l.replace(/\D/g, '').length >= 7) || cleaned;
+                        }
+                    }
+                }
+            }
+
+            // Labeled text match (e.g. "Phone\n6304930942 (Mobile)")
+            if (!data.phone) {
+                const pMatch = text.match(/(?:Phone|Mobile|Contact Number|Tel)\s*[\n\r:]+\s*([^\n\r<]+)/i);
                 if (pMatch) {
                     const cleaned = pMatch[1].replace(/\s*\([^)]*\)/g, '').trim();
                     if (cleaned.replace(/\D/g, '').length >= 7 && !/^(address|email|birthday|connected|website|profile)$/i.test(cleaned)) {
                         data.phone = cleaned;
                     }
                 }
-                if (!data.phone) {
-                    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-                    for (let i = 0; i < lines.length; i++) {
-                        if (/^(?:Phone|Mobile|Contact)$/i.test(lines[i]) && i + 1 < lines.length) {
-                            const next = lines[i + 1].replace(/\s*\([^)]*\)/g, '').trim();
-                            if (next.replace(/\D/g, '').length >= 7) { data.phone = next; break; }
-                        }
+            }
+
+            // Indian 10-digit mobile number pattern (e.g. 6304930942 or +91 6304930942)
+            if (!data.phone) {
+                const m10 = text.match(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/);
+                if (m10) {
+                    data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
+                }
+            }
+
+            // General phone number pattern in modal
+            if (!data.phone) {
+                const numMatches = text.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g) || [];
+                for (const num of numMatches) {
+                    const digits = num.replace(/\D/g, '');
+                    if (digits.length >= 8 && digits.length <= 15) {
+                        data.phone = num.trim();
+                        break;
                     }
                 }
             }
@@ -398,16 +419,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     contactLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                     
                     // Wait for modal to render in DOM
-                    for (let t = 0; t < 6; t++) {
-                        await new Promise(r => setTimeout(r, 200));
+                    for (let t = 0; t < 10; t++) {
+                        await new Promise(r => setTimeout(r, 250));
                         const modal = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
                         if (modal && modal.innerText.length > 20) {
                             parseContactFromModal(modal);
-                            // Close modal cleanly
-                            const closeBtn = modal.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
-                            if (closeBtn) closeBtn.click();
-                            break;
+                            // Close modal cleanly once we got what we need or reached last attempt
+                            if (data.email && data.phone) {
+                                const closeBtn = modal.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
+                                if (closeBtn) closeBtn.click();
+                                break;
+                            }
                         }
+                    }
+                    const modalToClose = document.querySelector('#artdeco-modal-outlet, [role="dialog"], .artdeco-modal, .pv-contact-info');
+                    if (modalToClose) {
+                        const closeBtn = modalToClose.querySelector('button[aria-label="Dismiss"], button.artdeco-modal__dismiss, [aria-label*="close" i]');
+                        if (closeBtn) closeBtn.click();
                     }
                 } catch (e) {}
             }
@@ -423,7 +451,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 8. Experience Duration Parsing (Strictly scoped, avoids Education degree contamination)
-        let totalMonths = 0;
+        const MONTH_MAP = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+        function parseDateRangeMonths(text) {
+            if (!text) return 0;
+            const rangeMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
+            if (rangeMatch) {
+                const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 0;
+                const startYear = parseInt(rangeMatch[2], 10);
+                let endMonth = new Date().getMonth();
+                let endYear = new Date().getFullYear();
+                if (!/present|current|now/i.test(rangeMatch[3])) {
+                    endYear = parseInt(rangeMatch[4], 10);
+                    const endMStr = rangeMatch[3].match(/^[a-zA-Z]+/);
+                    if (endMStr && MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()] !== undefined) {
+                        endMonth = MONTH_MAP[endMStr[0].substr(0, 3).toLowerCase()];
+                    }
+                }
+                if (startYear >= 1990 && endYear >= startYear) {
+                    const totalM = ((endYear - startYear) * 12) + (endMonth - startMonth) + 1;
+                    return Math.max(1, totalM);
+                }
+            }
+            return 0;
+        }
+
         function parseDur(text) {
             if (!text) return 0;
             const mFull = text.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,)?\s*(\d+)\s*(?:mos?|months?)/i);
@@ -432,22 +483,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mYr) return parseInt(mYr[1], 10) * 12;
             const mMo = text.match(/(?:^|\s|\(|·)(\d+)\s*(?:mos?|months?)/i);
             if (mMo) return parseInt(mMo[1], 10);
+            const dateMonths = parseDateRangeMonths(text);
+            if (dateMonths > 0) return dateMonths;
             return 0;
         }
 
+        let totalMonths = 0;
         const expSection = document.querySelector('#experience')?.closest('section')
+                        || document.querySelector('section:has(#experience)')
+                        || document.querySelector('#experience')?.parentElement
                         || Array.from(document.querySelectorAll('section')).find(s => {
                             const h = s.querySelector('h2, h3, span');
                             return h && /^experience$/i.test((h.innerText || '').trim());
                         });
 
         if (expSection) {
-            const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
+            const items = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"], .pvs-list__paged-list-item');
             for (const it of items) {
-                const m = parseDur(it.innerText || '');
+                const text = it.innerText || '';
+                const m = Math.max(parseDur(text), parseDateRangeMonths(text));
                 if (m > totalMonths) totalMonths = m;
             }
-            if (totalMonths === 0) totalMonths = parseDur(expSection.innerText || '');
+            if (totalMonths === 0) {
+                const expText = expSection.innerText || '';
+                totalMonths = Math.max(parseDur(expText), parseDateRangeMonths(expText));
+            }
         }
 
         if (totalMonths === 0) {
@@ -458,16 +518,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (expIdx >= 0) {
                 const expLines = [];
                 for (let i = expIdx + 1; i < lines.length && i < expIdx + 80; i++) {
-                    if (/^(education|skills|languages|licenses)/i.test(lines[i])) break;
+                    if (/^(education|skills|languages|licenses|certifications)/i.test(lines[i])) break;
                     expLines.push(lines[i]);
                 }
-                totalMonths = parseDur(expLines.join('\n'));
+                const block = expLines.join('\n');
+                totalMonths = Math.max(parseDur(block), parseDateRangeMonths(block));
             }
         }
 
         if (totalMonths === 0) {
             const highlights = (document.querySelector('.pv-highlights-section')?.innerText || '') + '\n' + (document.querySelector('#about')?.closest('section')?.innerText || '');
-            totalMonths = parseDur(highlights);
+            totalMonths = Math.max(parseDur(highlights), parseDateRangeMonths(highlights));
         }
 
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
@@ -509,14 +570,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     extractBtn && extractBtn.addEventListener('click', async () => {
         setExtractLoading(true);
 
-        sendExtractMessage(tabId, (resp, err) => {
-            setExtractLoading(false);
-            if (err || !resp || resp.status !== 'success') {
-                showToast(err || resp?.message || 'Extraction failed. Please refresh the LinkedIn page (F5).', 'error');
+        try {
+            // 1. Get active tab
+            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const activeTab = (tabs && tabs[0]) || currentTab;
+
+            if (!activeTab || !activeTab.id) {
+                setExtractLoading(false);
+                showToast('Please open a LinkedIn profile tab.', 'error');
                 return;
             }
-            onExtracted(resp.data);
-        });
+
+            // 2. Direct DOM execution via chrome.scripting.executeScript
+            chrome.scripting.executeScript({
+                target: { tabId: activeTab.id },
+                func: directExtractLinkedInDOM
+            }, (results) => {
+                setExtractLoading(false);
+
+                if (chrome.runtime.lastError || !results || !results[0] || !results[0].result) {
+                    console.warn('Direct execution fallback to message passing...', chrome.runtime.lastError);
+                    // Fallback to message passing
+                    sendExtractMessage(activeTab.id, (resp, err) => {
+                        if (err || !resp || resp.status !== 'success') {
+                            showToast('Please refresh the LinkedIn profile page and click Extract again.', 'error');
+                            return;
+                        }
+                        onExtracted(resp.data);
+                    });
+                    return;
+                }
+
+                // SUCCESS! Directly render the extracted profile
+                const extractedProfileData = results[0].result;
+                onExtracted(extractedProfileData);
+            });
+        } catch (err) {
+            setExtractLoading(false);
+            console.error('Extract error:', err);
+            showToast('Extraction error. Please refresh the page.', 'error');
+        }
     });
 
     function onExtracted(data) {
