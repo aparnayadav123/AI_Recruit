@@ -452,6 +452,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             raw = raw.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced|Senior|Junior|Lead)?\s*(?:Seeking\s+opportunities|Open\s+to\s+work|Immediate\s+joiner|Looking\s+for\s+roles?)[,\s:|-]*/i, '').trim() || raw;
             raw = raw.replace(/^(?:Open\s+to\s+work|Seeking\s+opportunities|Actively\s+looking|Immediate\s+joiner)[\s:|-]*/i, '').trim();
 
+            // Direct match for concise single headlines without delimiters (e.g. "Bilingual Software Engineer")
+            if (raw && !/[|·•\/\n–—]/.test(raw) && raw.split(/\s+/).length <= 5) {
+                let cleaned = raw.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+                cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
+                if (cleaned.length > 2 && !/(connections|followers|contact info|verified|seeking|looking|he\/him|she\/her|they\/them)/i.test(cleaned)) {
+                    return cleaned;
+                }
+            }
+
             const segments = raw.split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
 
             const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Bilingual\s+Software\s+Engineer|Bilingual\s+Engineer|Bilingual\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
@@ -629,6 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 3. Top Card Headline from DOM
         const headSelectors = [
             'main section [data-view-name="profile-top-card"] .text-body-medium',
+            '[data-view-name="profile-top-card"] div.text-body-medium',
             'main section:first-of-type .text-body-medium',
             '.pv-text-details__left-panel .text-body-medium.break-words',
             '.pv-text-details__left-panel .text-body-medium',
@@ -645,7 +655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const headEl = document.querySelector(sel);
             if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
                 const candidate = headEl.innerText.trim();
-                if (/(connections|followers|contact info)/i.test(candidate)) continue;
+                if (/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(candidate)) continue;
                 if (candidate === data.name) continue;
                 data.rawHeadline = candidate;
                 break;
@@ -660,7 +670,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const candidates = container.querySelectorAll('div, h2, span, p');
                     for (const c of candidates) {
                         const txt = (c.innerText || '').trim();
-                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(txt)) {
                             data.rawHeadline = txt;
                             break;
                         }
@@ -736,47 +746,83 @@ document.addEventListener('DOMContentLoaded', async () => {
             expSectionMonths = calculateTotalExperienceFromBlock(expText);
         }
 
-        // 6. Current Company Determination (DOM First, JSON-LD Fallback)
-        const orgEl = document.querySelector('.pv-text-details__right-panel button span, .pv-text-details__right-panel a span, button[aria-label^="Current company"], a[href*="/company/"]');
-        if (orgEl && orgEl.innerText) {
-            const topOrg = cleanOrg(orgEl.innerText.split('\n')[0]);
-            if (topOrg && topOrg.length > 1 && !/connections|followers|contact info|verified|see more/i.test(topOrg)) {
-                data.currentOrganization = topOrg;
+        // 6. Current Company Determination (DOM Top-Card Right Panel & Experience First)
+        let topCardOrg = '';
+        const rightPanelItems = document.querySelectorAll([
+            '[data-view-name="profile-top-card"] ul.pv-text-details__right-panel li',
+            '.pv-text-details__right-panel li',
+            '[data-view-name="profile-top-card"] ul li',
+            '.pv-top-card--experience-list li'
+        ].join(', '));
+
+        for (const item of rightPanelItems) {
+            const spanEl = item.querySelector('span[aria-hidden="true"], .t-bold') || item;
+            const cleaned = cleanOrg((spanEl.innerText || '').split('\n')[0]);
+            if (cleaned && cleaned.length > 1 && !/institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified/i.test(cleaned)) {
+                topCardOrg = cleaned;
+                break;
             }
         }
-        if (!data.currentOrganization && expCompName) {
-            data.currentOrganization = expCompName;
+
+        if (!topCardOrg) {
+            const orgBtn = document.querySelector('[data-view-name="profile-top-card"] button[aria-label*="Current company"], .pv-text-details__right-panel button span, .pv-text-details__right-panel a span');
+            if (orgBtn && orgBtn.innerText) {
+                const cleaned = cleanOrg(orgBtn.innerText.split('\n')[0]);
+                if (cleaned && cleaned.length > 1 && !/institute|university|college|school|connections|followers|verified/i.test(cleaned)) {
+                    topCardOrg = cleaned;
+                }
+            }
         }
-        if (!data.currentOrganization && jsonLdOrg) {
+
+        if (topCardOrg) {
+            data.currentOrganization = topCardOrg;
+        } else if (expCompName) {
+            data.currentOrganization = expCompName;
+        } else if (jsonLdOrg) {
             data.currentOrganization = jsonLdOrg;
         }
         data.company = data.currentOrganization;
 
-        // 7. Contact Info Modal
+        // 7. Contact Info Modal & Email Extraction
         let openedModal = false;
-        let existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info');
+        let existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info, [data-test-modal]');
+        
         if (!existingModal) {
-            const contactLink = document.querySelector('a[href*="/overlay/contact-info/"], #top-card-text-details-contact-info, a[data-control-name="contact_info"]');
+            const contactLink = document.querySelector([
+                '#top-card-text-details-contact-info',
+                'a[href*="/overlay/contact-info/"]',
+                'a[href*="contact-info"]',
+                'a[id*="contact-info"]',
+                '.pv-text-details__separator-link',
+                'button[aria-label*="Contact info"]'
+            ].join(', ')) || Array.from(document.querySelectorAll('a, button, span')).find(el => /contact\s*info/i.test((el.innerText || '').trim()));
+
             if (contactLink) {
                 try {
                     contactLink.click();
                     openedModal = true;
-                    await new Promise(r => setTimeout(r, 200));
-                    existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info');
+                    for (let i = 0; i < 15; i++) {
+                        await new Promise(r => setTimeout(r, 100));
+                        existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info, [data-test-modal], .artdeco-modal__content');
+                        if (existingModal && ((existingModal.innerText || '').includes('@') || existingModal.querySelector('a[href^="mailto:"]'))) {
+                            break;
+                        }
+                    }
                 } catch (_) {}
             }
         }
+
         if (existingModal) {
             parseContactFromModal(existingModal);
             if (openedModal) {
                 try {
-                    const closeBtn = document.querySelector('button[aria-label="Dismiss"], button[aria-label="Close"], .artdeco-modal__dismiss');
+                    const closeBtn = document.querySelector('button[aria-label="Dismiss"], button[aria-label="Close"], .artdeco-modal__dismiss, [data-test-modal-close-btn]');
                     if (closeBtn) closeBtn.click();
                 } catch (_) {}
             }
         }
 
-        // 8. Check mailto & tel links across the page
+        // Global check for mailto links & email regex
         if (!data.email) {
             const mailto = document.querySelector('a[href^="mailto:"]');
             if (mailto) {
@@ -784,20 +830,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (m.includes('@') && !isGenericEmail(m)) data.email = m;
             }
         }
+        if (!data.email) {
+            const allTxt = (document.querySelector('#artdeco-modal-outlet')?.innerText || '') + '\n' + (document.body.innerText || '');
+            const mMatch = allTxt.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
+            for (const m of mMatch) {
+                if (!isGenericEmail(m)) { data.email = m.trim(); break; }
+            }
+        }
+
+        // 8. Phone extraction check
         if (!data.phone) {
             const tel = document.querySelector('a[href^="tel:"]');
             if (tel) {
                 const p = (tel.getAttribute('href') || tel.innerText || '').replace(/^tel:/i, '').replace(/\s*\([^)]*\)/g, '').trim();
                 if (p.replace(/\D/g, '').length >= 7) data.phone = p;
-            }
-        }
-
-        // 9. Text Regex Scanning across About / Page for Email and Phone
-        if (!data.email) {
-            const allTxt = document.body.innerText || '';
-            const mMatch = allTxt.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
-            for (const m of mMatch) {
-                if (!isGenericEmail(m)) { data.email = m.trim(); break; }
             }
         }
         if (!data.phone) {
@@ -806,7 +852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (m10) data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
         }
 
-        // 10. Experience Duration Parsing (Multi-Layered Universal Extraction)
+        // 9. Experience Duration Parsing (Multi-Layered Universal Extraction)
         let totalMonths = 0;
         const allPageText = document.body.innerText || '';
 
@@ -863,7 +909,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
         data.experience = data.totalExperienceYears;
 
-        // 11. Skills Extractor
+        // 10. Skills Extractor
         const skillsSection = document.querySelector('#skills')?.closest('section');
         if (skillsSection) {
             const items = skillsSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
@@ -886,14 +932,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         data.skills = [...new Set(data.skills)].slice(0, 30);
 
-        // 12. About
+        // 11. About
         const aboutEl = document.querySelector('#about')?.closest('section');
         if (aboutEl) {
             data.about = (aboutEl.innerText || '').replace(/…see more|see less/gi, '').trim();
             data.summary = data.about;
         }
 
-        // 13. Clean Dynamic Role Assignment (DOM Headline + Experience Title Priority)
+        // 12. Clean Dynamic Role Assignment (DOM Headline + Experience Title Priority)
         let primaryRoleCandidate = extractCleanRole(data.rawHeadline || '', data.about, []);
         if (expRoleTitle && (!primaryRoleCandidate || primaryRoleCandidate === 'Software Engineer' || primaryRoleCandidate === 'Software Developer')) {
             const cleanExp = extractCleanRole(expRoleTitle, '', []);

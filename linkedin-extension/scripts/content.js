@@ -814,81 +814,69 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
         // Remove trailing suffixes like '· Full-time', '· 1 yr', 'and N others'
         text = text.replace(/\s*·.*$/, '');
         text = text.replace(/\s+(?:and|&)\s+\d+\s+other.*$/i, '');
-        // Remove leading bullets and whitespace
-        text = text.replace(/^[•·\s\-]+/, '').trim();
-        return text;
+        /    // 4. Extract Organization / Current Company (Top-Card Right Panel & Experience First)
+    let topCardOrg = '';
+    const rightPanelItems = document.querySelectorAll([
+        '[data-view-name="profile-top-card"] ul.pv-text-details__right-panel li',
+        '.pv-text-details__right-panel li',
+        '[data-view-name="profile-top-card"] ul li',
+        '.pv-top-card--experience-list li'
+    ].join(', '));
+
+    for (const item of rightPanelItems) {
+        const spanEl = item.querySelector('span[aria-hidden="true"], .t-bold') || item;
+        const cleaned = cleanOrganizationName((spanEl.innerText || '').split('\n')[0]);
+        if (cleaned && cleaned.length > 1 && !/institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified/i.test(cleaned)) {
+            topCardOrg = cleaned;
+            break;
+        }
     }
 
-    // 4. Extract Organization / Current Company (Universal Dynamic Scraper for ANY company)
-    const orgSelectors = [
-        '.pv-text-details__right-panel button span[aria-hidden="true"]',
-        '.pv-text-details__right-panel a span[aria-hidden="true"]',
-        '.pv-text-details__right-panel button',
-        '.pv-text-details__right-panel a',
-        'ul.pv-text-details__right-panel li',
-        'button[aria-label^="Current company"]',
-        'a[href*="/company/"]',
-        '[data-field="experience_company_logo"]',
-        '.pv-top-card--experience-list li',
-        '[data-tracking-control-name="public_profile_topcard-current-company"]'
-    ];
-    
-    for (const sel of orgSelectors) {
-        const els = document.querySelectorAll(sel);
-        for (const el of els) {
-            const rawText = (el.innerText || '').trim().split('\n')[0].trim();
-            const text = cleanOrganizationName(rawText);
-            if (text && text.length > 1 && !/connections|followers|contact info|verified|see more/i.test(text)) {
-                data.currentOrganization = text;
-                break;
+    if (!topCardOrg) {
+        const orgBtn = document.querySelector('[data-view-name="profile-top-card"] button[aria-label*="Current company"], .pv-text-details__right-panel button span, .pv-text-details__right-panel a span');
+        if (orgBtn && orgBtn.innerText) {
+            const cleaned = cleanOrganizationName(orgBtn.innerText.split('\n')[0]);
+            if (cleaned && cleaned.length > 1 && !/institute|university|college|school|connections|followers|verified/i.test(cleaned)) {
+                topCardOrg = cleaned;
             }
         }
-        if (data.currentOrganization) break;
+    }
+
+    if (topCardOrg) {
+        data.currentOrganization = topCardOrg;
     }
 
     // Dynamic Experience Section Company Scan (reads topmost job)
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
         const expSection = document.querySelector('#experience')?.closest('section') || document.querySelector('#experience')?.parentElement;
         if (expSection) {
-            const compLink = expSection.querySelector('a[href*="/company/"]');
-            if (compLink) {
-                const compText = cleanOrganizationName((compLink.innerText || '').trim().split('\n')[0]);
-                if (compText && compText.length > 1) data.currentOrganization = compText;
-            }
-            if (!data.currentOrganization) {
-                const expItems = expSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
-                for (const item of expItems) {
-                    const text = item.innerText || '';
-                    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
-                    if (lines.length > 1) {
-                        // Logic: Company is usually 2nd if Title is 1st.
-                        // But sometimes it's grouped.
-                        const companyLine = lines.find(l => l.includes('Tata') || l.includes('Services') || l.includes('Japan') || l.length > 5 && !l.includes('Present'));
-                        if (companyLine) data.currentOrganization = companyLine;
-                        break;
+            const firstExpItem = expSection.querySelector('li.artdeco-list__item, li.pvs-list__paged-list-item, div[data-view-name="profile-component-entity"], li');
+            if (firstExpItem) {
+                const compEl = firstExpItem.querySelector('a[href*="/company/"], .display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"], .t-14.t-normal span[aria-hidden="true"]');
+                if (compEl) {
+                    const compText = cleanOrganizationName((compEl.innerText || '').trim().split('\n')[0]);
+                    if (compText && compText.length > 1 && !/institute|university|college|school/i.test(compText)) {
+                        data.currentOrganization = compText;
                     }
                 }
             }
         }
     }
 
-    // Previously hard-renamed Tata â†’ TCS / Business Machines â†’ IBM which stripped
-    // useful suffixes like "Japan Branch". Keep the org name as LinkedIn shows it.
-    
     // Japanese Proficiency Extraction (from headline if found)
     const jlptMatch = headlineText.match(/JLPT\s*N[1-5]/i);
     if (jlptMatch && (!data.japaneseLanguageProficiency || data.japaneseLanguageProficiency === 'N/A')) {
         data.japaneseLanguageProficiency = jlptMatch[0].toUpperCase();
     }
     
-    console.log('ðŸ¢ Final Org:', data.currentOrganization);
+    console.log('🏢 Final Org:', data.currentOrganization);
 
     if (!data.currentOrganization || data.currentOrganization === 'N/A') {
         const rawHeadline = data.rawHeadline || headlineText;
-        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||Â·]+)/i);
+        const atMatch = rawHeadline.match(/\b(?:at|@)\s+([^,|-|\||·]+)/i);
         if (atMatch) data.currentOrganization = atMatch[1].trim();
     }
-    console.log('ðŸ¢ Organization:', data.currentOrganization);
+    console.log('🏢 Organization:', data.currentOrganization);
 
     // 4. Extract About & Global Text Scan (Fallback)
     const aboutAnchor = document.querySelector('#about');
@@ -931,11 +919,20 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
         }
     }
 
-    // FINAL FALLBACK: Scan entire page for email if still missing
+    // Check mailto links and contact modal for email
+    if (!data.email) {
+        const mailto = document.querySelector('a[href^="mailto:"]');
+        if (mailto) {
+            const m = (mailto.getAttribute('href') || mailto.innerText || '').replace(/^mailto:/i, '').split('?')[0].trim();
+            if (m.includes('@') && !isGenericEmail(m)) data.email = m;
+        }
+    }
+
+    // FINAL FALLBACK: Scan entire page and modals for email if still missing
     if (!data.email || !data.email.includes('@')) {
-        const pageText = raiPageText();
+        const pageText = (document.querySelector('#artdeco-modal-outlet')?.innerText || '') + '\n' + (document.querySelector('.pv-contact-info')?.innerText || '') + '\n' + raiPageText();
         const globalEmailMatch = pageText.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/);
-        if (globalEmailMatch) {
+        if (globalEmailMatch && !isGenericEmail(globalEmailMatch[0])) {
             data.email = globalEmailMatch[0];
             console.log("🎯 Found email via Global Page Scan:", data.email);
         }
