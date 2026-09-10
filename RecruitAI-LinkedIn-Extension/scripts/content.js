@@ -431,51 +431,61 @@ function calculateTotalExperienceFromBlock(block) {
 
 // Helper: Robust experience calculation that safely parses Experience section & page text without degree contamination
 function extractExperienceYears() {
-    // 1. Check DOM Experience section
+    let totalMonths = 0;
+    const allPageText = (document.querySelector('main')?.innerText || document.body.innerText || '');
+
+    // Layer 1: Check Explicit Mention in About / Headline / Summary
+    const explicitExpPatterns = [
+        /(?:overall|total|have|having|with)?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?(?:total\s*)?(?:experience|exp|in\s+software|as\s+a\s+\w+)/i,
+        /(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i,
+        /experience\s*[:=-]?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/i,
+        /\b(\d+(?:\.\d+)?)\+?\s*(?:yrs?|years?)\s+exp\b/i
+    ];
+    for (const pat of explicitExpPatterns) {
+        const m = allPageText.match(pat);
+        if (m && parseFloat(m[1]) > 0 && parseFloat(m[1]) <= 40) {
+            const expMonths = Math.round(parseFloat(m[1]) * 12);
+            totalMonths = Math.max(totalMonths, expMonths);
+        }
+    }
+
+    // Layer 2: Check DOM Experience section
     const expSection = document.querySelector('#experience')?.closest('section')
+                    || document.querySelector('[id*="experience"]')?.closest('section')
                     || document.querySelector('section:has(#experience)')
                     || document.querySelector('#experience')?.parentElement
                     || Array.from(document.querySelectorAll('section')).find(s => {
-                        const h = s.querySelector('h2, h3, span');
-                        return h && /^experience$/i.test((h.innerText || '').trim());
+                        const h = s.querySelector('h2, h3, span, .pvs-header__title');
+                        return h && /experience/i.test((h.innerText || '').trim());
                     });
 
     if (expSection) {
         const expText = expSection.innerText || '';
         const months = calculateTotalExperienceFromBlock(expText);
-        if (months > 0) return parseFloat((months / 12).toFixed(1));
+        if (months > 0) totalMonths = Math.max(totalMonths, months);
     }
 
-    // 2. Sliced Text Scanning (Page text between "Experience" heading and next heading)
-    const allText = (document.querySelector('main')?.innerText || document.body.innerText || '');
-    const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
-    const expIdx = lines.findIndex(l => /^experience$/i.test(l));
+    // Layer 3: Sliced Text Scanning
+    const lines = allPageText.split('\n').map(l => l.trim()).filter(Boolean);
+    const expIdx = lines.findIndex(l => /^(?:work\s+)?experience(?:\s*[\(\[\·•\d]|$)/i.test(l) || /experience/i.test(l));
     if (expIdx >= 0) {
-        const nextStopRegex = /^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i;
         const expLines = [];
         for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
-            if (nextStopRegex.test(lines[i])) break;
+            if (/^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i.test(lines[i])) break;
             expLines.push(lines[i]);
         }
         const expBlock = expLines.join('\n');
         const months = calculateTotalExperienceFromBlock(expBlock);
-        if (months > 0) return parseFloat((months / 12).toFixed(1));
+        if (months > 0) totalMonths = Math.max(totalMonths, months);
     }
 
-    // 3. Fallback: Highlights & About section
-    const aboutText = document.querySelector('#about')?.closest('section')?.innerText || '';
-    const highlightsText = document.querySelector('.pv-highlights-section, #highlights')?.innerText || '';
-    const combined = aboutText + '\n' + highlightsText;
-
-    const explicitMatch = combined.match(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i);
-    if (explicitMatch) {
-        return parseFloat(explicitMatch[1]);
+    // Layer 4: Global Page Scan
+    if (totalMonths === 0) {
+        const months = calculateTotalExperienceFromBlock(allPageText);
+        if (months > 0) totalMonths = months;
     }
 
-    const dur = parseDurationString(combined);
-    if (dur > 0 && dur < 480) return parseFloat((dur / 12).toFixed(1));
-
-    return 0;
+    return totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
 }
 
 // ROBUST PRIMARY SOURCE: LinkedIn embeds a structured Person object as JSON-LD
