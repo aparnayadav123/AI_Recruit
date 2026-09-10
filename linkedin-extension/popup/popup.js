@@ -218,8 +218,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
     async function directExtractLinkedInDOM() {
         try {
-            window.scrollBy(0, 400);
-            window.scrollBy(0, -400);
+            window.scrollTo({ top: 1000, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 120));
+            window.scrollTo({ top: 2500, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 120));
+            window.scrollTo({ top: 3800, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 120));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 80));
         } catch (_) {}
 
         const data = {
@@ -272,10 +278,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return text.replace(/^[•·\s\-]+/, '').trim();
         }
 
-        // Date Range parser
+        // Date Range parser - supports both month+year and year-only ranges
         function parseDateRangeMonths(text) {
             if (!text) return 0;
             const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
+            
+            // 1. Month Year - Month Year / Present
             const rangeMatch = clean.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/i);
             if (rangeMatch) {
                 const startMonth = MONTH_MAP[rangeMatch[1].substr(0, 3).toLowerCase()] || 1;
@@ -294,6 +302,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return Math.max(1, totalM);
                 }
             }
+
+            // 2. Year Only - Year Only / Present (e.g. 2022 - 2024 or 2023 - Present)
+            const yearOnlyMatch = clean.match(/\b(19\d{2}|20\d{2})\s*[-–—至~]\s*(Present|Current|Now|19\d{2}|20\d{2})\b/i);
+            if (yearOnlyMatch) {
+                const startYear = parseInt(yearOnlyMatch[1], 10);
+                let endYear = currentYear;
+                let endMonth = currentMonth;
+                if (!/present|current|now/i.test(yearOnlyMatch[2])) {
+                    endYear = parseInt(yearOnlyMatch[2], 10);
+                    endMonth = 12;
+                }
+                if (startYear >= 1990 && endYear >= startYear) {
+                    const totalM = ((endYear - startYear) * 12) + (endMonth - 1) + 1;
+                    return Math.max(1, totalM);
+                }
+            }
+
             return 0;
         }
 
@@ -302,8 +327,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
             const mFull = clean.match(/(\d+)\s*(?:yrs?|years?)\s*(?:and|,|·|•|-)?\s*(\d+)\s*(?:mos?|months?)/i);
             if (mFull) return (parseInt(mFull[1], 10) * 12) + parseInt(mFull[2], 10);
-            const mYr = clean.match(/(\d+)\s*(?:yrs?|years?)/i);
-            if (mYr) return parseInt(mYr[1], 10) * 12;
+            const mYr = clean.match(/(\d+(?:\.\d+)?)\s*(?:yrs?|years?)/i);
+            if (mYr) return Math.round(parseFloat(mYr[1]) * 12);
             const mMo = clean.match(/(?:^|[·•\-\(\s])(\d+)\s*(?:mos?|months?)/i);
             if (mMo) return parseInt(mMo[1], 10);
             const dateMonths = parseDateRangeMonths(clean);
@@ -336,16 +361,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
+            const yearMatches = cleanBlock.matchAll(/\b(19\d{2}|20\d{2})\b/g);
+            for (const ym of yearMatches) {
+                const y = parseInt(ym[1], 10);
+                if (y >= 1990 && y <= currentYear && y < earliestYear) {
+                    earliestYear = y;
+                    if (y < earliestCareerYear) {
+                        earliestCareerYear = y;
+                        earliestCareerMonth = 1;
+                    }
+                }
+            }
+
             const companyDurations = [];
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                const hasDurationPattern = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/i.test(line);
-                if (!hasDurationPattern) continue;
-
-                const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
-                if (!hasDateRange) {
-                    const dur = parseDur(line);
-                    if (dur > 0) companyDurations.push(dur);
+                const dur = parseDur(line);
+                if (dur > 0) {
+                    companyDurations.push(dur);
+                } else {
+                    const dateDur = parseDateRangeMonths(line);
+                    if (dateDur > 0) companyDurations.push(dateDur);
                 }
             }
 
@@ -370,81 +406,65 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            if (earliestYear < 9999 && earliestYear <= currentYear) {
-                const careerSpanMonths = ((currentYear - earliestYear) * 12) + (currentMonth - earliestMonth) + 1;
-                if (totalMonths === 0 || (careerSpanMonths - totalMonths) > 24) {
-                    totalMonths = Math.max(totalMonths, careerSpanMonths);
-                }
+            if (totalMonths === 0 && earliestYear < 9999 && earliestYear <= currentYear) {
+                totalMonths = ((currentYear - earliestYear) * 12) + (currentMonth - earliestMonth) + 1;
             }
 
             return totalMonths;
         }
 
-        // Helper: Universal Clean Role Extraction across all LinkedIn profiles
-        function extractCleanRole(rawHeadline, aboutText, experienceList, skillsList) {
+        // Helper: Universal Clean Role Extraction across all LinkedIn profiles dynamically
+        function extractCleanRole(rawHeadline, aboutText, experienceList) {
             let raw = (rawHeadline || '').trim();
-            if (!raw && aboutText) {
-                const firstSentence = aboutText.split(/[.!?\n]/)[0];
-                const m = firstSentence.match(/(?:working as an?|I am an?|passionate|experienced)\s+([^,.]+)/i);
-                if (m) raw = m[1].trim();
-            }
-            
-            const segments = (raw || '').split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
+            raw = raw.replace(/\s*[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]\s*/g, ' ').trim();
+            raw = raw.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced|Senior|Junior|Lead)?\s*(?:Seeking\s+opportunities|Open\s+to\s+work|Immediate\s+joiner|Looking\s+for\s+roles?)[,\s:|-]*/i, '').trim() || raw;
+            raw = raw.replace(/^(?:Open\s+to\s+work|Seeking\s+opportunities|Actively\s+looking|Immediate\s+joiner)[\s:|-]*/i, '').trim();
 
-            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Systems\s+Analyst|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+            const segments = raw.split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
+
+            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
 
             for (const seg of segments) {
                 const match = seg.match(roleKeywordRegex);
                 if (match) {
                     let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
-                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
                     cleaned = cleaned.replace(/\s*·.*$/, '').trim();
                     if (cleaned.length > 2) return cleaned;
                 }
             }
 
-            const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer'];
+            const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer', 'Associate', 'Executive', 'Officer'];
             for (const seg of segments) {
                 if (singleRoleKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(seg))) {
                     let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
-                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?)\s+/i, '').trim();
+                    cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
                     if (cleaned.length > 2) return cleaned;
                 }
             }
 
-            const skills = (skillsList || []).map(s => String(s).toLowerCase());
-            const hasSkill = (k) => skills.some(s => s.includes(k));
-
-            if (hasSkill('react') || hasSkill('html') || hasSkill('css') || hasSkill('vue') || hasSkill('angular') || hasSkill('frontend') || hasSkill('tailwind')) {
-                if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('sql') || hasSkill('mongodb')) {
-                    return 'Full Stack Developer';
+            if (experienceList && experienceList.length > 0 && experienceList[0].title) {
+                const expTitle = experienceList[0].title.split(/\s+(?:at|@|-)\s+/i)[0].trim();
+                if (expTitle.length > 2 && !/full-time|part-time|contract/i.test(expTitle)) {
+                    return expTitle;
                 }
-                return 'Frontend Developer';
-            }
-            if (hasSkill('node') || hasSkill('express') || hasSkill('java') || hasSkill('spring') || hasSkill('python') || hasSkill('django') || hasSkill('fastapi') || hasSkill('backend') || hasSkill('sql')) {
-                return 'Backend Developer';
-            }
-            if (hasSkill('qa') || hasSkill('selenium') || hasSkill('cypress') || hasSkill('testing') || hasSkill('test')) {
-                return 'QA Engineer';
-            }
-            if (hasSkill('scrum') || hasSkill('agile') || hasSkill('jira')) {
-                return 'Scrum Master';
-            }
-            if (hasSkill('aws') || hasSkill('azure') || hasSkill('docker') || hasSkill('kubernetes') || hasSkill('devops')) {
-                return 'DevOps Engineer';
-            }
-            if (hasSkill('machine learning') || hasSkill('ai') || hasSkill('pandas') || hasSkill('deep learning')) {
-                return 'Data Scientist';
-            }
-            if (skills.length > 0) {
-                return 'Software Developer';
             }
 
             if (segments.length > 0 && segments[0].length > 1) {
-                return segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+                let segClean = segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
+                segClean = segClean.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
+                if (segClean.length > 2 && !/(connections|followers|contact info|verified|seeking|looking)/i.test(segClean)) {
+                    return segClean;
+                }
             }
 
-            return 'Software Developer';
+            if (aboutText) {
+                const firstSentence = aboutText.split(/[.!?\n]/)[0];
+                const m = firstSentence.match(/(?:working as an?|I am an?|experienced as an?)\s+([^,.]+)/i);
+                if (m && m[1].trim().length > 2) return m[1].trim();
+            }
+
+            return 'Software Engineer';
         }
 
         // Helper: Extract contact fields from any modal element
@@ -776,7 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 12. Final Clean Role Assignment
-        data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, [], data.skills);
+        data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, []);
         data.role = data.primaryRole;
         data.headline = data.primaryRole;
 
