@@ -542,8 +542,7 @@ function extractFromStructuredData(data) {
             if (person.jobTitle) {
                 const jt = Array.isArray(person.jobTitle) ? person.jobTitle[0] : person.jobTitle;
                 if (jt) {
-                    data.headline = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
-                    data.role = data.headline; data.primaryRole = data.headline;
+                    data._jsonLdRole = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
                 }
             }
             const addr = person.address;
@@ -562,7 +561,7 @@ function extractFromStructuredData(data) {
             const works = person.worksFor;
             if (works) {
                 const w = Array.isArray(works) ? works[0] : works;
-                if (w && w.name) data.currentOrganization = String(w.name).trim();
+                if (w && w.name) data._jsonLdOrg = String(w.name).trim();
             }
             if (person.knowsLanguage) {
                 const langs = Array.isArray(person.knowsLanguage) ? person.knowsLanguage : [person.knowsLanguage];
@@ -659,7 +658,7 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
 
     const segments = raw.split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
 
-    const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+    const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Bilingual\s+Software\s+Engineer|Bilingual\s+Engineer|Bilingual\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
 
     for (const seg of segments) {
         const match = seg.match(roleKeywordRegex);
@@ -1067,18 +1066,29 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
         });
     }
 
-    // Role Fallback from Top Experience Item if headline was missing
-    if ((!data.primaryRole || data.primaryRole === 'Professional') && data.experience.length > 0) {
-        data.primaryRole = data.experience[0].title;
-        data.role = data.experience[0].title;
-        data.headline = data.experience[0].title;
-        console.log('🎯 Role assigned from latest Experience title:', data.primaryRole);
+    // Role Fallback / Refinement from Top Experience Item if headline was missing or generic
+    if (data.experience.length > 0) {
+        const topExpRole = data.experience[0].title;
+        if ((!data.primaryRole || data.primaryRole === 'Professional' || data.primaryRole === 'Software Engineer' || data.primaryRole === 'Software Developer') && topExpRole && topExpRole.length > 2) {
+            data.primaryRole = topExpRole;
+            data.role = topExpRole;
+            data.headline = topExpRole;
+            console.log('🎯 Role assigned/refined from latest Experience title:', data.primaryRole);
+        }
+    }
+    if (!data.primaryRole && data._jsonLdRole) {
+        data.primaryRole = data._jsonLdRole;
+        data.role = data.primaryRole;
+        data.headline = data.primaryRole;
     }
 
     // Sanitize currentOrganization so it only contains valid company names, not date ranges
     if (data.currentOrganization && /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|yrs?|mos?)\b/i.test(data.currentOrganization)) {
         const validExp = data.experience.find(e => e.company && !/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|yrs?|mos?)\b/i.test(e.company));
-        data.currentOrganization = validExp ? validExp.company : 'SGR Info Systems Pvt Ltd';
+        data.currentOrganization = validExp ? validExp.company : '';
+    }
+    if (!data.currentOrganization && data._jsonLdOrg) {
+        data.currentOrganization = data._jsonLdOrg;
     }
 
     // Convert totalMonths to decimal years

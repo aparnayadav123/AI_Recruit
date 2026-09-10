@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
-                if (/^(education|licenses|skills|languages|interests)/i.test(line)) {
+                if (/^(?:Education|Licenses\s*&?\s*certifications|Volunteer\s*experience|Publications|Projects|Honors\s*&?\s*awards|Activity)\s*$/i.test(line)) {
                     flushCompany();
                     break;
                 }
@@ -454,7 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const segments = raw.split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
 
-            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Bilingual\s+Software\s+Engineer|Bilingual\s+Engineer|Bilingual\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
 
             for (const seg of segments) {
                 const match = seg.match(roleKeywordRegex);
@@ -574,7 +574,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 1. JSON-LD Structured Data
+        // 1. JSON-LD Structured Data (for Name, Location, fallback Org and fallback Role)
+        let jsonLdOrg = '';
+        let jsonLdRole = '';
         try {
             const scripts = document.querySelectorAll('script[type="application/ld+json"]');
             for (const s of scripts) {
@@ -590,8 +592,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (person.jobTitle) {
                     const jt = Array.isArray(person.jobTitle) ? person.jobTitle[0] : person.jobTitle;
                     if (jt) {
-                        data.headline = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
-                        data.role = data.headline; data.primaryRole = data.headline;
+                        jsonLdRole = String(jt).split('||')[0].replace(/JLPT\s*N[1-5].*$/i, '').trim();
                     }
                 }
                 const addr = person.address;
@@ -607,13 +608,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const works = person.worksFor;
                 if (works) {
                     const w = Array.isArray(works) ? works[0] : works;
-                    if (w && w.name) data.currentOrganization = cleanOrg(w.name);
+                    if (w && w.name) jsonLdOrg = cleanOrg(w.name);
                 }
                 break;
             }
         } catch (_) {}
 
-        // 2. Name
+        // 2. Name from DOM
         if (!data.name) {
             const nameEl = document.querySelector('h1.text-heading-xlarge, .pv-top-card-layout__title, h1.v-align-middle, .pv-text-details__left-panel h1, main h1');
             if (nameEl && nameEl.innerText && nameEl.innerText.trim().length > 1) {
@@ -625,7 +626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.length > 1) data.name = t;
         }
 
-        // 3. Headline / Role
+        // 3. Top Card Headline from DOM
         const headSelectors = [
             'main section [data-view-name="profile-top-card"] .text-body-medium',
             'main section:first-of-type .text-body-medium',
@@ -676,7 +677,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 4. Location
+        // 4. Location from DOM
         if (!data.location) {
             const locEl = document.querySelector('.pv-text-details__left-panel .text-body-small.inline, .top-card-layout__first-subline span');
             if (locEl && locEl.innerText) {
@@ -685,16 +686,73 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 5. Current Organization / Company
-        if (!data.currentOrganization) {
-            const orgEl = document.querySelector('.pv-text-details__right-panel button span, .pv-text-details__right-panel a span, button[aria-label^="Current company"], a[href*="/company/"]');
-            if (orgEl && orgEl.innerText) {
-                data.currentOrganization = cleanOrg(orgEl.innerText.split('\n')[0]);
+        // 5. Scoped DOM Experience Section (Source of truth for Company, Role, and Experience)
+        const expSection = document.querySelector('#experience')?.closest('section')
+                        || document.querySelector('[id*="experience"]')?.closest('section')
+                        || document.querySelector('section:has(#experience)')
+                        || document.querySelector('#experience')?.parentElement
+                        || Array.from(document.querySelectorAll('section')).find(s => {
+                            const h = s.querySelector('h2, h3, span, .pvs-header__title');
+                            return h && /experience/i.test((h.innerText || '').trim());
+                        });
+
+        let expCompName = '';
+        let expRoleTitle = '';
+        let expSectionMonths = 0;
+
+        if (expSection) {
+            const expText = expSection.innerText || '';
+            const expLines = expText
+                .replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ')
+                .split('\n')
+                .map(l => l.trim())
+                .filter(l => l && !/^(experience|show all|skills:|education|licenses)/i.test(l) && !/^[•·\s]+$/.test(l));
+
+            if (expLines.length > 0) {
+                const isGrouped = /^(?:Full-time|Part-time|Contract|Freelance|Self-employed|Internship)\s*[·•-]\s*\d+\s*(?:yrs?|years?|mos?|months?)/i.test(expLines[1])
+                    || /^\d+\s*(?:yrs?|years?|mos?|months?)\s*$/i.test(expLines[1]);
+
+                if (isGrouped) {
+                    expCompName = cleanOrg(expLines[0]);
+                    for (let i = 2; i < expLines.length && i < 7; i++) {
+                        const l = expLines[i];
+                        if (/^(?:Tokyo|Bengaluru|Hyderabad|London|San Francisco|India|Japan|Remote|On-site|Hybrid)/i.test(l)) continue;
+                        if (/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(l)) continue;
+                        if (/^(?:Full-time|Part-time|Contract|Internship)/i.test(l)) continue;
+                        if (/^Skills:/i.test(l)) continue;
+                        if (l.length > 2 && !expCompName.toLowerCase().includes(l.toLowerCase())) {
+                            expRoleTitle = l;
+                            break;
+                        }
+                    }
+                } else {
+                    expRoleTitle = expLines[0];
+                    if (expLines[1]) {
+                        expCompName = cleanOrg(expLines[1]);
+                    }
+                }
             }
+
+            expSectionMonths = calculateTotalExperienceFromBlock(expText);
+        }
+
+        // 6. Current Company Determination (DOM First, JSON-LD Fallback)
+        const orgEl = document.querySelector('.pv-text-details__right-panel button span, .pv-text-details__right-panel a span, button[aria-label^="Current company"], a[href*="/company/"]');
+        if (orgEl && orgEl.innerText) {
+            const topOrg = cleanOrg(orgEl.innerText.split('\n')[0]);
+            if (topOrg && topOrg.length > 1 && !/connections|followers|contact info|verified|see more/i.test(topOrg)) {
+                data.currentOrganization = topOrg;
+            }
+        }
+        if (!data.currentOrganization && expCompName) {
+            data.currentOrganization = expCompName;
+        }
+        if (!data.currentOrganization && jsonLdOrg) {
+            data.currentOrganization = jsonLdOrg;
         }
         data.company = data.currentOrganization;
 
-        // 6. Contact Info Modal
+        // 7. Contact Info Modal
         let openedModal = false;
         let existingModal = document.querySelector('#artdeco-modal-outlet [role="dialog"], .artdeco-modal, .pv-contact-info');
         if (!existingModal) {
@@ -718,7 +776,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 7. Check mailto & tel links across the page
+        // 8. Check mailto & tel links across the page
         if (!data.email) {
             const mailto = document.querySelector('a[href^="mailto:"]');
             if (mailto) {
@@ -734,7 +792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 8. Text Regex Scanning across About / Page for Email and Phone
+        // 9. Text Regex Scanning across About / Page for Email and Phone
         if (!data.email) {
             const allTxt = document.body.innerText || '';
             const mMatch = allTxt.match(/[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}/g) || [];
@@ -748,11 +806,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (m10) data.phone = m10[0].replace(/^\+91[\s-]*/, '').trim();
         }
 
-        // 9. Experience Duration Parsing (Multi-Layered Universal Extraction)
+        // 10. Experience Duration Parsing (Multi-Layered Universal Extraction)
         let totalMonths = 0;
         const allPageText = document.body.innerText || '';
 
-        // Layer 1: Check Explicit Mention in About / Headline / Summary (e.g. "3+ years of experience", "having 2.5 yrs exp", "4 years in React")
+        // Layer 1: Check Explicit Mention in About / Headline / Summary
         const explicitExpPatterns = [
             /(?:overall|total|have|having|with)?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?(?:total\s*)?(?:experience|exp|in\s+software|as\s+a\s+\w+)/i,
             /(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s*(?:of\s*)?experience/i,
@@ -768,19 +826,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Layer 2: Scoped DOM Experience Section
-        const expSection = document.querySelector('#experience')?.closest('section')
-                        || document.querySelector('[id*="experience"]')?.closest('section')
-                        || document.querySelector('section:has(#experience)')
-                        || document.querySelector('#experience')?.parentElement
-                        || Array.from(document.querySelectorAll('section')).find(s => {
-                            const h = s.querySelector('h2, h3, span, .pvs-header__title');
-                            return h && /experience/i.test((h.innerText || '').trim());
-                        });
-
-        if (expSection) {
-            const expText = expSection.innerText || '';
-            const months = calculateTotalExperienceFromBlock(expText);
-            if (months > 0) totalMonths = Math.max(totalMonths, months);
+        if (expSectionMonths > 0) {
+            totalMonths = Math.max(totalMonths, expSectionMonths);
         }
 
         // Layer 3: Sliced lines starting from any heading containing "experience"
@@ -789,7 +836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (expIdx >= 0) {
             const expLines = [];
             for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
-                if (/^(education|skills|languages|licenses|certifications|interests|projects|honors|causes)/i.test(lines[i])) break;
+                if (/^(?:Education|Licenses\s*&?\s*certifications|Volunteer\s*experience|Publications|Projects|Honors\s*&?\s*awards|Activity)\s*$/i.test(lines[i])) break;
                 expLines.push(lines[i]);
             }
             const block = expLines.join('\n');
@@ -816,7 +863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         data.totalExperienceYears = totalMonths > 0 ? parseFloat((totalMonths / 12).toFixed(1)) : 0;
         data.experience = data.totalExperienceYears;
 
-        // 10. Skills Extractor
+        // 11. Skills Extractor
         const skillsSection = document.querySelector('#skills')?.closest('section');
         if (skillsSection) {
             const items = skillsSection.querySelectorAll('li, div[data-view-name="profile-component-entity"]');
@@ -839,15 +886,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         data.skills = [...new Set(data.skills)].slice(0, 30);
 
-        // 11. About
+        // 12. About
         const aboutEl = document.querySelector('#about')?.closest('section');
         if (aboutEl) {
             data.about = (aboutEl.innerText || '').replace(/…see more|see less/gi, '').trim();
             data.summary = data.about;
         }
 
-        // 12. Final Clean Role Assignment
-        data.primaryRole = extractCleanRole(data.rawHeadline || data.headline, data.about, []);
+        // 13. Clean Dynamic Role Assignment (DOM Headline + Experience Title Priority)
+        let primaryRoleCandidate = extractCleanRole(data.rawHeadline || '', data.about, []);
+        if (expRoleTitle && (!primaryRoleCandidate || primaryRoleCandidate === 'Software Engineer' || primaryRoleCandidate === 'Software Developer')) {
+            const cleanExp = extractCleanRole(expRoleTitle, '', []);
+            if (cleanExp && cleanExp.length > 2 && cleanExp !== 'Software Engineer') {
+                primaryRoleCandidate = cleanExp;
+            } else if (expRoleTitle.length > 2 && !/full-time|part-time|contract/i.test(expRoleTitle)) {
+                primaryRoleCandidate = expRoleTitle;
+            }
+        }
+        if (!primaryRoleCandidate && jsonLdRole) {
+            primaryRoleCandidate = jsonLdRole;
+        }
+
+        data.primaryRole = primaryRoleCandidate || 'Software Engineer';
         data.role = data.primaryRole;
         data.headline = data.primaryRole;
 
