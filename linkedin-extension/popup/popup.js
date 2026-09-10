@@ -943,10 +943,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         let existingId = profileData.id;
         let existingEmail = profileData.email;
 
+        let apiBase = 'https://recruitai-backend-bvo0.onrender.com/api';
+        try {
+            if (storage && storage.backend_url) {
+                apiBase = String(storage.backend_url).replace(/\/+$/, '') + '/api';
+            }
+        } catch (_) {}
+
         // If no ID yet, check if candidate already exists in backend by LinkedIn URL
         if (!existingId && lnUrl) {
             try {
-                const checkRes = await fetch(`https://recruitai-backend-bvo0.onrender.com/api/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(lnUrl)}`, {
+                const checkRes = await fetch(`${apiBase}/candidates/check-duplicate?linkedinUrl=${encodeURIComponent(lnUrl)}`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
                 if (checkRes.ok) {
@@ -964,7 +971,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // If still no ID, check by name
         if (!existingId && profileData.name) {
             try {
-                const searchRes = await fetch(`https://recruitai-backend-bvo0.onrender.com/api/candidates/search?search=${encodeURIComponent(profileData.name)}`, {
+                const searchRes = await fetch(`${apiBase}/candidates/search?search=${encodeURIComponent(profileData.name)}`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
                 if (searchRes.ok) {
@@ -982,8 +989,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const isUpdate = !!existingId;
         const targetUrl = isUpdate
-            ? `https://recruitai-backend-bvo0.onrender.com/api/candidates/${existingId}`
-            : 'https://recruitai-backend-bvo0.onrender.com/api/candidates';
+            ? `${apiBase}/candidates/${existingId}`
+            : `${apiBase}/candidates`;
 
         const finalEmail = (profileData.email && profileData.email.includes('@'))
             ? profileData.email
@@ -1011,13 +1018,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(targetUrl, {
-            method: isUpdate ? 'PUT' : 'POST',
-            headers,
-            body: JSON.stringify(payload)
-        });
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 60000);
+
+        let res;
+        try {
+            res = await fetch(targetUrl, {
+                method: isUpdate ? 'PUT' : 'POST',
+                headers,
+                body: JSON.stringify(payload),
+                signal: ctrl.signal
+            });
+        } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            if (fetchErr && fetchErr.name === 'AbortError') {
+                throw new Error('Save timed out after 60s (backend may be waking up, please retry).');
+            }
+            throw fetchErr;
+        }
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
+            if (res.status === 401 || res.status === 403) {
+                throw new Error('Authentication required: Please log in to RecruitAI web dashboard to sync your session.');
+            }
             const errorText = await res.text();
             throw new Error(`API Error (${res.status}): ${errorText}`);
         }

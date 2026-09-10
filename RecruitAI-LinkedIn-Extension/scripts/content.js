@@ -281,11 +281,7 @@ async function fetchContactDetailsFromPage() {
     });
 }
 
-// Helper: Robust experience calculation that safely parses Experience section & page text without degree contamination
-function extractExperienceYears() {
-    let maxMonths = 0;
-
-    // Helper: Parse months from a duration string
+    const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
     function parseDurationString(text) {
         if (!text) return 0;
         const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').trim();
@@ -310,8 +306,6 @@ function extractExperienceYears() {
         return 0;
     }
 
-    // Helper: Calculate months from a date range: "Jun 2023 - Present" or "2022 - 2024"
-    const MONTH_MAP = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
     function parseDateRangeMonths(text) {
         if (!text) return 0;
         const clean = String(text).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ');
@@ -354,6 +348,7 @@ function extractExperienceYears() {
 
         return 0;
     }
+
 
 // Helper: Calculate total experience by summing all company tenures and cross-checking career dates
 function calculateTotalExperienceFromBlock(block) {
@@ -2413,129 +2408,122 @@ function populateSidebar() {
             statusSpan.innerHTML += `<br><span style="color:#2563eb; font-size:11px;">ðŸŒ Found ${langCount} languages: ${extractedProfile.languages.join(', ')}</span>`;
         }
 
-        // FETCH ALL SKILLS (Async Enhancement)
-        (async () => {
-            const statusSpan = document.getElementById('rai-skills-status');
-            if (!statusSpan) return;
-            
-            statusSpan.textContent = 'Fetching full list...';
-            statusSpan.style.color = '#d97706';
-
-            try {
-                const allSkills = await enrichSkills(extractedProfile);
-                if (allSkills && allSkills.length > extractedProfile.skills.length) {
-                    extractedProfile.skills = allSkills;
-                    document.getElementById('rai-skills-input').value = allSkills.join(', ');
-                    statusSpan.textContent = `âœ… Found ${allSkills.length} skills`;
-                    statusSpan.style.color = '#059669';
-                } else {
-                    const count = allSkills ? allSkills.length : extractedProfile.skills.length;
-                    statusSpan.textContent = `(Found ${count})`;
-                    statusSpan.style.color = '#6b7280';
-                }
-            } catch (e) {
-                console.warn("Skill fetch attempt failed", e);
-                statusSpan.textContent = '(limited list)';
-                statusSpan.style.color = '#9ca3af';
-            }
-        })();
-        // Removing broken auto-click reference to non-existent button
-
-        // --- DYNAMIC AI ENRICHMENT (Advanced Pass) ---
-        (async () => {
-            const statusSpan = document.getElementById('rai-save-status');
-            if (statusSpan) {
-                const aiBadge = document.createElement('div');
-                aiBadge.id = 'rai-ai-loading';
-                aiBadge.innerHTML = 'âœ¨ AI analyzing profile...';
-                aiBadge.style.cssText = 'font-size:10px; color:#7c3aed; margin-top:4px; font-weight:bold;';
-                statusSpan.appendChild(aiBadge);
+        // FETCH ALL SKILLS (Async Enhancement — run once per profile)
+        if (!window.__rai_has_enriched_skills) {
+            window.__rai_has_enriched_skills = true;
+            (async () => {
+                const statusSpan = document.getElementById('rai-skills-status');
+                if (!statusSpan) return;
+                
+                statusSpan.textContent = 'Fetching full list...';
+                statusSpan.style.color = '#d97706';
 
                 try {
-                    const rawText = raiPageText();
-                    let aiResolved = false;
-                    // Watchdog: in MV3 the service worker can be torn down before it
-                    // replies, leaving this callback unfired. Never let the "analyzing"
-                    // badge spin forever â€” clear it after 12s no matter what.
-                    const aiTimeout = setTimeout(() => {
-                        if (!aiResolved) { aiResolved = true; aiBadge.remove(); }
-                    }, 12000);
+                    const allSkills = await enrichSkills(extractedProfile);
+                    if (allSkills && allSkills.length > (extractedProfile.skills || []).length) {
+                        extractedProfile.skills = allSkills;
+                        document.getElementById('rai-skills-input').value = allSkills.join(', ');
+                        statusSpan.textContent = `✓ Found ${allSkills.length} skills`;
+                        statusSpan.style.color = '#059669';
+                    } else {
+                        const count = allSkills ? allSkills.length : (extractedProfile.skills || []).length;
+                        statusSpan.textContent = `(${count} skills)`;
+                        statusSpan.style.color = '#6b7280';
+                    }
+                } catch (e) {
+                    console.warn("Skill fetch attempt failed", e);
+                    statusSpan.textContent = '(limited list)';
+                    statusSpan.style.color = '#9ca3af';
+                }
+            })();
+        }
 
-                    chrome.runtime.sendMessage({ action: 'PARSE_PROFILE', text: rawText }, (response) => {
-                        if (aiResolved) return;
-                        aiResolved = true;
-                        clearTimeout(aiTimeout);
+        // --- DYNAMIC AI ENRICHMENT (Advanced Pass — run once per profile) ---
+        if (!window.__rai_has_enriched_ai) {
+            window.__rai_has_enriched_ai = true;
+            (async () => {
+                const statusSpan = document.getElementById('rai-save-status');
+                if (statusSpan) {
+                    const aiBadge = document.createElement('div');
+                    aiBadge.id = 'rai-ai-loading';
+                    aiBadge.innerHTML = '✨ AI analyzing profile...';
+                    aiBadge.style.cssText = 'font-size:10px; color:#7c3aed; margin-top:4px; font-weight:bold;';
+                    statusSpan.appendChild(aiBadge);
 
-                        // A dropped message channel / backend error surfaces here â€”
-                        // bail cleanly instead of hanging the badge.
-                        if (chrome.runtime.lastError) { aiBadge.remove(); return; }
+                    try {
+                        const rawText = raiPageText();
+                        let aiResolved = false;
+                        const aiTimeout = setTimeout(() => {
+                            if (!aiResolved) { aiResolved = true; aiBadge.remove(); }
+                        }, 20000);
 
-                        if (response && response.status === 'success' && response.data) {
-                            const aiData = response.data;
-                            console.log("ðŸ¤– Dynamic AI Enrichment Data:", aiData);
+                        if (!chrome.runtime || !chrome.runtime.id) {
+                            aiBadge.remove();
+                            return;
+                        }
 
-                            // Update fields ONLY if AI found better info or current is empty.
-                            // Null-safe: several of these ids don't exist in every layout.
-                            const updateIfEmpty = (id, val) => {
-                                const el = document.getElementById(id);
-                                if (el && (!el.value || el.value === '0' || el.value === 'N/A') && val) {
-                                    el.value = val;
-                                    el.style.borderLeft = '2px solid #7c3aed'; // Highlight AI-enriched
+                        chrome.runtime.sendMessage({ action: 'PARSE_PROFILE', text: rawText }, (response) => {
+                            if (aiResolved) return;
+                            aiResolved = true;
+                            clearTimeout(aiTimeout);
+
+                            if (chrome.runtime.lastError) { aiBadge.remove(); return; }
+
+                            if (response && response.status === 'success' && response.data) {
+                                const aiData = response.data;
+                                console.log("🤖 Dynamic AI Enrichment Data:", aiData);
+
+                                const updateIfEmpty = (id, val) => {
+                                    const el = document.getElementById(id);
+                                    if (el && (!el.value || el.value === '0' || el.value === 'N/A') && val) {
+                                        el.value = val;
+                                        el.style.borderLeft = '2px solid #7c3aed';
+                                    }
+                                };
+
+                                updateIfEmpty('rai-role-input', aiData.primaryRole || aiData.role || aiData.headline);
+                                updateIfEmpty('rai-fname-input', aiData.name?.split(' ')[0]);
+                                updateIfEmpty('rai-lname-input', aiData.name?.split(' ').slice(1).join(' '));
+                                updateIfEmpty('rai-notice-input', aiData.noticePeriod);
+                                updateIfEmpty('rai-rel-exp-input', aiData.experience);
+                                updateIfEmpty('rai-visa-input', aiData.visaType);
+                                updateIfEmpty('rai-summary-input', aiData.summary);
+                                if (aiData.email && aiData.email.includes('@') && !aiData.email.startsWith('pending-')) {
+                                    updateIfEmpty('rai-email-input', aiData.email);
                                 }
-                            };
+                                updateIfEmpty('rai-phone-input', aiData.phone);
+                                const skillsEl = document.getElementById('rai-skills-input');
+                                if (skillsEl && (!skillsEl.value || !skillsEl.value.trim())
+                                        && Array.isArray(aiData.skills) && aiData.skills.length) {
+                                    skillsEl.value = aiData.skills.join(', ');
+                                    skillsEl.style.borderLeft = '2px solid #7c3aed';
+                                }
 
-                            // Fill the role from AI too â€” this was missing, so a profile
-                            // whose headline didn't scrape was left with a blank role.
-                            updateIfEmpty('rai-role-input', aiData.primaryRole || aiData.role || aiData.headline);
-                            updateIfEmpty('rai-fname-input', aiData.name?.split(' ')[0]);
-                            updateIfEmpty('rai-lname-input', aiData.name?.split(' ').slice(1).join(' '));
-                            updateIfEmpty('rai-notice-input', aiData.noticePeriod);
-                            updateIfEmpty('rai-rel-exp-input', aiData.experience);
-                            updateIfEmpty('rai-visa-input', aiData.visaType);
-                            updateIfEmpty('rai-summary-input', aiData.summary);
-                            // Email / phone parsed from the page text by the backend
-                            if (aiData.email && aiData.email.includes('@') && !aiData.email.startsWith('pending-')) {
-                                updateIfEmpty('rai-email-input', aiData.email);
-                            }
-                            updateIfEmpty('rai-phone-input', aiData.phone);
-                            // Skills â€” fill the box when DOM scraping left it empty
-                            const skillsEl = document.getElementById('rai-skills-input');
-                            if (skillsEl && (!skillsEl.value || !skillsEl.value.trim())
-                                    && Array.isArray(aiData.skills) && aiData.skills.length) {
-                                skillsEl.value = aiData.skills.join(', ');
-                                skillsEl.style.borderLeft = '2px solid #7c3aed';
-                            }
+                                if (aiData.summary) {
+                                    const notesEl = document.getElementById('rai-notes-text');
+                                    if (notesEl) notesEl.value = aiData.summary;
+                                }
 
-                            // Guard the notes textarea â€” it has no `rai-notes-text` id in
-                            // the current sidebar, so the old unconditional write threw
-                            // here and left the badge spinning forever.
-                            if (aiData.summary) {
-                                const notesEl = document.getElementById('rai-notes-text');
-                                if (notesEl) notesEl.value = aiData.summary;
+                                aiBadge.innerHTML = '✨ AI Analysis Complete';
+                                aiBadge.style.color = '#059669';
+                                setTimeout(() => aiBadge.remove(), 3000);
+                            } else {
+                                aiBadge.remove();
                             }
-
-                            aiBadge.innerHTML = 'âœ¨ AI Analysis Complete';
-                            aiBadge.style.color = '#059669';
-                            setTimeout(() => aiBadge.remove(), 3000);
+                        });
+                    } catch (e) {
+                        const stale = String(e && e.message).toLowerCase().includes('context invalidated');
+                        if (stale) {
+                            aiBadge.innerHTML = '🔄 Extension updated — press F5 to refresh this page';
+                            aiBadge.style.color = '#d97706';
                         } else {
+                            console.warn("AI Enrichment skipped:", e);
                             aiBadge.remove();
                         }
-                    });
-                } catch (e) {
-                    // "Extension context invalidated" = the extension was reloaded while
-                    // this tab stayed open, orphaning this script. Tell the user the fix
-                    // (refresh the page) instead of failing silently.
-                    const stale = String(e && e.message).toLowerCase().includes('context invalidated');
-                    if (stale) {
-                        aiBadge.innerHTML = 'ðŸ”„ Extension updated â€” press F5 to refresh this page';
-                        aiBadge.style.color = '#d97706';
-                    } else {
-                        console.warn("AI Enrichment failed", e);
-                        aiBadge.remove();
                     }
                 }
-            }
-        })();
+            })();
+        }
 
         const saveBtn = document.getElementById('rai-save-btn');
         saveBtn.disabled = false;
@@ -2730,35 +2718,26 @@ function sendToBackground(payload, btn) {
         return;
     }
 
-    console.log("ðŸš€ Dispatching SAVE_CANDIDATE to background:", payload);
+    console.log("🚀 Dispatching SAVE_CANDIDATE to background:", payload);
 
-    // Guard against Chrome MV3 service-worker shutdown during await â€” if the
-    // background script doesn't respond in 30s, recover the button so the user
-    // can retry instead of staring at "Saving..." forever.
+    // Guard against Chrome MV3 service-worker shutdown during await
     let responded = false;
     const watchdog = setTimeout(() => {
         if (responded) return;
         responded = true;
-        console.warn("âŒ› Save Timeout â€” no response from service worker after 30s");
+        console.warn("⏳ Save Timeout — no response from service worker after 65s");
         btn.disabled = false;
         btn.textContent = 'Retry Save';
         btn.style.background = '#dc2626';
         btn.style.boxShadow = '0 10px 15px -3px rgba(220, 38, 38, 0.3)';
         alert(
             "Save timed out. Possible causes:\n" +
-            " â€¢ Backend at http://localhost:8089 is not running\n" +
-            " â€¢ You're not signed into Recruit AI at http://localhost:3000\n" +
-            " â€¢ Chrome paused the extension's background worker â€” reload the extension at chrome://extensions and retry.\n\n" +
-            "Open the extension's service-worker console (chrome://extensions â†’ Recruit AI â†’ \"service worker\") to see the actual error."
+            " • Render backend is waking up from idle state (please click Retry Save)\n" +
+            " • Please ensure you are logged into Recruit AI\n" +
+            " • Reload the extension at chrome://extensions if the worker went inactive."
         );
-    }, 30000);
+    }, 65000);
 
-    // Wrap sendMessage in try/catch because "Extension context invalidated"
-    // throws SYNCHRONOUSLY â€” it happens when the extension was reloaded on
-    // chrome://extensions while this LinkedIn tab was still open, so the
-    // content script in this tab is now stale and can't reach the new
-    // service worker. The fix is to refresh the LinkedIn page; the new
-    // content.js will then talk to the new background worker correctly.
     const handleStaleContext = () => {
         if (responded) return;
         responded = true;
@@ -2768,61 +2747,56 @@ function sendToBackground(payload, btn) {
         btn.style.background = '#d97706'; // amber-600
         btn.style.boxShadow = '0 10px 15px -3px rgba(217, 119, 6, 0.3)';
         alert(
-            "The extension was reloaded while this LinkedIn tab was open, so the page's connection to the extension is stale.\n\n" +
-            "Fix: press F5 (or Ctrl+R) on this LinkedIn tab to refresh it, then open the sidebar and click Save again."
+            "The extension was reloaded in Chrome while this tab was open.\n\n" +
+            "Fix: Press F5 to refresh this LinkedIn tab, then click Save again."
         );
     };
 
     try {
-        // Proactive guard: when the extension is reloaded/updated while this tab
-        // stays open, `chrome.runtime` (or its `.id`) becomes undefined. Reading
-        // `.sendMessage` off it would throw a confusing TypeError, so detect the
-        // stale context first and tell the user to refresh.
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
             handleStaleContext();
             return;
         }
         chrome.runtime.sendMessage({ action: 'SAVE_CANDIDATE', data: payload }, (response) => {
-        if (responded) return;
-        responded = true;
-        clearTimeout(watchdog);
+            if (responded) return;
+            responded = true;
+            clearTimeout(watchdog);
 
-        if (chrome.runtime.lastError) {
-            const msg = chrome.runtime.lastError.message || '';
-            if (msg.toLowerCase().includes('context invalidated')) {
-                handleStaleContext();
+            if (chrome.runtime.lastError) {
+                const msg = chrome.runtime.lastError.message || '';
+                if (msg.toLowerCase().includes('context invalidated')) {
+                    handleStaleContext();
+                    return;
+                }
+                console.error("Runtime Error:", chrome.runtime.lastError);
+                btn.disabled = false;
+                btn.textContent = 'Retry Save';
+                btn.style.background = '#dc2626';
+                alert("Extension communication error: " + msg + "\n\nTry reloading the extension at chrome://extensions and refreshing this LinkedIn page.");
                 return;
             }
-            console.error("Runtime Error:", chrome.runtime.lastError);
-            btn.disabled = false;
-            btn.textContent = 'Retry Save';
-            btn.style.background = '#dc2626';
-            alert("Extension communication error: " + msg + "\n\nTry reloading the extension at chrome://extensions and refreshing this LinkedIn page.");
-            return;
-        }
 
-        if (response && response.status === 'success') {
-            btn.textContent = 'Saved Successfully!';
-            btn.style.background = '#059669'; // Emerald-600
-            btn.style.boxShadow = '0 10px 15px -3px rgba(5, 150, 105, 0.3)';
-            console.log("âœ¨ Save Success:", response.data);
+            if (response && response.status === 'success') {
+                btn.textContent = 'Saved Successfully!';
+                btn.style.background = '#059669'; // Emerald-600
+                btn.style.boxShadow = '0 10px 15px -3px rgba(5, 150, 105, 0.3)';
+                console.log("✨ Save Success:", response.data);
 
-            setTimeout(() => {
-                btn.textContent = 'Save Candidate';
-                btn.style.background = '#2563eb';
+                setTimeout(() => {
+                    btn.textContent = 'Save Candidate';
+                    btn.style.background = '#2563eb';
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                console.error("Save failed:", response);
                 btn.disabled = false;
-            }, 3000);
-        } else {
-            console.error("Save failed:", response);
-            btn.disabled = false;
-            btn.textContent = 'Retry Save';
-            btn.style.background = '#dc2626'; // Red-600
-            btn.style.boxShadow = '0 10px 15px -3px rgba(220, 38, 38, 0.3)';
-            alert("Save Failed: " + (response && response.message ? response.message : "Unknown error â€” open the service-worker console at chrome://extensions to see what went wrong."));
-        }
+                btn.textContent = 'Retry Save';
+                btn.style.background = '#dc2626'; // Red-600
+                btn.style.boxShadow = '0 10px 15px -3px rgba(220, 38, 38, 0.3)';
+                alert("Save Failed: " + (response && response.message ? response.message : "Please check if you are logged into RecruitAI."));
+            }
         });
     } catch (err) {
-        // "Extension context invalidated" throws synchronously here.
         console.error("Dispatch error:", err);
         const m = String(err && err.message).toLowerCase();
         const staleContext = m.includes('context invalidated')

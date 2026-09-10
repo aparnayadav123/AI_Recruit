@@ -3,6 +3,7 @@
  */
 
 const PROD_BACKEND = 'https://recruitai-backend-bvo0.onrender.com';
+const PROD_APP_URL = 'https://ai-recruit-eight.vercel.app';
 
 async function getApiBaseUrl() {
     try {
@@ -14,7 +15,7 @@ async function getApiBaseUrl() {
     return PROD_BACKEND + '/api';
 }
 
-function fetchWithTimeout(url, opts = {}, timeoutMs = 25000) {
+function fetchWithTimeout(url, opts = {}, timeoutMs = 60000) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     return fetch(url, { ...opts, signal: ctrl.signal })
@@ -22,13 +23,13 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 25000) {
         .catch(err => {
             clearTimeout(timer);
             if (err && err.name === 'AbortError') {
-                throw new Error(`Request to backend timed out after ${timeoutMs / 1000}s.`);
+                throw new Error(`Request timed out after ${timeoutMs / 1000}s. (Backend may be waking up, please retry)`);
             }
             throw err;
         });
 }
 
-async function fetchWithFallback(pathAndQuery, opts = {}, timeoutMs = 25000) {
+async function fetchWithFallback(pathAndQuery, opts = {}, timeoutMs = 60000) {
     const primaryBase = await getApiBaseUrl();
     const primaryUrl = `${primaryBase}${pathAndQuery}`;
     try {
@@ -251,28 +252,28 @@ async function saveToCRM(profileData) {
     console.log('📡 Sending/Updating Candidate Payload:', payload);
 
     // 4. CREATE OR UPDATE CANDIDATE
+    const requestHeaders = { 'Content-Type': 'application/json' };
+    if (token) requestHeaders['Authorization'] = `Bearer ${token}`;
+
     let response;
     if (candidateId) {
         response = await fetchWithFallback(`/candidates/${candidateId}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: requestHeaders,
             body: JSON.stringify(payload)
         });
     } else {
         response = await fetchWithFallback(`/candidates`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: requestHeaders,
             body: JSON.stringify(payload)
         });
     }
 
     if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            throw new Error(`Authentication required: Please log in to RecruitAI at ${PROD_APP_URL || 'your dashboard'} to sync your session.`);
+        }
         const errorText = await response.text();
         throw new Error(`API Error: ${response.status} - ${errorText}`);
     }
