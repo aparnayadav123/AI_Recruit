@@ -362,37 +362,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            const yearMatches = cleanBlock.matchAll(/\b(19\d{2}|20\d{2})\s*[-–—至~]\s*(Present|Current|Now|19\d{2}|20\d{2})\b/gi);
-            for (const ym of yearMatches) {
-                const y = parseInt(ym[1], 10);
-                if (y >= 1995 && y <= currentYear && y < earliestYear) {
-                    earliestYear = y;
-                    if (y < earliestCareerYear) {
-                        earliestCareerYear = y;
-                        earliestCareerMonth = 1;
+            // Identify company blocks and grouped roles (avoid double counting header + sub-roles)
+            let currentCompanyHeaderDur = 0;
+            let currentSubRolesSum = 0;
+            let hasSubRoles = false;
+            const finalCompanyTotals = [];
+
+            function flushCompany() {
+                if (hasSubRoles) {
+                    const compDur = Math.max(currentCompanyHeaderDur, currentSubRolesSum);
+                    if (compDur > 0) finalCompanyTotals.push(compDur);
+                } else if (currentCompanyHeaderDur > 0) {
+                    finalCompanyTotals.push(currentCompanyHeaderDur);
+                }
+                currentCompanyHeaderDur = 0;
+                currentSubRolesSum = 0;
+                hasSubRoles = false;
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (/^(education|licenses|skills|languages|interests)/i.test(line)) {
+                    flushCompany();
+                    break;
+                }
+
+                const isGroupHeader = /^(?:Full-time|Part-time|Contract|Freelance|Self-employed|Internship)?\s*[·•-]?\s*\d+\s*(?:yrs?|years?|mos?|months?)/i.test(line) && !/[-–—至~]\s*(?:Present|Current|Now|\d{4})/i.test(line);
+                const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
+
+                if (isGroupHeader) {
+                    // Group header duration (e.g. "Full-time · 1 yr 6 mos")
+                    flushCompany();
+                    currentCompanyHeaderDur = parseDur(line);
+                } else if (hasDateRange) {
+                    const dur = parseDur(line) || parseDateRangeMonths(line);
+                    if (dur > 0) {
+                        if (currentCompanyHeaderDur > 0) {
+                            hasSubRoles = true;
+                            currentSubRolesSum += dur;
+                        } else {
+                            // Standalone role
+                            finalCompanyTotals.push(dur);
+                        }
+                    }
+                } else {
+                    const dur = parseDur(line);
+                    if (dur > 0 && !hasDateRange && !/^(about|summary|skills|languages)/i.test(line)) {
+                        if (currentCompanyHeaderDur === 0) {
+                            currentCompanyHeaderDur = dur;
+                        }
                     }
                 }
             }
+            flushCompany();
 
-            const companyDurations = [];
-            let inEdu = false;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (/^education$/i.test(line)) inEdu = true;
-                if (/^(experience|skills|licenses|certifications)/i.test(line)) inEdu = false;
-                if (inEdu && /(bachelor|master|b\.tech|m\.tech|b\.sc|m\.sc|university|college|school)/i.test(line)) continue;
-
-                const dur = parseDur(line);
-                if (dur > 0 && dur <= 480) {
-                    companyDurations.push(dur);
-                } else {
-                    const dateDur = parseDateRangeMonths(line);
-                    if (dateDur > 0 && dateDur <= 480) companyDurations.push(dateDur);
-                }
-            }
-
-            if (companyDurations.length > 0) {
-                totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
+            if (finalCompanyTotals.length > 0) {
+                totalMonths = finalCompanyTotals.reduce((sum, d) => sum + d, 0);
             } else {
                 const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4}))/gi;
                 const ranges = [...cleanBlock.matchAll(dateRangeRegex)];

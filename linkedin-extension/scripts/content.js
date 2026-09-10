@@ -367,12 +367,12 @@ function calculateTotalExperienceFromBlock(block) {
     const curMonth = new Date().getMonth() + 1;
 
     // Find all 4-digit years in range
-    const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/gi);
+    const dateMatches = cleanBlock.matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\b/gi);
     for (const dm of dateMatches) {
         const mStr = dm[1].substr(0, 3).toLowerCase();
         const m = MONTH_MAP[mStr] || 1;
         const y = parseInt(dm[2], 10);
-        if (y >= 1990 && y <= curYear) {
+        if (y >= 1995 && y <= curYear) {
             if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
                 earliestYear = y;
                 earliestMonth = m;
@@ -380,31 +380,66 @@ function calculateTotalExperienceFromBlock(block) {
         }
     }
 
-    const yearMatches = cleanBlock.matchAll(/\b(19\d{2}|20\d{2})\b/g);
-    for (const ym of yearMatches) {
-        const y = parseInt(ym[1], 10);
-        if (y >= 1990 && y <= curYear && y < earliestYear) {
-            earliestYear = y;
+    // Identify company blocks and grouped roles (avoid double counting header + sub-roles)
+    let currentCompanyHeaderDur = 0;
+    let currentSubRolesSum = 0;
+    let hasSubRoles = false;
+    const finalCompanyTotals = [];
+
+    function flushCompany() {
+        if (hasSubRoles) {
+            const compDur = Math.max(currentCompanyHeaderDur, currentSubRolesSum);
+            if (compDur > 0) finalCompanyTotals.push(compDur);
+        } else if (currentCompanyHeaderDur > 0) {
+            finalCompanyTotals.push(currentCompanyHeaderDur);
         }
+        currentCompanyHeaderDur = 0;
+        currentSubRolesSum = 0;
+        hasSubRoles = false;
     }
 
-    const companyDurations = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const dur = parseDurationString(line);
-        if (dur > 0) {
-            companyDurations.push(dur);
+
+        if (/^(education|licenses|skills|languages|interests)/i.test(line)) {
+            flushCompany();
+            break;
+        }
+
+        const isGroupHeader = /^(?:Full-time|Part-time|Contract|Freelance|Self-employed|Internship)?\s*[·•-]?\s*\d+\s*(?:yrs?|years?|mos?|months?)/i.test(line) && !/[-–—至~]\s*(?:Present|Current|Now|\d{4})/i.test(line);
+        const hasDateRange = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–—至~]/i.test(line);
+
+        if (isGroupHeader) {
+            // Group header duration (e.g. "Full-time · 1 yr 6 mos")
+            flushCompany();
+            currentCompanyHeaderDur = parseDurationString(line);
+        } else if (hasDateRange) {
+            const dur = parseDurationString(line) || parseDateRangeMonths(line);
+            if (dur > 0) {
+                if (currentCompanyHeaderDur > 0) {
+                    hasSubRoles = true;
+                    currentSubRolesSum += dur;
+                } else {
+                    // Standalone role
+                    finalCompanyTotals.push(dur);
+                }
+            }
         } else {
-            const dateDur = parseDateRangeMonths(line);
-            if (dateDur > 0) companyDurations.push(dateDur);
+            const dur = parseDurationString(line);
+            if (dur > 0 && !hasDateRange && !/^(about|summary|skills|languages)/i.test(line)) {
+                if (currentCompanyHeaderDur === 0) {
+                    currentCompanyHeaderDur = dur;
+                }
+            }
         }
     }
+    flushCompany();
 
-    if (companyDurations.length > 0) {
-        totalMonths = companyDurations.reduce((sum, d) => sum + d, 0);
+    if (finalCompanyTotals.length > 0) {
+        totalMonths = finalCompanyTotals.reduce((sum, d) => sum + d, 0);
     } else {
         // Fallback: match all individual durations or date ranges
-        const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4}))/gi;
+        const dateRangeRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\s*[-–—至~]\s*(Present|Current|Now|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4}))/gi;
         const ranges = [...cleanBlock.matchAll(dateRangeRegex)];
         for (const r of ranges) {
             const sM = MONTH_MAP[r[1].substr(0, 3).toLowerCase()] || 1;
@@ -416,7 +451,7 @@ function calculateTotalExperienceFromBlock(block) {
                 const emStr = r[3].match(/^[a-zA-Z]+/);
                 if (emStr) eM = MONTH_MAP[emStr[0].substr(0, 3).toLowerCase()] || 1;
             }
-            if (sY >= 1990 && eY >= sY) {
+            if (sY >= 1995 && eY >= sY) {
                 totalMonths += Math.max(1, ((eY - sY) * 12) + (eM - sM) + 1);
             }
         }
