@@ -218,14 +218,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Executes directly in the LinkedIn tab context via chrome.scripting.executeScript
     async function directExtractLinkedInDOM() {
         try {
-            window.scrollTo({ top: 1000, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 120));
-            window.scrollTo({ top: 2500, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 120));
-            window.scrollTo({ top: 3800, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 120));
+            const expTarget = document.querySelector('#experience, [id*="experience"], a[href*="details/experience"]');
+            if (expTarget) {
+                expTarget.scrollIntoView({ behavior: 'instant', block: 'center' });
+            } else {
+                window.scrollTo({ top: 1200, behavior: 'instant' });
+            }
+            await new Promise(r => setTimeout(r, 350));
+            window.scrollTo({ top: 2400, behavior: 'instant' });
+            await new Promise(r => setTimeout(r, 200));
             window.scrollTo({ top: 0, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 80));
+            await new Promise(r => setTimeout(r, 100));
         } catch (_) {}
 
         const data = {
@@ -383,7 +386,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
-                if (/^(?:Education|Licenses\s*&?\s*certifications|Volunteer\s*experience|Publications|Projects|Honors\s*&?\s*awards|Activity)\s*$/i.test(line)) {
+                // Stop only on sections that come AFTER Experience (Education, Certifications, Projects, etc.)
+                if (/^(?:Education|Licenses\s*(?:&|and)?\s*certifications|Certifications|Volunteer\s*experience|Publications|Projects|Honors\s*(?:&|and)?\s*awards|Recommendations|Courses|Test\s*scores|Organizations|Interests|Causes)\s*$/i.test(line)) {
                     flushCompany();
                     break;
                 }
@@ -635,30 +639,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.length > 1) data.name = t;
         }
 
-        // 3. Top Card Headline from DOM
-        const headSelectors = [
-            'main section [data-view-name="profile-top-card"] .text-body-medium',
-            '[data-view-name="profile-top-card"] div.text-body-medium',
-            'main section:first-of-type .text-body-medium',
-            '.pv-text-details__left-panel .text-body-medium.break-words',
-            '.pv-text-details__left-panel .text-body-medium',
-            '.text-body-medium.break-words',
-            '.top-card-layout__headline',
-            '.profile-info-subheader__headline',
-            '[data-test-id="headline"]',
-            '.flex-1.mr5 h2',
-            '.pv-text-details__left-panel div:nth-child(2)',
-            'main section .text-body-medium',
-        ];
-
-        for (const sel of headSelectors) {
-            const headEl = document.querySelector(sel);
-            if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
-                const candidate = headEl.innerText.trim();
-                if (/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(candidate)) continue;
-                if (candidate === data.name) continue;
-                data.rawHeadline = candidate;
+        // 3. Top Card Headline from DOM (Universal text node scan skipping badges/pronouns)
+        const topCardEl = document.querySelector('[data-view-name="profile-top-card"], main section:first-of-type, .pv-top-card, .pv-text-details__left-panel');
+        if (topCardEl) {
+            const textNodes = topCardEl.querySelectorAll('div.text-body-medium, .text-body-medium, h2, div, span, p');
+            for (const el of textNodes) {
+                const txt = (el.innerText || '').trim();
+                if (!txt || txt.length < 2 || txt.length > 200) continue;
+                if (txt === data.name) continue;
+                if (/^(?:he\/him|she\/her|they\/them|verify\s*in\s*\d+|contact\s*info|connections?|followers?|mutual\s*connections?)$/i.test(txt)) continue;
+                if (/(?:connections|followers|contact info|verify in \d+ minutes|verified)/i.test(txt) && !/(?:engineer|developer|architect|specialist|lead|manager|analyst|programmer)/i.test(txt)) continue;
+                data.rawHeadline = txt;
                 break;
+            }
+        }
+
+        if (!data.rawHeadline || data.rawHeadline.length < 2) {
+            const headSelectors = [
+                'main section [data-view-name="profile-top-card"] .text-body-medium',
+                '[data-view-name="profile-top-card"] div.text-body-medium',
+                'main section:first-of-type .text-body-medium',
+                '.pv-text-details__left-panel .text-body-medium.break-words',
+                '.pv-text-details__left-panel .text-body-medium',
+                '.text-body-medium.break-words',
+                '.top-card-layout__headline',
+                '.profile-info-subheader__headline',
+                '[data-test-id="headline"]',
+                '.flex-1.mr5 h2',
+                '.pv-text-details__left-panel div:nth-child(2)',
+                'main section .text-body-medium',
+            ];
+
+            for (const sel of headSelectors) {
+                const headEls = document.querySelectorAll(sel);
+                for (const headEl of headEls) {
+                    if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
+                        const candidate = headEl.innerText.trim();
+                        if (/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(candidate)) continue;
+                        if (candidate === data.name) continue;
+                        data.rawHeadline = candidate;
+                        break;
+                    }
+                }
+                if (data.rawHeadline) break;
             }
         }
 
@@ -748,28 +771,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 6. Current Company Determination (DOM Top-Card Right Panel & Experience First)
         let topCardOrg = '';
-        const rightPanelItems = document.querySelectorAll([
-            '[data-view-name="profile-top-card"] ul.pv-text-details__right-panel li',
-            '.pv-text-details__right-panel li',
-            '[data-view-name="profile-top-card"] ul li',
-            '.pv-top-card--experience-list li'
-        ].join(', '));
+        const topCard = document.querySelector('[data-view-name="profile-top-card"], main section:first-of-type, .pv-top-card');
+        if (topCard) {
+            const orgCandidates = topCard.querySelectorAll([
+                '.pv-text-details__right-panel li',
+                '.pv-text-details__right-panel button',
+                '.pv-text-details__right-panel a',
+                '.pv-text-details__right-panel div',
+                '.pv-text-details__right-panel span',
+                '[data-field="experience_company_name"]',
+                'button[aria-label*="Current company" i]',
+                'a[href*="/company/"]',
+                '.pv-top-card--experience-list li'
+            ].join(', '));
 
-        for (const item of rightPanelItems) {
-            const spanEl = item.querySelector('span[aria-hidden="true"], .t-bold') || item;
-            const cleaned = cleanOrg((spanEl.innerText || '').split('\n')[0]);
-            if (cleaned && cleaned.length > 1 && !/institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified/i.test(cleaned)) {
-                topCardOrg = cleaned;
-                break;
-            }
-        }
-
-        if (!topCardOrg) {
-            const orgBtn = document.querySelector('[data-view-name="profile-top-card"] button[aria-label*="Current company"], .pv-text-details__right-panel button span, .pv-text-details__right-panel a span');
-            if (orgBtn && orgBtn.innerText) {
-                const cleaned = cleanOrg(orgBtn.innerText.split('\n')[0]);
-                if (cleaned && cleaned.length > 1 && !/institute|university|college|school|connections|followers|verified/i.test(cleaned)) {
+            for (const el of orgCandidates) {
+                const raw = (el.innerText || el.getAttribute('aria-label') || '').trim();
+                const cleaned = cleanOrg(raw.split('\n')[0]);
+                if (cleaned && cleaned.length > 1 && cleaned.length < 100) {
+                    if (/^(?:institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified|contact\s*info)$/i.test(cleaned)) continue;
+                    if (/institute|university|college|school|academy|vidyalaya/i.test(cleaned) && !/folks|labs|technologies|solutions|services|pvt|ltd|inc|corp|software|systems|consulting/i.test(cleaned)) continue;
                     topCardOrg = cleaned;
+                    break;
                 }
             }
         }
@@ -878,11 +901,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Layer 3: Sliced lines starting from any heading containing "experience"
         const lines = allPageText.split('\n').map(l => l.trim()).filter(Boolean);
-        const expIdx = lines.findIndex(l => /^(?:work\s+)?experience(?:\s*[\(\[\·•\d]|$)/i.test(l) || /experience/i.test(l));
+        const expIdx = lines.findIndex(l => /^(?:work\s+)?experience(?:\s*[\(\[\·•\d]|$)/i.test(l) || /^experience$/i.test(l));
         if (expIdx >= 0) {
             const expLines = [];
             for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
-                if (/^(?:Education|Licenses\s*&?\s*certifications|Volunteer\s*experience|Publications|Projects|Honors\s*&?\s*awards|Activity)\s*$/i.test(lines[i])) break;
+                if (/^(?:Education|Licenses\s*(?:&|and)?\s*certifications|Certifications|Volunteer\s*experience|Publications|Projects|Honors\s*(?:&|and)?\s*awards|Recommendations|Courses|Test\s*scores|Organizations|Interests|Causes)\s*$/i.test(lines[i])) break;
                 expLines.push(lines[i]);
             }
             const block = expLines.join('\n');

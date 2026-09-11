@@ -396,7 +396,8 @@ function calculateTotalExperienceFromBlock(block) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        if (/^(education|licenses|skills|languages|interests)/i.test(line)) {
+        // Stop only on sections that come AFTER Experience
+        if (/^(?:Education|Licenses\s*(?:&|and)?\s*certifications|Certifications|Volunteer\s*experience|Publications|Projects|Honors\s*(?:&|and)?\s*awards|Recommendations|Courses|Test\s*scores|Organizations|Interests|Causes)\s*$/i.test(line)) {
             flushCompany();
             break;
         }
@@ -497,11 +498,11 @@ function extractExperienceYears() {
 
     // Layer 3: Sliced Text Scanning
     const lines = allPageText.split('\n').map(l => l.trim()).filter(Boolean);
-    const expIdx = lines.findIndex(l => /^(?:work\s+)?experience(?:\s*[\(\[\·•\d]|$)/i.test(l) || /experience/i.test(l));
+    const expIdx = lines.findIndex(l => /^(?:work\s+)?experience(?:\s*[\(\[\·•\d]|$)/i.test(l) || /^experience$/i.test(l));
     if (expIdx >= 0) {
         const expLines = [];
         for (let i = expIdx + 1; i < lines.length && i < expIdx + 120; i++) {
-            if (/^(education|licenses\s*&?\s*certifications|skills|languages|interests|projects|honors|publications|causes|activity)$/i.test(lines[i])) break;
+            if (/^(?:Education|Licenses\s*(?:&|and)?\s*certifications|Certifications|Volunteer\s*experience|Publications|Projects|Honors\s*(?:&|and)?\s*awards|Recommendations|Courses|Test\s*scores|Organizations|Interests|Causes)\s*$/i.test(lines[i])) break;
             expLines.push(lines[i]);
         }
         const expBlock = expLines.join('\n');
@@ -703,31 +704,52 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
     return 'Software Engineer';
 }
 
-    // 2. Extract Headline / Role
+    // 2. Extract Headline / Role (Universal text node scan skipping badges/pronouns)
     let headlineText = "";
-    const headlineSelectors = [
-        'main section [data-view-name="profile-top-card"] .text-body-medium',
-        'main section:first-of-type .text-body-medium',
-        '.pv-text-details__left-panel .text-body-medium.break-words',
-        '.pv-text-details__left-panel .text-body-medium',
-        '.text-body-medium.break-words',
-        '.top-card-layout__headline',
-        '.profile-info-subheader__headline',
-        '[data-test-id="headline"]',
-        '.flex-1.mr5 h2',
-        '.pv-text-details__left-panel div:nth-child(2)',
-        'main section .text-body-medium',
-    ];
-
-    for (const sel of headlineSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.innerText && el.innerText.trim().length > 2) {
-            const candidate = el.innerText.trim();
-            if (/(connections|followers|contact info)/i.test(candidate)) continue;
-            if (candidate === data.name) continue;
-            headlineText = candidate;
-            data.rawHeadline = candidate;
+    const topCardEl = document.querySelector('[data-view-name="profile-top-card"], main section:first-of-type, .pv-top-card, .pv-text-details__left-panel');
+    if (topCardEl) {
+        const textNodes = topCardEl.querySelectorAll('div.text-body-medium, .text-body-medium, h2, div, span, p');
+        for (const el of textNodes) {
+            const txt = (el.innerText || '').trim();
+            if (!txt || txt.length < 2 || txt.length > 200) continue;
+            if (txt === data.name) continue;
+            if (/^(?:he\/him|she\/her|they\/them|verify\s*in\s*\d+|contact\s*info|connections?|followers?|mutual\s*connections?)$/i.test(txt)) continue;
+            if (/(?:connections|followers|contact info|verify in \d+ minutes|verified)/i.test(txt) && !/(?:engineer|developer|architect|specialist|lead|manager|analyst|programmer)/i.test(txt)) continue;
+            headlineText = txt;
+            data.rawHeadline = txt;
             break;
+        }
+    }
+
+    if (!data.rawHeadline || data.rawHeadline.length < 2) {
+        const headlineSelectors = [
+            'main section [data-view-name="profile-top-card"] .text-body-medium',
+            '[data-view-name="profile-top-card"] div.text-body-medium',
+            'main section:first-of-type .text-body-medium',
+            '.pv-text-details__left-panel .text-body-medium.break-words',
+            '.pv-text-details__left-panel .text-body-medium',
+            '.text-body-medium.break-words',
+            '.top-card-layout__headline',
+            '.profile-info-subheader__headline',
+            '[data-test-id="headline"]',
+            '.flex-1.mr5 h2',
+            '.pv-text-details__left-panel div:nth-child(2)',
+            'main section .text-body-medium',
+        ];
+
+        for (const sel of headlineSelectors) {
+            const els = document.querySelectorAll(sel);
+            for (const el of els) {
+                if (el && el.innerText && el.innerText.trim().length > 2) {
+                    const candidate = el.innerText.trim();
+                    if (/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(candidate)) continue;
+                    if (candidate === data.name) continue;
+                    headlineText = candidate;
+                    data.rawHeadline = candidate;
+                    break;
+                }
+            }
+            if (data.rawHeadline) break;
         }
     }
 
@@ -740,7 +762,7 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
                 const candidates = container.querySelectorAll('div, h2, span, p');
                 for (const c of candidates) {
                     const txt = (c.innerText || '').trim();
-                    if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info)/i.test(txt)) {
+                    if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(txt)) {
                         headlineText = txt;
                         data.rawHeadline = txt;
                         break;
@@ -806,38 +828,38 @@ function extractCleanRole(rawHeadline, aboutText, experienceList) {
     function cleanOrganizationName(raw) {
         if (!raw) return '';
         let text = String(raw).trim();
-        // Remove social highlight prefixes: "You both work at...", "Works at...", etc.
         text = text.replace(/^(?:You\s+both\s+(?:work|worked)\s+at|You\s+and\s+[\w\s]+\s+(?:work|worked)\s+at|Works?\s+at|Working\s+at)\s+/i, '');
         text = text.replace(/^(?:Current\s+Company|Company)\s*[:=-]?\s*/i, '');
-        // Remove timeline text: "started at Ory Folks 1 year and 2 months after you did"
         text = text.replace(/\s+(?:started\s+at|after\s+you\s+did|before\s+you\s+did).*$/i, '');
-        // Remove trailing suffixes like '· Full-time', '· 1 yr', 'and N others'
         text = text.replace(/\s*·.*$/, '');
         text = text.replace(/\s+(?:and|&)\s+\d+\s+other.*$/i, '');
-        /    // 4. Extract Organization / Current Company (Top-Card Right Panel & Experience First)
-    let topCardOrg = '';
-    const rightPanelItems = document.querySelectorAll([
-        '[data-view-name="profile-top-card"] ul.pv-text-details__right-panel li',
-        '.pv-text-details__right-panel li',
-        '[data-view-name="profile-top-card"] ul li',
-        '.pv-top-card--experience-list li'
-    ].join(', '));
-
-    for (const item of rightPanelItems) {
-        const spanEl = item.querySelector('span[aria-hidden="true"], .t-bold') || item;
-        const cleaned = cleanOrganizationName((spanEl.innerText || '').split('\n')[0]);
-        if (cleaned && cleaned.length > 1 && !/institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified/i.test(cleaned)) {
-            topCardOrg = cleaned;
-            break;
-        }
+        return text.replace(/^[•·\s\-]+/, '').trim();
     }
 
-    if (!topCardOrg) {
-        const orgBtn = document.querySelector('[data-view-name="profile-top-card"] button[aria-label*="Current company"], .pv-text-details__right-panel button span, .pv-text-details__right-panel a span');
-        if (orgBtn && orgBtn.innerText) {
-            const cleaned = cleanOrganizationName(orgBtn.innerText.split('\n')[0]);
-            if (cleaned && cleaned.length > 1 && !/institute|university|college|school|connections|followers|verified/i.test(cleaned)) {
+    // 4. Extract Organization / Current Company (Top-Card Right Panel & Experience First)
+    let topCardOrg = '';
+    const topCard = document.querySelector('[data-view-name="profile-top-card"], main section:first-of-type, .pv-top-card');
+    if (topCard) {
+        const orgCandidates = topCard.querySelectorAll([
+            '.pv-text-details__right-panel li',
+            '.pv-text-details__right-panel button',
+            '.pv-text-details__right-panel a',
+            '.pv-text-details__right-panel div',
+            '.pv-text-details__right-panel span',
+            '[data-field="experience_company_name"]',
+            'button[aria-label*="Current company" i]',
+            'a[href*="/company/"]',
+            '.pv-top-card--experience-list li'
+        ].join(', '));
+
+        for (const el of orgCandidates) {
+            const raw = (el.innerText || el.getAttribute('aria-label') || '').trim();
+            const cleaned = cleanOrganizationName(raw.split('\n')[0]);
+            if (cleaned && cleaned.length > 1 && cleaned.length < 100) {
+                if (/^(?:institute|university|college|school|academy|vidyalaya|degree|education|connections|followers|verified|contact\s*info)$/i.test(cleaned)) continue;
+                if (/institute|university|college|school|academy|vidyalaya/i.test(cleaned) && !/folks|labs|technologies|solutions|services|pvt|ltd|inc|corp|software|systems|consulting/i.test(cleaned)) continue;
                 topCardOrg = cleaned;
+                break;
             }
         }
     }
