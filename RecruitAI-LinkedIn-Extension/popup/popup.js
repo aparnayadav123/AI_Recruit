@@ -449,25 +449,61 @@ document.addEventListener('DOMContentLoaded', async () => {
             return totalMonths;
         }
 
+        // Helper: Validate headline/role candidate against candidate name and badges
+        function isInvalidHeadline(text, candidateName) {
+            if (!text) return true;
+            let clean = String(text)
+                .replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ')
+                .replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ')
+                .replace(/[·•\s]*(?:1st|2nd|3rd|3rd\+)\s*$/i, '')
+                .replace(/^(?:1st|2nd|3rd|3rd\+)[·•\s]*/i, '')
+                .replace(/\s+/g, ' ').trim().toLowerCase();
+            if (!clean || clean.length < 2) return true;
+
+            // Check candidate name match
+            if (candidateName) {
+                const cleanName = String(candidateName)
+                    .replace(/[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]/g, ' ')
+                    .replace(/\s+/g, ' ').trim().toLowerCase();
+                if (clean === cleanName) return true;
+                if (clean.includes(cleanName) && clean.length < cleanName.length + 12) return true;
+                if (cleanName.includes(clean)) return true;
+                const nameTokens = cleanName.split(/\s+/).filter(t => t.length > 1);
+                const txtTokens = clean.split(/\s+/).filter(t => t.length > 1);
+                if (nameTokens.length > 0 && txtTokens.length > 0 && txtTokens.every(t => nameTokens.includes(t))) return true;
+            }
+
+            // Check pronouns, verification, contact info, connections, degrees
+            if (/^(?:he\/him|she\/her|they\/them|verify\s*in\s*\d+|verified|contact\s*info|connections?|followers?|mutual\s*connections?|1st|2nd|3rd|3rd\+|·\s*2nd|·\s*1st|·\s*3rd)$/i.test(clean)) return true;
+            if (/(?:connections|followers|contact info|verify in \d+ minutes|verified)/i.test(clean) && !/(?:engineer|developer|architect|specialist|lead|manager|analyst|programmer|executive|consultant|associate|director|recruiter|coordinator|officer)/i.test(clean)) return true;
+            return false;
+        }
+
         // Helper: Universal Clean Role Extraction across all LinkedIn profiles dynamically
-        function extractCleanRole(rawHeadline, aboutText, experienceList) {
+        function extractCleanRole(rawHeadline, aboutText, experienceList, candidateName) {
             let raw = (rawHeadline || '').trim();
             raw = raw.replace(/\s*[\(\[\（\【][^\)\]\）\】]*[\)\]\）\】]\s*/g, ' ').trim();
             raw = raw.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced|Senior|Junior|Lead)?\s*(?:Seeking\s+opportunities|Open\s+to\s+work|Immediate\s+joiner|Looking\s+for\s+roles?)[,\s:|-]*/i, '').trim() || raw;
             raw = raw.replace(/^(?:Open\s+to\s+work|Seeking\s+opportunities|Actively\s+looking|Immediate\s+joiner)[\s:|-]*/i, '').trim();
 
-            // Direct match for concise single headlines without delimiters (e.g. "Bilingual Software Engineer")
-            if (raw && !/[|·•\/\n–—]/.test(raw) && raw.split(/\s+/).length <= 5) {
+            function isValid(role) {
+                if (!role || role.length < 2) return false;
+                if (isInvalidHeadline(role, candidateName)) return false;
+                return true;
+            }
+
+            // Direct match for concise single headlines without delimiters (e.g. "Business Development Executive")
+            if (raw && !/[|·•\/\n–—]/.test(raw) && raw.split(/\s+/).length <= 6) {
                 let cleaned = raw.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
                 cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
-                if (cleaned.length > 2 && !/(connections|followers|contact info|verified|seeking|looking|he\/him|she\/her|they\/them)/i.test(cleaned)) {
+                if (isValid(cleaned)) {
                     return cleaned;
                 }
             }
 
             const segments = raw.split(/[|·•\/\n–—]/).map(s => s.trim()).filter(s => s.length > 1);
 
-            const roleKeywordRegex = /\b(Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Bilingual\s+Software\s+Engineer|Bilingual\s+Engineer|Bilingual\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
+            const roleKeywordRegex = /\b(Business\s+Development\s+Executive|Business\s+Development\s+Manager|Business\s+Development\s+Associate|Business\s+Development\s+Representative|BDE|BDM|BDR|SDR|Sales\s+Development\s+Representative|Account\s+Executive|Senior\s+Account\s+Executive|Sales\s+Executive|Sales\s+Manager|Client\s+Relations\s+Manager|Client\s+Relations\s+Specialist|Client\s+Partner|HR\s+Executive|HR\s+Manager|HR\s+Generalist|HR\s+Specialist|Human\s+Resources\s+Executive|Human\s+Resources\s+Manager|Talent\s+Acquisition\s+Specialist|Talent\s+Acquisition\s+Manager|Technical\s+Recruiter|Recruiter|Marketing\s+Executive|Marketing\s+Manager|Digital\s+Marketing\s+Executive|Operations\s+Executive|Operations\s+Manager|Bilingual\s+Software\s+Engineer|Bilingual\s+Engineer|Bilingual\s+Developer|Bilingual\s+Executive|Bilingual\s+Interpreter|Interpreter|Translator|Full[\s-]?Stack\s+Developer|Full[\s-]?Stack\s+Engineer|Frontend\s+Developer|Frontend\s+Engineer|Front-End\s+Developer|Backend\s+Developer|Backend\s+Engineer|Web\s+Developer|Software\s+Developer|Software\s+Engineer|Application\s+Developer|Java\s+Developer|Python\s+Developer|React(?:\.js)?\s+Developer|Node(?:\.js)?\s+Developer|DevOps\s+Engineer|Cloud\s+Engineer|Site\s+Reliability\s+Engineer|SRE|QA\s+Engineer|Automation\s+Engineer|Test\s+Engineer|SDET|Manual\s+Tester|Scrum\s+Master|Agile\s+Coach|Product\s+Owner|Product\s+Manager|Project\s+Manager|Program\s+Manager|Data\s+Engineer|Data\s+Scientist|Data\s+Analyst|Business\s+Analyst|UI\/UX\s+Designer|Product\s+Designer|Graphic\s+Designer|Systems?\s+Engineer|Network\s+Engineer|Database\s+Administrator|DBA|Technical\s+Lead|Engineering\s+Manager|Solution\s+Architect|Cloud\s+Architect|Enterprise\s+Architect|Programmer\s+Analyst|Programming\s+Analyst|Systems\s+Analyst|Technical\s+Support\s+Engineer|IT\s+Support\s+Specialist|Consultant|Specialist|Intern|Trainee|Graduate\s+Engineer\s+Trainee|Student|Researcher)\b/i;
 
             for (const seg of segments) {
                 const match = seg.match(roleKeywordRegex);
@@ -475,22 +511,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                     let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
                     cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
                     cleaned = cleaned.replace(/\s*·.*$/, '').trim();
-                    if (cleaned.length > 2) return cleaned;
+                    if (isValid(cleaned)) return cleaned;
                 }
             }
 
-            const singleRoleKeywords = ['Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA', 'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin', 'Intern', 'Student', 'Trainee', 'Programmer', 'Associate', 'Executive', 'Officer'];
+            const singleRoleKeywords = [
+                'Developer', 'Engineer', 'Architect', 'Manager', 'Lead', 'Consultant', 'QA',
+                'Analyst', 'Scientist', 'Tester', 'Specialist', 'Designer', 'Master', 'Admin',
+                'Intern', 'Student', 'Trainee', 'Programmer', 'Associate', 'Executive', 'Officer',
+                'Representative', 'Director', 'Recruiter', 'Coordinator', 'Strategist', 'Advisor',
+                'Interpreter', 'Translator', 'Partner', 'Head', 'Founder', 'President'
+            ];
             for (const seg of segments) {
                 if (singleRoleKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(seg))) {
                     let cleaned = seg.replace(/\s+(?:at|@)\s+.*$/i, '').trim();
                     cleaned = cleaned.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
-                    if (cleaned.length > 2) return cleaned;
+                    if (isValid(cleaned)) return cleaned;
                 }
             }
 
             if (experienceList && experienceList.length > 0 && experienceList[0].title) {
                 const expTitle = experienceList[0].title.split(/\s+(?:at|@|-)\s+/i)[0].trim();
-                if (expTitle.length > 2 && !/full-time|part-time|contract/i.test(expTitle)) {
+                if (isValid(expTitle) && !/full-time|part-time|contract/i.test(expTitle)) {
                     return expTitle;
                 }
             }
@@ -498,7 +540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (segments.length > 0 && segments[0].length > 1) {
                 let segClean = segments[0].replace(/\s+(?:at|@)\s+.*$/i, '').trim();
                 segClean = segClean.replace(/^(?:Aspiring|Passionate\s+about|Working\s+as\s+an?|I'm\s+an?|Experienced)\s+/i, '').trim();
-                if (segClean.length > 2 && !/(connections|followers|contact info|verified|seeking|looking)/i.test(segClean)) {
+                if (isValid(segClean)) {
                     return segClean;
                 }
             }
@@ -506,10 +548,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (aboutText) {
                 const firstSentence = aboutText.split(/[.!?\n]/)[0];
                 const m = firstSentence.match(/(?:working as an?|I am an?|experienced as an?)\s+([^,.]+)/i);
-                if (m && m[1].trim().length > 2) return m[1].trim();
+                if (m && isValid(m[1].trim())) return m[1].trim();
             }
 
-            return 'Software Engineer';
+            return 'Business Development Executive';
         }
 
         // Helper: Extract contact fields from any modal element
@@ -639,50 +681,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (t.length > 1) data.name = t;
         }
 
-        // 3. Top Card Headline from DOM (Universal text node scan skipping badges/pronouns)
-        const topCardEl = document.querySelector('[data-view-name="profile-top-card"], main section:first-of-type, .pv-top-card, .pv-text-details__left-panel');
-        if (topCardEl) {
-            const textNodes = topCardEl.querySelectorAll('div.text-body-medium, .text-body-medium, h2, div, span, p');
-            for (const el of textNodes) {
-                const txt = (el.innerText || '').trim();
-                if (!txt || txt.length < 2 || txt.length > 200) continue;
-                if (txt === data.name) continue;
-                if (/^(?:he\/him|she\/her|they\/them|verify\s*in\s*\d+|contact\s*info|connections?|followers?|mutual\s*connections?)$/i.test(txt)) continue;
-                if (/(?:connections|followers|contact info|verify in \d+ minutes|verified)/i.test(txt) && !/(?:engineer|developer|architect|specialist|lead|manager|analyst|programmer)/i.test(txt)) continue;
+        // 3. Top Card Headline from DOM (Targeted selectors with candidate name rejection)
+        const headlineCandidateSelectors = [
+            '.pv-text-details__left-panel .text-body-medium.break-words',
+            '.pv-text-details__left-panel .text-body-medium',
+            '[data-view-name="profile-top-card"] .text-body-medium.break-words',
+            '[data-view-name="profile-top-card"] div.text-body-medium',
+            '.text-body-medium.break-words',
+            '.top-card-layout__headline',
+            '.profile-info-subheader__headline',
+            '[data-test-id="headline"]',
+            '.pv-text-details__left-panel div:nth-child(2)',
+            'main section:first-of-type .text-body-medium',
+            'main section [data-view-name="profile-top-card"] .text-body-medium',
+            '.flex-1.mr5 h2',
+        ];
+
+        for (const sel of headlineCandidateSelectors) {
+            const headEls = document.querySelectorAll(sel);
+            for (const headEl of headEls) {
+                if (headEl.closest('h1')) continue;
+                const txt = (headEl.innerText || '').trim();
+                if (isInvalidHeadline(txt, data.name)) continue;
                 data.rawHeadline = txt;
                 break;
             }
-        }
-
-        if (!data.rawHeadline || data.rawHeadline.length < 2) {
-            const headSelectors = [
-                'main section [data-view-name="profile-top-card"] .text-body-medium',
-                '[data-view-name="profile-top-card"] div.text-body-medium',
-                'main section:first-of-type .text-body-medium',
-                '.pv-text-details__left-panel .text-body-medium.break-words',
-                '.pv-text-details__left-panel .text-body-medium',
-                '.text-body-medium.break-words',
-                '.top-card-layout__headline',
-                '.profile-info-subheader__headline',
-                '[data-test-id="headline"]',
-                '.flex-1.mr5 h2',
-                '.pv-text-details__left-panel div:nth-child(2)',
-                'main section .text-body-medium',
-            ];
-
-            for (const sel of headSelectors) {
-                const headEls = document.querySelectorAll(sel);
-                for (const headEl of headEls) {
-                    if (headEl && headEl.innerText && headEl.innerText.trim().length > 2) {
-                        const candidate = headEl.innerText.trim();
-                        if (/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(candidate)) continue;
-                        if (candidate === data.name) continue;
-                        data.rawHeadline = candidate;
-                        break;
-                    }
-                }
-                if (data.rawHeadline) break;
-            }
+            if (data.rawHeadline) break;
         }
 
         if (!data.rawHeadline || data.rawHeadline.length < 2) {
@@ -690,10 +714,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (nameH1) {
                 const container = nameH1.closest('.pv-text-details__left-panel') || nameH1.parentElement;
                 if (container) {
-                    const candidates = container.querySelectorAll('div, h2, span, p');
+                    const candidates = container.querySelectorAll('.text-body-medium, h2, div, p');
                     for (const c of candidates) {
+                        if (c.closest('h1') || c.tagName.toLowerCase() === 'h1') continue;
                         const txt = (c.innerText || '').trim();
-                        if (txt && txt.length > 2 && txt !== data.name && !/(connections|followers|contact info|he\/him|she\/her|they\/them|verify in)/i.test(txt)) {
+                        if (!isInvalidHeadline(txt, data.name)) {
                             data.rawHeadline = txt;
                             break;
                         }
@@ -705,7 +730,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!data.rawHeadline || data.rawHeadline.length < 2) {
             const t = (document.title || '').replace(/^\(\d+\)\s*/, '').replace(/\s*\|\s*LinkedIn$/i, '').trim();
             const sepMatch = t.match(/\s+[-–—|:]\s+(.+)$/);
-            if (sepMatch && sepMatch[1]) {
+            if (sepMatch && sepMatch[1] && !isInvalidHeadline(sepMatch[1], data.name)) {
                 data.rawHeadline = sepMatch[1].trim();
             }
         }
@@ -963,20 +988,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 12. Clean Dynamic Role Assignment (DOM Headline + Experience Title Priority)
-        let primaryRoleCandidate = extractCleanRole(data.rawHeadline || '', data.about, []);
+        let primaryRoleCandidate = extractCleanRole(data.rawHeadline || '', data.about, [], data.name);
+        if (isInvalidHeadline(primaryRoleCandidate, data.name)) primaryRoleCandidate = '';
         if (expRoleTitle && (!primaryRoleCandidate || primaryRoleCandidate === 'Software Engineer' || primaryRoleCandidate === 'Software Developer')) {
-            const cleanExp = extractCleanRole(expRoleTitle, '', []);
-            if (cleanExp && cleanExp.length > 2 && cleanExp !== 'Software Engineer') {
+            const cleanExp = extractCleanRole(expRoleTitle, '', [], data.name);
+            if (cleanExp && cleanExp.length > 2 && !isInvalidHeadline(cleanExp, data.name) && cleanExp !== 'Software Engineer') {
                 primaryRoleCandidate = cleanExp;
-            } else if (expRoleTitle.length > 2 && !/full-time|part-time|contract/i.test(expRoleTitle)) {
+            } else if (expRoleTitle.length > 2 && !/full-time|part-time|contract/i.test(expRoleTitle) && !isInvalidHeadline(expRoleTitle, data.name)) {
                 primaryRoleCandidate = expRoleTitle;
             }
         }
-        if (!primaryRoleCandidate && jsonLdRole) {
+        if (!primaryRoleCandidate && jsonLdRole && !isInvalidHeadline(jsonLdRole, data.name)) {
             primaryRoleCandidate = jsonLdRole;
         }
 
-        data.primaryRole = primaryRoleCandidate || 'Software Engineer';
+        data.primaryRole = primaryRoleCandidate || 'Business Development Executive';
         data.role = data.primaryRole;
         data.headline = data.primaryRole;
 
