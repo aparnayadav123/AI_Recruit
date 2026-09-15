@@ -5,14 +5,13 @@ import { useIsManager } from '../roles';
 import { Candidate, Job, JobApplication, Interview } from '../types';
 import {
     X, Mail, Phone, MapPin, Calendar, Briefcase, CheckCircle2,
-    Clock, XCircle, FileText, MessageSquare, Video, User, Download,
-    ExternalLink, Plus, Loader2, Search, UserCheck, ChevronLeft,
-    Linkedin, Github, Twitter, Globe, Upload, FolderPlus,
-    MoreHorizontal, Maximize2, ChevronRight, Filter, ArrowRight,
-    MessageCircle, AtSign, Link as LinkIcon, Edit2, Zap, Flame,
-    Copy, Sparkles, Star, Trash2, FileUp,
-    Bell, Share2, Edit3,
-    Building2, ChevronDown, Send, RotateCcw, Archive, Menu, Ban
+    Clock, XCircle, FileText, Video, User, Download,
+    ExternalLink, Plus, Loader2, Search,
+    Linkedin, Upload,
+    ChevronRight,
+    MessageCircle, Edit2, Flame,
+    Copy, Sparkles, Trash2, FileUp,
+    Building2, RotateCcw, Archive, Ban
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatUserDisplayName, formatCandidateId, getCandidateHotlists } from '../utils';
@@ -20,69 +19,7 @@ import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
 import { INTERVIEW_ROUNDS, roundOf, roundTitle, nextRound, isRoundUnlocked } from '../constants/interviewRounds';
 
-// All six pipeline stages appear in the scheduling dropdown, but the ordered
-// interview rounds are pass-gated: only the current round is enabled, and the
-// next round unlocks once the current one is marked "Passed" (see isRoundUnlocked).
-// Hold is available from any stage; Offer unlocks only after the final interview
-// round is passed.
 const MEETING_ROUNDS = INTERVIEW_ROUNDS;
-
-const AttributeRow: React.FC<{ label: string; value: React.ReactNode; isLong?: boolean }> = ({ label, value, isLong }) => (
-    <div className="flex items-start text-[10px] font-bold">
-        <span className="w-16 text-slate-600 uppercase tracking-widest shrink-0">{label}</span>
-        <div className={`text-slate-700 ${isLong ? 'truncate max-w-[120px]' : ''}`}>{value}</div>
-    </div>
-);
-
-const DetailItem: React.FC<{ 
-    label: string, 
-    value: any, 
-    icon?: React.ReactNode, 
-    isLink?: boolean, 
-    isTags?: boolean, 
-    showEdit?: boolean,
-    tag?: string,
-    onClick?: () => void,
-    onEdit?: () => void
-}> = ({ label, value, icon, isLink, isTags, showEdit, tag, onClick, onEdit }) => {
-    return (
-        <div className="space-y-1.5 min-h-[40px]">
-            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{label}</p>
-            <div className="flex items-center gap-2">
-                {icon && <div className="p-1 bg-gray-50 rounded text-gray-600">{icon}</div>}
-                
-                {isTags && Array.isArray(value) ? (
-                    <div className="flex flex-wrap gap-1.5">
-                        {value.slice(0, 2).map((v, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-black rounded uppercase">
-                                {v}
-                            </span>
-                        ))}
-                        {value.length > 2 && (
-                            <span className="px-1.5 py-0.5 bg-gray-50 text-gray-600 text-[10px] font-bold rounded">
-                                +{value.length - 2}
-                            </span>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        <span 
-                            onClick={isLink ? onClick : undefined}
-                            className={`text-[13px] font-black tracking-tight ${isLink ? 'text-blue-600 cursor-pointer hover:underline' : 'text-slate-800'}`}>
-                            {value || 'Not available'}
-                        </span>
-                        {tag && (
-                            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded uppercase">
-                                {tag}
-                            </span>
-                        )}
-                        {showEdit && <Edit2 onClick={onEdit} size={12} className="text-gray-400 hover:text-blue-500 cursor-pointer" />}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
 
 // Compact label/value table used by the Information Overview sections. Packs two
 // label/value pairs per row to keep the page tight; `wide` rows (e.g. Skills) span
@@ -133,141 +70,6 @@ const DetailTable: React.FC<{ rows: { label: string; value: React.ReactNode; wid
     );
 };
 
-const SocialBtn: React.FC<{ icon: React.ReactNode; url: string }> = ({ icon, url }) => (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-gray-50 transition-all text-slate-600 flex items-center justify-center">
-        {icon}
-    </a>
-)
-
-const ActionBtn: React.FC<{ icon: React.ReactNode; onClick: () => void }> = ({ icon, onClick }) => (
-    <button onClick={onClick} className="w-8 h-8 rounded-lg bg-white border border-slate-300 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-all">
-        {icon}
-    </button>
-)
-
-const DropdownItem: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; color?: string }> = ({ icon, label, onClick, color = "text-slate-600" }) => (
-    <button onClick={onClick} className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-black uppercase tracking-widest ${color} hover:bg-slate-50 rounded-md transition-all`}>
-        {icon}
-        <span>{label}</span>
-    </button>
-)
-
-const NoteCard: React.FC<{ 
-    content: React.ReactNode; 
-    createdDate: string; 
-    createdBy: string;
-    type: 'Note' | 'Call' | 'Task' | 'Meeting';
-    onEdit?: () => void;
-}> = ({ content, createdDate, createdBy, type, onEdit }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    
-    return (
-        <div className="p-4 bg-white border border-slate-300 rounded-xl shadow-sm space-y-3 group hover:border-blue-100 transition-all">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded flex items-center justify-center ${type === 'Note' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                        {type === 'Note' ? <FileText size={14} /> : <Phone size={14} />}
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">{type}</span>
-                    {type === 'Call' && <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded tracking-tighter">Call</span>}
-                </div>
-                <button onClick={onEdit} className="text-gray-400 hover:text-blue-500 transition-colors">
-                    <Edit3 size={14} />
-                </button>
-            </div>
-            
-            <div className={`text-[11px] font-medium text-slate-600 space-y-2 leading-relaxed ${!isExpanded ? 'line-clamp-3' : ''}`}>
-                {content}
-            </div>
-
-            <button 
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline"
-            >
-                {isExpanded ? 'View Less' : 'View More'}
-            </button>
-
-            <div className="pt-3 border-t border-slate-300 flex items-center justify-between text-[9px] font-bold text-slate-600">
-                <div className="flex items-center gap-1.5">
-                    <Clock size={10} />
-                    <span>Created By <span className="text-slate-700">{createdBy}</span> On {createdDate}</span>
-                </div>
-            </div>
-            
-            <div className="flex items-center justify-between pt-1">
-                <span className="text-blue-600 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:underline">1 Association(s)</span>
-                <button 
-                    onClick={() => alert('Feature coming soon!')}
-                    className="text-blue-600 text-[9px] font-black uppercase tracking-widest hover:underline"
-                >
-                    Add Collaborator
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const FileUploadArea: React.FC<{ onUpload: (file: File) => void; isUploading?: boolean; compact?: boolean }> = ({ onUpload, isUploading, compact }) => {
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-    const handleClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            onUpload(file);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files?.[0];
-        if (file) {
-            onUpload(file);
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-    };
-
-    return (
-        <div
-            onClick={handleClick}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className={`${compact ? 'p-4 rounded-xl' : 'p-8 rounded-2xl'} border-2 border-dashed transition-all group flex ${compact ? 'flex-row items-center gap-3 text-left' : 'flex-col items-center text-center'} justify-center cursor-pointer ${isUploading ? 'bg-blue-50/50 border-blue-200 cursor-wait' : 'border-slate-300 bg-gray-50/50 hover:bg-white hover:border-blue-200'}`}
-        >
-            <div className={`${compact ? 'w-9 h-9 mb-0' : 'w-16 h-16 mb-4'} bg-white rounded-full flex items-center justify-center shadow-sm shrink-0 transition-all border border-slate-300 ${isUploading ? 'animate-pulse' : 'group-hover:scale-110'}`}>
-                {isUploading
-                    ? <Loader2 className={`${compact ? 'w-4 h-4' : 'w-8 h-8'} text-blue-500 animate-spin`} />
-                    : <Upload className={`${compact ? 'w-4 h-4' : 'w-8 h-8'} text-blue-400`} />}
-            </div>
-            <div className={compact ? 'flex-1 min-w-0' : ''}>
-                <p className={`${compact ? 'text-[11px]' : 'text-xs'} font-black text-slate-800 tracking-tight`}>
-                    {isUploading ? 'Processing Resume...' : <><span className="text-blue-600 hover:underline">Upload File</span> or drag &amp; drop</>}
-                </p>
-                <p className={`${compact ? 'text-[9px] mt-0.5' : 'text-[10px] mt-2'} font-bold text-slate-600`}>
-                    {isUploading ? 'Analyzing with AI…' : 'PDF · DOCX · PNG · JPG'}
-                </p>
-            </div>
-            <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleChange}
-                className="hidden" 
-                accept=".pdf,.png,.jpg,.jpeg,.gif"
-            />
-        </div>
-    );
-};
-
-const CircleAction: React.FC<{ icon: React.ReactNode; color: string; onClick?: () => void; title?: string }> = ({ icon, color, onClick, title }) => (
-    <div onClick={onClick} title={title} className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-all ${color}`}>{icon}</div>
-);
-
 const CandidateDetails: React.FC = () => {
     const formatDate = (dateInput: string | number[] | null) => {
         if (!dateInput) return 'N/A';
@@ -303,7 +105,6 @@ const CandidateDetails: React.FC = () => {
     // overview, not the LinkedIn chat panel (which was opening empty and
     // scrolled past the candidate header).
     const [activeTab, setActiveTab] = useState('All Details');
-    const [isScheduling, setIsScheduling] = useState(false);
     const [resume, setResume] = useState<any>(null);
     const [copyStatus, setCopyStatus] = useState<string | null>(null);
     const [isCvModalOpen, setIsCvModalOpen] = useState(false);
@@ -314,10 +115,6 @@ const CandidateDetails: React.FC = () => {
     const [isUpdatingStage, setIsUpdatingStage] = useState(false);
     const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
     const [isAddingMeeting, setIsAddingMeeting] = useState(false);
-    const [isConnectingZoom, setIsConnectingZoom] = useState(false);
-    // Which interview row the modal is currently focused on. Pinned when the
-    // modal opens so the status banner doesn't jump to a different (older)
-    // interview after the user marks the current one Completed/Cancelled.
     const [activeInterviewId, setActiveInterviewId] = useState<string | null>(null);
 
     // When the modal opens, pick the most recent active interview (Scheduled
@@ -355,7 +152,6 @@ const CandidateDetails: React.FC = () => {
     const [noteMessage, setNoteMessage] = useState('');
     const [savingNote, setSavingNote] = useState(false);
     const [isBlocking, setIsBlocking] = useState(false);
-    const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
     const [isInlineEditing, setIsInlineEditing] = useState(false);
     const [isSavingInline, setIsSavingInline] = useState(false);
     const [inlineFormData, setInlineFormData] = useState<any>({});
@@ -371,18 +167,6 @@ const CandidateDetails: React.FC = () => {
             } catch (e) {}
         }
     }, []);
-
-    const linkedInHref = candidate?.linkedinUrl
-        ? candidate.linkedinUrl
-        : (candidate?.name
-            ? `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(candidate.name)}`
-            : '');
-
-    const handleLinkedInSearch = () => {
-        if (linkedInHref) {
-            window.open(linkedInHref, '_blank', 'noopener,noreferrer');
-        }
-    };
 
     const getDisplayUser = (val?: string) => {
         if (val && val !== 'Shaik Yashu' && val !== 'System' && val !== 'Manager') return val;
@@ -845,46 +629,6 @@ const CandidateDetails: React.FC = () => {
             alert(`Failed to update stage: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
         } finally {
             setIsUpdatingStage(false);
-        }
-    };
-
-    const handleScheduleMeeting = async (meeting: any) => {
-        if (!candidate) return;
-        setIsAddingMeeting(true);
-        try {
-            // Convert simple form date/time strings to LocalDateTime ISO format for backend
-            const [hours, modifier] = meeting.startTime.split(' ');
-            let [h, m] = hours.split(':');
-            if (modifier === 'PM' && h !== '12') h = (parseInt(h) + 12).toString();
-            if (modifier === 'AM' && h === '12') h = '00';
-            
-            const startDateTime = `${meeting.startDate}T${h.padStart(2, '0')}:${m}:00`;
-            
-            // Just add 30 mins for end time if not provided
-            const endDateTime = new Date(new Date(startDateTime).getTime() + 30 * 60000).toISOString().split('.')[0];
-
-            const interviewData = {
-                candidateId: candidate.id,
-                candidateName: candidate.name,
-                startTime: startDateTime,
-                endTime: endDateTime,
-                type: 'Video',
-                meetingLink: meeting.location,
-                interviewer: currentUser?.name || 'Aparna Boligerla',
-                notes: meeting.title,
-                status: 'Scheduled'
-            };
-
-            await api.post('/interviews', interviewData);
-            alert("Interview scheduled successfully!");
-            setIsMeetingModalOpen(false);
-            // Refresh interviews list if needed
-            fetchInterviews();
-        } catch (error) {
-            console.error("Failed to schedule meeting", error);
-            alert("Failed to schedule interview. Please check the date and time format.");
-        } finally {
-            setIsAddingMeeting(false);
         }
     };
 
@@ -2011,7 +1755,7 @@ const UpdateStageModal: React.FC<{
     const [status, setStatus] = useState(application.status as string);
     const [stage, setStage] = useState(application.stage || 'Technical Interview');
     const [remarks, setRemarks] = useState(application.remarks || '');
-    const [stageDate, setStageDate] = useState(application.stageDate ? application.stageDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+    const stageDate = application.stageDate ? application.stageDate.split('T')[0] : new Date().toISOString().split('T')[0];
 
     const stages = [
         'Screening',
@@ -2191,8 +1935,6 @@ const MeetingSchedulerModal: React.FC<{
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [startTime, setStartTime] = useState(defaultSlot);
     const [endTime, setEndTime] = useState(TIME_SLOTS[defaultEndIdx]);
-    const [reminder, setReminder] = useState("30 Min Before");
-    const [attendees] = useState<string[]>([candidate.name]);
     const [isConnectingZoom, setIsConnectingZoom] = useState(false);
 
     const handleConnectZoom = async () => {
@@ -2419,125 +2161,6 @@ const MeetingSchedulerModal: React.FC<{
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-};
-
-
-
-
-
-/* --- LinkedIn Messaging Simulator --- */
-const LinkedInMessaging: React.FC<{ candidate: Candidate }> = ({ candidate }) => {
-    const [messages, setMessages] = useState<{ text: string; sender: 'me' | 'them'; timestamp: string }[]>([]);
-    const [inputValue, setInputValue] = useState('');
-    const [isThinking, setIsThinking] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const chatEndRef = React.useRef<HTMLDivElement>(null);
-
-    React.useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isThinking]);
-
-    const generateCandidateReply = async (recruiterMsg: string) => {
-        setIsThinking(true);
-        try {
-            const { data } = await api.post(`/candidates/${candidate.id}/generate-linkedin-reply`, {
-                message: recruiterMsg
-            });
-            
-            // Simulate realistic typing delay
-            setTimeout(() => {
-                setIsThinking(false);
-                setMessages(prev => [...prev, { 
-                    text: data.reply, 
-                    sender: 'them' as const, 
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                }]);
-            }, 1500 + Math.random() * 1500);
-        } catch (error) {
-            console.error("AI Reply failed", error);
-            setIsThinking(false);
-        }
-    };
-
-    const handleSend = () => {
-        if (!inputValue.trim()) return;
-        const sentText = inputValue.trim();
-        const newMsg = { text: sentText, sender: 'me' as const, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-        setMessages([...messages, newMsg]);
-        setInputValue('');
-        
-        // AUTOMATIC REPLY - No more manual button needed
-        setTimeout(() => {
-            generateCandidateReply(sentText);
-        }, 1000);
-    };
-
-
-    return (
-        <div className="flex flex-col h-full bg-slate-50/50 relative pt-4">
-            {/* AI Assistant Overlay Removed */}
-            
-            <div className="flex-1 overflow-y-auto p-6 space-y-8 min-h-0 custom-scrollbar">
-                {messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center py-20 opacity-40">
-                        <div className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center mb-6 shadow-sm border border-slate-300">
-                            <MessageSquare size={32} className="text-slate-200 stroke-[1.5]" />
-                        </div>
-                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">LinkedIn Chat History</p>
-                    </div>
-                ) : (
-                    messages.map((m, i) => (
-                        <div key={i} className={`flex flex-col ${m.sender === 'me' ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 duration-500`}>
-                            <div className={`max-w-[85%] p-5 rounded-3xl text-[11.5px] font-bold leading-relaxed shadow-sm ${m.sender === 'me' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-600 border border-slate-300 rounded-tl-none'}`}>
-                                {m.text}
-                            </div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">{m.timestamp}</span>
-                        </div>
-                    ))
-                )}
-                {isThinking && (
-                    <div className="flex items-center gap-3 px-6 py-4 bg-white/60 rounded-full w-fit animate-pulse border border-slate-300">
-                        <div className="flex gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-blue-300 rounded-full animate-bounce delay-0" />
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150" />
-                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-300" />
-                        </div>
-                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Candidate is typing...</span>
-                    </div>
-                )}
-            {/* Automated AI Reply Triggered via handleSend */}
-            <div ref={chatEndRef} />
-        </div>
-
-            <div className="p-6 bg-white border-t border-slate-300 relative shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.03)]">
-                {isGenerating && (
-                    <div className="absolute inset-x-0 -top-1 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 bg-[length:200%_100%] animate-shimmer" />
-                )}
-                <div className={`flex items-end gap-3 rounded-3xl p-3 border-2 transition-all ${isGenerating ? 'bg-blue-50 border-blue-100 shadow-lg shadow-blue-50' : 'bg-slate-50 border-slate-300 focus-within:border-slate-300/30 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5'}`}>
-                    <textarea 
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder={isGenerating ? "AI is crafting your message..." : "Write a professional outreach message..."}
-                        className="flex-1 bg-transparent border-none outline-none text-[12px] font-bold text-slate-700 py-3 px-4 resize-none max-h-32 placeholder:text-slate-400"
-                        rows={1}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
-                        }}
-                    />
-                    <button 
-                        onClick={handleSend}
-                        disabled={!inputValue.trim()}
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-90 shrink-0 shadow-lg ${inputValue.trim() ? 'bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700' : 'bg-slate-200 text-slate-600 cursor-not-allowed shadow-none'}`}>
-                        <Send size={18} strokeWidth={3} />
-                    </button>
-                </div>
-
             </div>
         </div>
     );
