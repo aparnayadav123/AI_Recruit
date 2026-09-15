@@ -724,7 +724,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     <tr
                       key={candidate.id}
                       id={`candidate-${candidate.id}`}
-                      className={`group hover:bg-gray-50/50 transition-colors ${isHighlighted ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : ''}`}
+                      onClick={() => navigate(`/candidates/${candidate.id || (candidate as any)._id}`)}
+                      className={`group hover:bg-gray-50/50 transition-colors cursor-pointer ${isHighlighted ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : ''}`}
                     >
                       <td className="px-3 py-2.5 text-[11px] font-black text-slate-800 whitespace-nowrap align-top pt-3">
                         {serialNumber}
@@ -740,7 +741,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                           </div>
                           <div className="min-w-0">
                             <button
-                              onClick={() => navigate(`/candidates/${candidate.id}`)}
+                              onClick={(e) => { e.stopPropagation(); navigate(`/candidates/${candidate.id || (candidate as any)._id}`); }}
                               className="text-[11px] font-bold text-gray-900 hover:text-blue-600 hover:underline text-left block truncate max-w-[200px] leading-tight"
                               title="View details"
                             >
@@ -812,7 +813,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                         </div>
                       </td>
 
-                      <td className="px-3 py-2.5 align-top pt-3">
+                      <td className="px-3 py-2.5 align-top pt-3" onClick={e => e.stopPropagation()}>
                         <select
                           value={candidate.status}
                           onChange={e => handleStatusUpdate(candidate.id, e.target.value)}
@@ -839,7 +840,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 align-top pt-3">
+                      <td className="px-3 py-2.5 align-top pt-3" onClick={e => e.stopPropagation()}>
                         <select
                           value={candidate.jobId || ''}
                           onChange={e => handleAssignJob(candidate.id, e.target.value)}
@@ -853,7 +854,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 align-top pt-3">
+                      <td className="px-3 py-2.5 align-top pt-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {(() => {
                             const hls = getCandidateHotlists(candidate);
@@ -870,7 +871,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                             );
                           })()}
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedCandidate(candidate);
                               setModalMode('edit');
                               setFormData({ ...candidate });
@@ -884,14 +886,14 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                             <Edit2 size={13} />
                           </button>
                           <button
-                            onClick={() => handleDownloadResume(candidate.resumeId, candidate.name)}
+                            onClick={(e) => { e.stopPropagation(); handleDownloadResume(candidate.resumeId, candidate.name); }}
                             className="p-1 text-slate-400 hover:text-blue-600 transition"
                             title="Download resume"
                           >
                             <Download size={13} />
                           </button>
                           <button
-                            onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCandidate(candidate.id, candidate.name); }}
                             className="p-1 text-slate-400 hover:text-rose-500 transition"
                             title="Delete"
                           >
