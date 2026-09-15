@@ -281,11 +281,14 @@ const CandidateDetails: React.FC = () => {
     };
 
     const convertTo24Hour = (timeStr: string) => {
+        if (!timeStr) return '09:00';
+        if (!timeStr.includes(' ')) return timeStr;
         const [time, modifier] = timeStr.split(' ');
         let [hours, minutes] = time.split(':');
-        if (hours === '12') hours = '00';
-        if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
-        return `${hours.padStart(2, '0')}:${minutes}`;
+        let h = parseInt(hours, 10);
+        if (modifier === 'PM' && h < 12) h += 12;
+        if (modifier === 'AM' && h === 12) h = 0;
+        return `${h.toString().padStart(2, '0')}:${minutes || '00'}`;
     };
 
     const { id } = useParams<{ id: string }>();
@@ -1025,6 +1028,14 @@ const CandidateDetails: React.FC = () => {
                                 <Linkedin size={14} className="text-[#0077b5]" />
                                 LinkedIn
                             </a>
+                            <button
+                                onClick={() => setIsEditModalOpen(true)}
+                                title="Edit candidate profile"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
+                            >
+                                <Edit2 size={13} className="text-slate-500" />
+                                Edit Profile
+                            </button>
                         </div>
                     </div>
 
@@ -1786,7 +1797,7 @@ const CandidateDetails: React.FC = () => {
                                         </div>
                                         <div>
                                             <h4 className="text-[11px] font-black text-gray-900 leading-none">{job.title}</h4>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-tight mt-0.5">{job.department} â€¢ {job.company}</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-tight mt-0.5">{job.department} • {job.company}</p>
                                         </div>
                                     </div>
                                     <button
@@ -1894,6 +1905,13 @@ const CandidateDetails: React.FC = () => {
                         alert("Candidate profile updated successfully!");
                     }}
                 />
+            )}
+
+            {copyStatus && (
+                <div className="fixed bottom-6 right-6 z-[200] bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-2xl flex items-center gap-2 border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+                    <CheckCircle2 size={16} className="text-emerald-400" />
+                    <span>Copied &quot;{copyStatus}&quot; to clipboard!</span>
+                </div>
             )}
         </div>
     );
@@ -2534,7 +2552,7 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
         experience: candidate.experience,
         status: candidate.status,
         uploadedBy: candidate.uploadedBy || 'System',
-        assignedBy: candidate.assignedBy || 'â€”',
+        assignedBy: candidate.assignedBy || '—',
         visaType: candidate.visaType || '',
         visaValidity: candidate.visaValidity || '',
         reasonForChange: candidate.reasonForChange || '',
