@@ -8,7 +8,7 @@ import {
     Clock, XCircle, FileText, Video, User, Download,
     ExternalLink, Plus, Loader2, Search,
     Linkedin, Upload,
-    ChevronRight,
+    ChevronRight, ChevronDown,
     MessageCircle, Edit2, Flame,
     Copy, Sparkles, Trash2, FileUp,
     Building2, RotateCcw, Archive, Ban
@@ -1269,123 +1269,6 @@ const CandidateDetails: React.FC = () => {
                                 </div>
                             </div>
                         )}
-
-
-                        {/* Notes List — removed; replaced by the Notes button/modal in the header */}
-                        <div className="space-y-4 pt-4 hidden">
-                             <NoteCard
-                                type="Note"
-                                createdBy={getDisplayUser(candidate.uploadedBy)}
-                                createdDate={candidate.createdAt ? new Date(candidate.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Mar 25, 2026, 2:32 PM'}
-                                onEdit={() => setIsInlineEditing(!isInlineEditing)}
-                                content={
-                                    isInlineEditing ? (
-                                        <div className="space-y-3 p-1">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-0.5">
-                                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Cur. Salary</label>
-                                                    <input 
-                                                        type="text" value={inlineFormData.currentSalary}
-                                                        onChange={e => setInlineFormData({...inlineFormData, currentSalary: e.target.value})}
-                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none"
-                                                    />
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Exp. Salary</label>
-                                                    <input 
-                                                        type="text" value={inlineFormData.salaryExpectation}
-                                                        onChange={e => setInlineFormData({...inlineFormData, salaryExpectation: e.target.value})}
-                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-0.5">
-                                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Visa Type</label>
-                                                    <input 
-                                                        type="text" value={inlineFormData.visaType}
-                                                        onChange={e => setInlineFormData({...inlineFormData, visaType: e.target.value})}
-                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none"
-                                                    />
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Notice Days</label>
-                                                    <input 
-                                                        type="number" value={inlineFormData.noticePeriod}
-                                                        onChange={e => setInlineFormData({...inlineFormData, noticePeriod: parseInt(e.target.value) || 0})}
-                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Professional Summary</label>
-                                                <textarea 
-                                                    value={inlineFormData.summary}
-                                                    onChange={e => setInlineFormData({...inlineFormData, summary: e.target.value})}
-                                                    rows={3}
-                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none resize-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Recently Applied / Reason for Change</label>
-                                                <input 
-                                                    type="text" value={inlineFormData.recentlyAppliedCompanies}
-                                                    onChange={e => setInlineFormData({...inlineFormData, recentlyAppliedCompanies: e.target.value})}
-                                                    placeholder="Applied Companies..."
-                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none mb-1"
-                                                />
-                                                <input 
-                                                    type="text" value={inlineFormData.reasonForChange}
-                                                    onChange={e => setInlineFormData({...inlineFormData, reasonForChange: e.target.value})}
-                                                    placeholder="Reason for Change..."
-                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none"
-                                                />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-0.5">Interview Notes</label>
-                                                <textarea 
-                                                    value={inlineFormData.interviewNotes}
-                                                    onChange={e => setInlineFormData({...inlineFormData, interviewNotes: e.target.value})}
-                                                    rows={3}
-                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[10px] font-bold text-slate-700 focus:border-slate-300/30 outline-none resize-none"
-                                                />
-                                            </div>
-                                            <div className="flex gap-2 pt-1 border-t border-slate-300">
-                                                <button 
-                                                    onClick={() => setIsInlineEditing(false)}
-                                                    className="flex-1 py-1 px-2 border border-slate-300 rounded text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button 
-                                                    onClick={handleInlineSave}
-                                                    disabled={isSavingInline}
-                                                    className="flex-1 py-1 px-2 bg-blue-600 text-white rounded text-[10px] font-black uppercase hover:bg-blue-700 shadow-sm shadow-blue-50 disabled:opacity-50"
-                                                >
-                                                    {isSavingInline ? 'Saving...' : 'Save Changes'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-1">
-                                            <p>Current Salary: {candidate.currentSalary || 'Not specified'}</p>
-                                            <p>Expected Salary: {candidate.salaryExpectation || 'Not specified'}</p>
-                                            <p>Notice Period: {candidate.noticePeriod ? `${candidate.noticePeriod} days` : 'Not specified'}</p>
-                                            <p>Visa type: {candidate.visaType || 'Not specified'}</p>
-                                            <p>Visa Validity: {candidate.visaValidity || 'Not specified'}</p>
-                                            {candidate.reasonForChange && <p className="pt-2 italic text-slate-600">Reason for Change: {candidate.reasonForChange}</p>}
-                                            <p className="pt-2 text-slate-600 leading-relaxed"><span className="font-black text-slate-800">Summary:</span> {candidate.summary || 'No summary available.'}</p>
-                                            {candidate.interviewNotes && <p className="pt-2 text-slate-600 leading-relaxed"><span className="font-black text-slate-800">Interview Notes:</span> {candidate.interviewNotes}</p>}
-                                            <p className="pt-2">Recently applied Companies: {candidate.recentlyAppliedCompanies || 'No'}</p>
-                                        </div>
-                                    )
-                                }
-                             />
-
-                             <div className="pt-6 pb-8 flex flex-col items-center justify-center text-center opacity-40">
-                                 <p className="text-[10px] font-bold text-slate-600">That's all the notes, calls, tasks &amp; meetings for now.</p>
-                             </div>
-                        </div>
                     </div>
                 </div>
 
