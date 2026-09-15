@@ -798,13 +798,25 @@ const CandidateDetails: React.FC = () => {
         if (!selectedApplication) return;
         setIsUpdatingStage(true);
         try {
-            await api.put(`/applications/${selectedApplication.id}`, {
-                ...selectedApplication,
+            const { job, ...cleanApp } = selectedApplication as any;
+            const appId = cleanApp.id || cleanApp._id;
+
+            let formattedStageDate: string | null = null;
+            if (stageDate) {
+                formattedStageDate = stageDate.includes('T') ? stageDate.split('.')[0] : `${stageDate}T00:00:00`;
+            } else {
+                formattedStageDate = new Date().toISOString().split('.')[0];
+            }
+
+            const payload: any = {
+                ...cleanApp,
                 status: status,
                 stage: stage,
-                remarks: remarks,
-                stageDate: stageDate
-            });
+                remarks: remarks || '',
+                stageDate: formattedStageDate
+            };
+
+            await api.put(`/applications/${appId}`, payload);
             // Sync with candidate's interviewRound for the pipeline
             let interviewRound = '';
             if (stage === 'Screening') interviewRound = 'Screening';
@@ -824,9 +836,10 @@ const CandidateDetails: React.FC = () => {
             await fetchCandidate(); // Refresh candidate state
             setIsStageModalOpen(false);
             alert("Hiring stage updated successfully!");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to update stage", error);
-            alert("Failed to update stage.");
+            const msg = error.response?.data?.message || error.response?.data || error.message || "Failed to update stage.";
+            alert(`Failed to update stage: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
         } finally {
             setIsUpdatingStage(false);
         }
