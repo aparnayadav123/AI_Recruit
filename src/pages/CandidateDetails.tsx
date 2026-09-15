@@ -292,6 +292,7 @@ const CandidateDetails: React.FC = () => {
     };
 
     const fetchCandidate = async () => {
+        if (!id) return null;
         try {
             const res = await api.get(`/candidates/${id}`);
             setCandidate(res.data);
@@ -301,6 +302,43 @@ const CandidateDetails: React.FC = () => {
             return null;
         }
     };
+
+    const fetchInterviews = async () => {
+        if (!id) return;
+        try {
+            const res = await api.get(`/interviews/candidate/${id}`);
+            setInterviews(Array.isArray(res.data) ? res.data : []);
+        } catch (e) {
+            console.error("Failed to fetch interviews", e);
+        }
+    };
+
+    useEffect(() => {
+        if (!id) {
+            setLoading(false);
+            return;
+        }
+        let isMounted = true;
+        const loadAllCandidateData = async () => {
+            setLoading(true);
+            try {
+                const cand = await fetchCandidate();
+                if (cand && isMounted) {
+                    if (cand.resumeId) {
+                        await fetchResume(cand.resumeId);
+                    }
+                    await fetchAssignedJobs(id);
+                    await fetchInterviews();
+                }
+            } catch (err) {
+                console.error("Failed loading candidate profile data:", err);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+        loadAllCandidateData();
+        return () => { isMounted = false; };
+    }, [id]);
 
     // Structured rejection (Phase 2): capture a reason + who, persisted on the application.
     const REJECTION_REASONS = [
@@ -424,15 +462,6 @@ const CandidateDetails: React.FC = () => {
         }
     };
 
-    const fetchInterviews = async () => {
-        if (!id) return;
-        try {
-            const res = await api.get(`/interviews/candidate/${id}`);
-            setInterviews(res.data || []);
-        } catch (error) {
-            console.error("Failed to fetch interviews", error);
-        }
-    };
 
     useEffect(() => {
         if (activeTab === 'Assigned Jobs' && candidate) {
