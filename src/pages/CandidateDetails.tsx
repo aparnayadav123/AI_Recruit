@@ -173,6 +173,12 @@ const CandidateDetails: React.FC = () => {
         return formatUserDisplayName(currentUser);
     };
 
+    const linkedInHref = candidate?.linkedinUrl
+        ? candidate.linkedinUrl
+        : (candidate?.name
+            ? `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(candidate.name)}`
+            : '#');
+
     const handleFileUpload = async (file: File) => {
         if (!candidate) return;
 
