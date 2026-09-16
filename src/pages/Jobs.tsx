@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Plus, MapPin, Users, User, Clock, MoreVertical, Briefcase, X, IndianRupee, Calendar, GraduationCap, Building2, Search, CheckCircle, XCircle, FileText, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, MapPin, Users, User, Clock, MoreVertical, Briefcase, X, IndianRupee, Calendar, GraduationCap, Building2, Search, CheckCircle, Download } from 'lucide-react';
 import api from '../api';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
@@ -338,18 +338,14 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
 
 const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   // Global search lands here as `/jobs?highlight=JOB-xxx` with the keyword on
   // location.state; scroll the row and highlight the term.
   const highlightJobId = searchParams.get('highlight');
-  // Suppress unused-var warning — location stays referenced via useLocation().
-  void location;
   const { highlightKeyword } = useSearch();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [selectedJobForDetails, setSelectedJobForDetails] = useState<Job | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'Open' | 'Hold' | 'Closed' | 'Cancelled'>('all');
   const [currentSkill, setCurrentSkill] = useState('');

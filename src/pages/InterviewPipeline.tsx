@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, Calendar, CheckCircle, XCircle, Clock, User, Briefcase, ChevronRight, X, Filter, UserPlus, Users, ArrowRight, Star } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, CheckCircle, XCircle, X, Filter, Users, ArrowRight } from 'lucide-react';
 import api from '../api';
 import { Candidate } from '../types';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
@@ -14,12 +14,10 @@ const InterviewPipeline: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'All' | 'Scheduled' | 'Passed' | 'Rejected'>('All');
     const navigate = useNavigate();
-    const location = useLocation();
     const [pageSearchParams] = useSearchParams();
     // Global search lands here as `/interview-pipeline?highlight=CAN-xxx` and
     // `state.keyword`; open the candidate's round modal and highlight matches.
     const highlightCandidateId = pageSearchParams.get('highlight');
-    void location;
     const { highlightKeyword: globalKeyword } = useSearch();
 
     useEffect(() => {

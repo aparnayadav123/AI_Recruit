@@ -10,7 +10,6 @@ import {
     FileText,
     Settings,
     LogOut,
-    Menu,
     X,
     Bell,
     CheckCircle,

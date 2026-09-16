@@ -1,6 +1,6 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Download, Share2, Printer, CheckCircle, ExternalLink, Calendar, X, User, Briefcase, Clock, AlertCircle, Edit2 } from 'lucide-react';
+import { FileText, Download, Printer, CheckCircle, ExternalLink, Calendar, X, User, Briefcase, Clock, AlertCircle } from 'lucide-react';
 import api from '../api';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
@@ -32,7 +32,6 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
   const { highlightKeyword } = useSearch();
   const [shortlistData, setShortlistData] = useState<Record<string, ShortlistedCandidate[]>>(mockShortlistData);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'candidates' | 'positions' | 'days'>('all');
-  const [recommendedFilter, setRecommendedFilter] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const navigate = useNavigate();
 
@@ -88,7 +87,7 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
     fetchCandidates();
   }, []);
 
-  useSearchHighlight(highlightKeyword, [shortlistData, selectedFilter, recommendedFilter]);
+  useSearchHighlight(highlightKeyword, [shortlistData, selectedFilter]);
 
   const highlightText = (text: string) => {
     if (!searchQuery) return text;

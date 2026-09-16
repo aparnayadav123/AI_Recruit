@@ -1,22 +1,17 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-    Search,
     Zap,
     ShieldCheck,
     Globe,
     User,
-    Mail,
     Phone,
     Briefcase,
-    GraduationCap,
-    Code,
     Layers,
     MousePointer2,
     CheckCircle2,
     AlertCircle,
     Loader2,
-    X,
     Info
 } from 'lucide-react';
 
@@ -25,8 +20,6 @@ const LinkedInAgent: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
-    const [showConfig, setShowConfig] = useState(false);
-    const [sessionCookie, setSessionCookie] = useState(localStorage.getItem('li_at') || '');
 
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
