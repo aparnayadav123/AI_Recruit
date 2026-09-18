@@ -28,13 +28,48 @@ const SignUp: React.FC = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    const [submitted, setSubmitted] = useState(false);
+    const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
+
     // ---------------- client-side validation ----------------
     const passwordChecks = [
         { label: 'At least 6 characters', valid: password.length >= 6 },
         { label: 'Passwords match',       valid: password.length > 0 && password === confirmPassword },
     ];
-    const emailValid = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
-    const formValid = name.trim().length > 0 && emailValid && passwordChecks.every(c => c.valid);
+
+    const getNameError = (val: string): string => {
+        const trimmed = val.trim();
+        if (!trimmed) return 'Full name is required.';
+        if (trimmed.length > 100) return 'Full name must not exceed 100 characters.';
+        if (!/^[A-Za-z\s.'-]+$/.test(trimmed)) {
+            return 'Full name is required to contain only letters, spaces, hyphens, and apostrophes.';
+        }
+        return '';
+    };
+
+    const getEmailError = (val: string): string => {
+        const trimmed = val.trim();
+        if (!trimmed) return 'Please enter a valid email address.';
+        if (!/^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(trimmed)) {
+            return 'Please enter a valid email address.';
+        }
+        return '';
+    };
+
+    const getPasswordError = (val: string): string => {
+        if (!val || val.length < 6) return 'Password must be at least 6 characters long.';
+        return '';
+    };
+
+    const getConfirmPasswordError = (val: string, pwd: string): string => {
+        if (!val || val !== pwd) return 'Passwords do not match.';
+        return '';
+    };
+
+    const nameError = (submitted || touched.name) ? getNameError(name) : '';
+    const emailError = (submitted || touched.email) ? getEmailError(email) : '';
+    const passwordError = (submitted || touched.password) ? getPasswordError(password) : '';
+    const confirmPasswordError = (submitted || touched.confirmPassword) ? getConfirmPasswordError(confirmPassword, password) : '';
 
     const extractErrorMessage = (err: any): string => {
         const data = err?.response?.data;
@@ -48,15 +83,20 @@ const SignUp: React.FC = () => {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setSubmitted(true);
 
-        if (!formValid) {
-            setError('Please fix the highlighted fields and try again.');
+        const nErr = getNameError(name);
+        const eErr = getEmailError(email);
+        const pErr = getPasswordError(password);
+        const cpErr = getConfirmPasswordError(confirmPassword, password);
+
+        if (nErr || eErr || pErr || cpErr) {
             return;
         }
 
         setIsLoading(true);
         try {
-            const response = await api.post('/auth/register', { name, email, password });
+            const response = await api.post('/auth/register', { name: name.trim(), email: email.trim(), password });
             if (response.data) {
                 navigate('/login', { state: { registrationSuccess: true } });
             }
@@ -174,7 +214,7 @@ const SignUp: React.FC = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleRegister} className="space-y-4">
+                    <form onSubmit={handleRegister} noValidate className="space-y-4">
                         {/* Name */}
                         <div>
                             <label htmlFor="su-name" className="block text-xs font-bold text-slate-700 mb-1.5">Full Name</label>
@@ -183,14 +223,22 @@ const SignUp: React.FC = () => {
                                 <input
                                     id="su-name"
                                     type="text"
-                                    required
                                     autoComplete="name"
                                     value={name}
-                                    onChange={(e) => setName(e.target.value)}
+                                    onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
+                                    onChange={(e) => {
+                                        setName(e.target.value);
+                                        if (submitted) setError('');
+                                    }}
                                     placeholder="Aparna Boligerla"
-                                    className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 outline-none transition-all"
+                                    className={`w-full pl-10 pr-3 py-2.5 bg-white border rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 outline-none transition-all ${
+                                        nameError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
+                                    }`}
                                 />
                             </div>
+                            {nameError && (
+                                <p className="text-[10px] font-semibold text-rose-600 mt-1">{nameError}</p>
+                            )}
                         </div>
 
                         {/* Email */}
@@ -201,22 +249,25 @@ const SignUp: React.FC = () => {
                                 <input
                                     id="su-email"
                                     type="email"
-                                    required
                                     autoComplete="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (submitted) setError('');
+                                    }}
                                     placeholder="name@company.com"
                                     className={`w-full pl-10 pr-3 py-2.5 bg-white border rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 outline-none transition-all ${
-                                        email.length === 0
-                                            ? 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
-                                            : emailValid
+                                        emailError
+                                            ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15'
+                                            : email.length > 0 && !getEmailError(email)
                                                 ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/15'
-                                                : 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15'
+                                                : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
                                     }`}
                                 />
                             </div>
-                            {email.length > 0 && !emailValid && (
-                                <p className="text-[10px] font-semibold text-rose-600 mt-1">Please enter a valid email address.</p>
+                            {emailError && (
+                                <p className="text-[10px] font-semibold text-rose-600 mt-1">{emailError}</p>
                             )}
                         </div>
 
@@ -228,12 +279,14 @@ const SignUp: React.FC = () => {
                                 <input
                                     id="su-pwd"
                                     type={showPassword ? 'text' : 'password'}
-                                    required
                                     autoComplete="new-password"
                                     value={password}
+                                    onBlur={() => setTouched(prev => ({ ...prev, password: true }))}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="At least 6 characters"
-                                    className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 outline-none transition-all"
+                                    className={`w-full pl-10 pr-10 py-2.5 bg-white border rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 outline-none transition-all ${
+                                        passwordError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
+                                    }`}
                                 />
                                 <button
                                     type="button"
@@ -244,6 +297,9 @@ const SignUp: React.FC = () => {
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
+                            {passwordError && (
+                                <p className="text-[10px] font-semibold text-rose-600 mt-1">{passwordError}</p>
+                            )}
                         </div>
 
                         {/* Confirm Password */}
@@ -254,17 +310,17 @@ const SignUp: React.FC = () => {
                                 <input
                                     id="su-pwd2"
                                     type={showConfirmPassword ? 'text' : 'password'}
-                                    required
                                     autoComplete="new-password"
                                     value={confirmPassword}
+                                    onBlur={() => setTouched(prev => ({ ...prev, confirmPassword: true }))}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="Re-enter your password"
                                     className={`w-full pl-10 pr-10 py-2.5 bg-white border rounded-lg text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 outline-none transition-all ${
-                                        confirmPassword.length === 0
-                                            ? 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
-                                            : password === confirmPassword
+                                        confirmPasswordError
+                                            ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15'
+                                            : confirmPassword.length > 0 && password === confirmPassword
                                                 ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/15'
-                                                : 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/15'
+                                                : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/15'
                                     }`}
                                 />
                                 <button
@@ -276,6 +332,9 @@ const SignUp: React.FC = () => {
                                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
+                            {confirmPasswordError && (
+                                <p className="text-[10px] font-semibold text-rose-600 mt-1">{confirmPasswordError}</p>
+                            )}
                         </div>
 
                         {/* Live password rules — fade in only when user starts typing */}
@@ -301,7 +360,7 @@ const SignUp: React.FC = () => {
                         {/* Submit */}
                         <button
                             type="submit"
-                            disabled={isLoading || !formValid}
+                            disabled={isLoading}
                             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mt-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-md shadow-indigo-600/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
                         >
                             {isLoading ? (

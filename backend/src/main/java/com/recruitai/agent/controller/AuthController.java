@@ -48,6 +48,9 @@ public class AuthController {
     private static final java.util.regex.Pattern EMAIL_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
+    private static final java.util.regex.Pattern NAME_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z\\s.'-]+$");
+
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody AuthRequest request) {
         // Validation — previously the endpoint happily created a user with
@@ -76,10 +79,12 @@ public class AuthController {
 
     private String validateRegister(AuthRequest r) {
         if (r == null) return "Empty request body.";
-        if (r.getEmail() == null    || r.getEmail().isBlank())    return "Email is required.";
+        if (r.getEmail() == null    || r.getEmail().isBlank())    return "Please enter a valid email address.";
         if (!EMAIL_PATTERN.matcher(r.getEmail().trim()).matches()) return "Please enter a valid email address.";
         if (r.getPassword() == null || r.getPassword().length() < 6) return "Password must be at least 6 characters long.";
         if (r.getName() == null     || r.getName().isBlank())     return "Full name is required.";
+        if (r.getName().trim().length() > 100) return "Full name must not exceed 100 characters.";
+        if (!NAME_PATTERN.matcher(r.getName().trim()).matches()) return "Full name is required to contain only letters, spaces, hyphens, and apostrophes.";
         return null;
     }
 

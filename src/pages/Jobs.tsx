@@ -336,6 +336,15 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
   );
 };
 
+const FIELD_RULES = {
+  title:       { min: 3,  max: 100, label: 'Job Title' },
+  company:     { min: 2,  max: 80,  label: 'Company' },
+  department:  { min: 2,  max: 60,  label: 'Department' },
+  industry:    { min: 2,  max: 60,  label: 'Industry' },
+  description: { min: 30, max: 5000, label: 'Job Description' },
+  location:    { min: 2,  max: 80,  label: 'Location' },
+} as const;
+
 const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -417,6 +426,13 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
 
   const handleInputChange = (field: keyof JobFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    if (field in FIELD_RULES && typeof value === 'string') {
+      const rule = (FIELD_RULES as any)[field];
+      if (rule && value.trim().length > rule.max) {
+        setErrors(prev => ({ ...prev, [field]: `${rule.label} must be at most ${rule.max} characters` }));
+        return;
+      }
+    }
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
@@ -477,17 +493,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     }));
   };
 
-  // Professional field-validation rules used by both the Create and Edit Job
-  // forms. The rules below ride on top of a single popup that lists every
-  // problem at once when the user clicks Save Changes.
-  const FIELD_RULES = {
-    title:       { min: 3,  max: 100, label: 'Job Title' },
-    company:     { min: 2,  max: 80,  label: 'Company' },
-    department:  { min: 2,  max: 60,  label: 'Department' },
-    industry:    { min: 2,  max: 60,  label: 'Industry' },
-    description: { min: 30, max: 5000, label: 'Job Description' },
-    location:    { min: 2,  max: 80,  label: 'Location' },
-  } as const;
+  // FIELD_RULES defined at module level.
 
   // Accepts Indian rupee formats with the currency prefix/suffix OPTIONAL, since the
   // input already shows a ₹ icon: "500000-100000", "₹50,000 - ₹1,00,000", "Rs 5L - 10L",
@@ -1034,7 +1040,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.title}
                       onChange={(e) => handleInputChange('title', e.target.value)}
-                      maxLength={FIELD_RULES.title.max}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.title ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Senior Software Engineer"
@@ -1050,7 +1055,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
-                      maxLength={FIELD_RULES.company.max}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.company ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="Company name"
@@ -1066,7 +1070,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.department}
                       onChange={(e) => handleInputChange('department', e.target.value)}
-                      maxLength={FIELD_RULES.department.max}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.department ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Engineering, Marketing"
@@ -1082,7 +1085,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.industry}
                       onChange={(e) => handleInputChange('industry', e.target.value)}
-                      maxLength={FIELD_RULES.industry.max}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.industry ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Technology, Healthcare"

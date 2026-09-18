@@ -194,8 +194,19 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
     headquarters: '',
     size: '1-50 employees',
   });
+  const [companyErrors, setCompanyErrors] = useState<{ name?: string; website?: string; description?: string }>({});
   const [isSavingCompany, setIsSavingCompany] = useState(false);
   const companyLogoInputRef = useRef<HTMLInputElement>(null);
+
+  const validateCompanyWebsite = (url: string): boolean => {
+    if (!url || !url.trim()) return true;
+    try {
+      const parsed = new URL(url.trim());
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
 
   // Notifications state
   const [notificationPrefs, setNotificationPrefs] = useState({
@@ -751,9 +762,21 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     type="text"
                     value={companyData.name}
                     disabled={!isManager}
-                    onChange={(e) => setCompanyData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    aria-invalid={!!companyErrors.name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCompanyData(prev => ({ ...prev, name: val }));
+                      if (companyErrors.name) {
+                        setCompanyErrors(prev => ({ ...prev, name: val.length > 100 ? 'Company name is too long (max 100).' : undefined }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none disabled:bg-slate-100 disabled:cursor-not-allowed ${
+                      companyErrors.name ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'
+                    }`}
                   />
+                  {companyErrors.name && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{companyErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Website</label>
@@ -761,9 +784,21 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     type="text"
                     value={companyData.website}
                     disabled={!isManager}
-                    onChange={(e) => setCompanyData(prev => ({ ...prev, website: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    aria-invalid={!!companyErrors.website}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCompanyData(prev => ({ ...prev, website: val }));
+                      if (companyErrors.website) {
+                        setCompanyErrors(prev => ({ ...prev, website: !validateCompanyWebsite(val) ? 'Enter a valid URL (https://...).' : undefined }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none disabled:bg-slate-100 disabled:cursor-not-allowed ${
+                      companyErrors.website ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'
+                    }`}
                   />
+                  {companyErrors.website && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{companyErrors.website}</p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Description</label>
@@ -771,9 +806,21 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     rows={2}
                     value={companyData.description}
                     disabled={!isManager}
-                    onChange={(e) => setCompanyData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none resize-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    aria-invalid={!!companyErrors.description}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCompanyData(prev => ({ ...prev, description: val }));
+                      if (companyErrors.description) {
+                        setCompanyErrors(prev => ({ ...prev, description: val.length > 500 ? 'Description is too long (max 500).' : undefined }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none resize-none disabled:bg-slate-100 disabled:cursor-not-allowed ${
+                      companyErrors.description ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'
+                    }`}
                   />
+                  {companyErrors.description && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{companyErrors.description}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Headquarters</label>
@@ -805,6 +852,23 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   disabled={isSavingCompany || !isManager}
                   onClick={async () => {
                     if (!isManager) return; // HR Manager-only (FR-901, BR-09)
+                    
+                    const errors: { name?: string; website?: string; description?: string } = {};
+                    if (companyData.name && companyData.name.length > 100) {
+                      errors.name = 'Company name is too long (max 100).';
+                    }
+                    if (companyData.website && !validateCompanyWebsite(companyData.website)) {
+                      errors.website = 'Enter a valid URL (https://...).';
+                    }
+                    if (companyData.description && companyData.description.length > 500) {
+                      errors.description = 'Description is too long (max 500).';
+                    }
+
+                    if (Object.keys(errors).length > 0) {
+                      setCompanyErrors(errors);
+                      return;
+                    }
+                    setCompanyErrors({});
                     setIsSavingCompany(true);
                     try {
                       const response = await api.put('/company', companyData);
@@ -812,8 +876,21 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                         setCompanyData(response.data);
                         showToast('Saved successfully');
                       }
-                    } catch (error) {
+                    } catch (error: any) {
                       console.error('Save failed', error);
+                      const data = error?.response?.data;
+                      const msg = typeof data === 'string' ? data : (data?.message || data?.error);
+                      if (msg) {
+                        if (msg.toLowerCase().includes('name')) {
+                          setCompanyErrors(prev => ({ ...prev, name: msg }));
+                        } else if (msg.toLowerCase().includes('url') || msg.toLowerCase().includes('website')) {
+                          setCompanyErrors(prev => ({ ...prev, website: msg }));
+                        } else if (msg.toLowerCase().includes('description')) {
+                          setCompanyErrors(prev => ({ ...prev, description: msg }));
+                        } else {
+                          showToast(msg);
+                        }
+                      }
                     } finally {
                       setIsSavingCompany(false);
                     }
