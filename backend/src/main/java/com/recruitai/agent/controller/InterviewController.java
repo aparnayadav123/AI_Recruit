@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/interviews")
 public class InterviewController {
@@ -15,7 +17,7 @@ public class InterviewController {
     private InterviewService interviewService;
 
     @PostMapping
-    public ResponseEntity<Interview> scheduleInterview(@RequestBody Interview interview) {
+    public ResponseEntity<Interview> scheduleInterview(@Valid @RequestBody Interview interview) {
         return ResponseEntity.ok(interviewService.scheduleInterview(interview));
     }
 

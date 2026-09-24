@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileText, CheckCircle, AlertCircle, Loader2, X, Globe, Mail, Link as LinkIcon, FileUp } from 'lucide-react';
 import api from '../api';
@@ -45,8 +45,12 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
     const validFiles = Array.from(fileList).filter((file: File) => {
       const lowerName = file.name.toLowerCase();
       const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => lowerName.endsWith(ext));
-      if (file.size > MAX_SIZE || !hasValidExtension) {
-        alert(`"${file.name}" was skipped: only PDF/DOC/DOCX/TXT up to 10MB are allowed.`);
+      if (!hasValidExtension) {
+        alert('File type not supported. Please upload PDF, DOCX, DOC or TXT');
+        return false;
+      }
+      if (file.size > MAX_SIZE) {
+        alert(`"${file.name}" was skipped: file size exceeds 10MB limit.`);
         return false;
       }
       return true;

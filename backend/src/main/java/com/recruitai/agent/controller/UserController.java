@@ -22,6 +22,9 @@ public class UserController {
     private static final java.util.regex.Pattern EMAIL_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
+    private static final java.util.regex.Pattern NAME_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z\\s.'-]+$");
+
     @PutMapping("/profile-picture")
     public ResponseEntity<?> updateProfilePicture(@RequestParam("email") String email,
             @RequestParam("file") MultipartFile file) {
@@ -34,22 +37,29 @@ public class UserController {
             }
 
             User user = userOpt.get();
-            byte[] bytes = file.getBytes();
+            String originalFilename = file.getOriginalFilename();
             String contentType = file.getContentType();
-            if (contentType == null || contentType.isBlank() || contentType.equals("application/octet-stream")) {
-                String name = file.getOriginalFilename();
-                if (name != null && (name.toLowerCase().endsWith(".jpg") || name.toLowerCase().endsWith(".jpeg"))) {
-                    contentType = "image/jpeg";
-                } else if (name != null && name.toLowerCase().endsWith(".png")) {
-                    contentType = "image/png";
-                } else if (name != null && name.toLowerCase().endsWith(".webp")) {
-                    contentType = "image/webp";
-                } else if (name != null && name.toLowerCase().endsWith(".gif")) {
-                    contentType = "image/gif";
-                } else {
-                    contentType = "image/jpeg";
+            boolean isImage = false;
+            if (contentType != null && (contentType.equalsIgnoreCase("image/jpeg")
+                    || contentType.equalsIgnoreCase("image/png")
+                    || contentType.equalsIgnoreCase("image/webp")
+                    || contentType.equalsIgnoreCase("image/gif"))) {
+                isImage = true;
+            } else if (originalFilename != null) {
+                String lower = originalFilename.toLowerCase();
+                if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp") || lower.endsWith(".gif")) {
+                    isImage = true;
+                    if (lower.endsWith(".png")) contentType = "image/png";
+                    else if (lower.endsWith(".webp")) contentType = "image/webp";
+                    else if (lower.endsWith(".gif")) contentType = "image/gif";
+                    else contentType = "image/jpeg";
                 }
             }
+            if (!isImage) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("message", "File type not supported. Please upload JPG, PNG or WEBP"));
+            }
+
+            byte[] bytes = file.getBytes();
             String base64Image = "data:" + contentType + ";base64,"
                     + Base64.getEncoder().encodeToString(bytes);
 
@@ -71,14 +81,19 @@ public class UserController {
             // The body's email carries the possibly-new value, so we must not look up by it.
             String lookupEmail = (currentEmail != null && !currentEmail.isBlank())
                     ? currentEmail : userRequest.getEmail();
-            Optional<User> userOpt = userRepository.findByEmail(lookupEmail);
+            Optional<User> userOpt = userRepository.findByEmail(lookupEmail)
+                    .or(() -> userRepository.findByEmailIgnoreCase(lookupEmail));
             if (userOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
 
             User user = userOpt.get();
             if (userRequest.getName() != null) {
-                user.setName(userRequest.getName());
+                String trimmedName = userRequest.getName().trim();
+                if (trimmedName.isEmpty() || !NAME_PATTERN.matcher(trimmedName).matches()) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Enter a valid first name."));
+                }
+                user.setName(trimmedName);
             }
 
             // Persist an email change (Settings > My Profile lets the user edit it).
@@ -88,11 +103,11 @@ public class UserController {
                     return ResponseEntity.badRequest()
                             .body(java.util.Map.of("message", "Please enter a valid email address."));
                 }
-                Optional<User> existing = userRepository.findByEmail(newEmail);
+                Optional<User> existing = userRepository.findByEmailIgnoreCase(newEmail.trim());
                 if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
-                    return ResponseEntity.badRequest().body("Email already in use");
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Email already in use."));
                 }
-                user.setEmail(newEmail);
+                user.setEmail(newEmail.trim().toLowerCase());
             }
 
             userRepository.save(user);

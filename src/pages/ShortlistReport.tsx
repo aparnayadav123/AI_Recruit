@@ -128,10 +128,12 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
     notes: '',
     meetingLink: ''
   });
+  const [interviewFormError, setInterviewFormError] = useState('');
 
   const handleScheduleInterview = (candidate: ShortlistedCandidate) => {
     setShowInterviewModal({ candidate });
     setInterviewData({ date: '', time: '', type: 'Video', notes: '', meetingLink: '' });
+    setInterviewFormError('');
   };
 
   const handleEditInterview = (candidate: ShortlistedCandidate) => {
@@ -143,14 +145,30 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
       notes: candidate.notes && candidate.notes !== 'No notes available.' ? candidate.notes : '',
       meetingLink: candidate.meetingLink || ''
     });
+    setInterviewFormError('');
   };
 
   const submitInterview = async () => {
-    if (!showInterviewModal.candidate || !interviewData.date || !interviewData.time) {
+    if (!showInterviewModal.candidate) return;
+    if (!interviewData.date && !interviewData.time) {
+      setInterviewFormError("Please select both date and time");
       setToast({ message: "Please select both date and time", type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
     }
+    if (!interviewData.date) {
+      setInterviewFormError("Date is required");
+      setToast({ message: "Date is required", type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (!interviewData.time) {
+      setInterviewFormError("Please select both date and time");
+      setToast({ message: "Please select both date and time", type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    setInterviewFormError('');
     try {
       // Backend expects yyyy-MM-dd'T'HH:mm:ss
       const startDateTime = `${interviewData.date}T${interviewData.time}:00`;
@@ -556,14 +574,24 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
                   </div>
                 </div>
 
+                {interviewFormError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{interviewFormError}</span>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-2.5 w-5 h-5 text-gray-600" />
                     <input
                       type="date"
                       value={interviewData.date}
-                      onChange={(e) => setInterviewData({ ...interviewData, date: e.target.value })}
+                      onChange={(e) => {
+                        setInterviewData({ ...interviewData, date: e.target.value });
+                        if (interviewFormError) setInterviewFormError('');
+                      }}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
@@ -571,11 +599,14 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Time <span className="text-red-500">*</span></label>
                     <input
                       type="time"
                       value={interviewData.time}
-                      onChange={(e) => setInterviewData({ ...interviewData, time: e.target.value })}
+                      onChange={(e) => {
+                        setInterviewData({ ...interviewData, time: e.target.value });
+                        if (interviewFormError) setInterviewFormError('');
+                      }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>

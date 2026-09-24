@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { formatUserDisplayName, formatRelativeTime, notificationDayBucket } from '../utils';
 import { startActivityTracking } from '../session';
+import { canManage } from '../roles';
 import InterviewAlert from './InterviewAlert';
 import Chatbot from './Chatbot';
 import GlobalSearchBar from './GlobalSearchBar';
@@ -126,7 +127,7 @@ const Layout: React.FC = () => {
     // current. Only Manager/Admin sees the link, so HR users skip the call.
     useEffect(() => {
         const role = (user?.role || '').toString().toUpperCase();
-        if (role !== 'MANAGER' && role !== 'ADMIN') {
+        if (!canManage(role)) {
             setPendingDeletionCount(0);
             return;
         }
@@ -276,7 +277,7 @@ const Layout: React.FC = () => {
     }, []);
 
     const userRole = (user?.role || '').toString().toUpperCase();
-    const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+    const isManager = canManage(userRole);
 
     const navItems: Array<{
         path: string;

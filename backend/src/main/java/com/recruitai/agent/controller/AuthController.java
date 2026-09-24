@@ -66,11 +66,19 @@ public class AuthController {
                     .body(java.util.Map.of("message", "An account with that email already exists. Please sign in."));
         }
 
+        String assignedRole = "HR";
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            String r = request.getRole().trim().toUpperCase().replace(" ", "_");
+            if (r.equals("HR_MANAGER") || r.equals("MANAGER") || r.equals("ADMIN") || r.equals("HR")) {
+                assignedRole = r;
+            }
+        }
+
         User user = new User(
                 request.getEmail().trim().toLowerCase(),
                 passwordEncoder.encode(request.getPassword()),
                 request.getName().trim(),
-                "USER",
+                assignedRole,
                 "ACTIVE");
         userRepository.save(user);
         String token = jwtUtils.generateToken(user.getEmail(), user.getRole());

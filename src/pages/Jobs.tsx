@@ -341,7 +341,7 @@ const FIELD_RULES = {
   company:     { min: 2,  max: 80,  label: 'Company' },
   department:  { min: 2,  max: 60,  label: 'Department' },
   industry:    { min: 2,  max: 60,  label: 'Industry' },
-  description: { min: 30, max: 5000, label: 'Job Description' },
+  description: { min: 30, max: 5000, label: 'Description' },
   location:    { min: 2,  max: 80,  label: 'Location' },
 } as const;
 
@@ -429,7 +429,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     if (field in FIELD_RULES && typeof value === 'string') {
       const rule = (FIELD_RULES as any)[field];
       if (rule && value.trim().length > rule.max) {
-        setErrors(prev => ({ ...prev, [field]: `${rule.label} must be at most ${rule.max} characters` }));
+        setErrors(prev => ({ ...prev, [field]: `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters` }));
         return;
       }
     }
@@ -503,24 +503,23 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   // Returns the error map; caller decides whether to show inline or as a popup.
   const computeErrors = (): Partial<Record<keyof JobFormData, string>> => {
     const newErrors: Partial<Record<keyof JobFormData, string>> = {};
-    const trim = (v: string) => (v || '').trim();
-
-    // FR-101: only Title, Department, Location (and Employment Type, which always has a
-    // default) are mandatory. Company, Industry, Description, Salary, Skills and Deadline
-    // are OPTIONAL — but still length/format-checked WHEN the user provides a value.
-    const REQUIRED: Array<keyof typeof FIELD_RULES> = ['title', 'department', 'location'];
+    // Mandatory fields per spec: Title, Company, Department, Industry, Description, Location
+    // (Location is optional when Remote is checked).
+    const REQUIRED: Array<keyof typeof FIELD_RULES> = ['title', 'company', 'department', 'industry', 'description', 'location'];
 
     (Object.keys(FIELD_RULES) as Array<keyof typeof FIELD_RULES>).forEach(key => {
       const rule = FIELD_RULES[key];
       const value = trim(formData[key] as string);
+      const specMsg = `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters`;
       if (!value) {
-        if (REQUIRED.includes(key)) newErrors[key] = `${rule.label} is required`;
+        if (REQUIRED.includes(key)) {
+          if (key === 'location' && formData.remote) return;
+          newErrors[key] = specMsg;
+        }
         return; // optional + empty → no error
       }
-      if (value.length < rule.min) {
-        newErrors[key] = `${rule.label} must be at least ${rule.min} characters`;
-      } else if (value.length > rule.max) {
-        newErrors[key] = `${rule.label} must be at most ${rule.max} characters`;
+      if (value.length < rule.min || value.length > rule.max) {
+        newErrors[key] = specMsg;
       }
     });
 
@@ -1101,7 +1100,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     rows={4}
-                    maxLength={FIELD_RULES.description.max}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.description ? 'border-red-500' : 'border-gray-300'
                       }`}
                     placeholder={`Describe the role, responsibilities, and requirements (min ${FIELD_RULES.description.min} characters)...`}

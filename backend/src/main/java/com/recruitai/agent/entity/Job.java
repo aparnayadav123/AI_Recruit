@@ -26,11 +26,13 @@ public class Job {
     @Field("title")
     private String title;
 
-    // FR-101: mandatory fields are Title, Department, Location, Employment Type only.
-    // Description and Company are optional at creation (can be filled in later).
+    @NotBlank(message = "Description is required / at least 30 / at most 5000 characters")
+    @Size(min = 30, max = 5000, message = "Description is required / at least 30 / at most 5000 characters")
     @Field("description")
     private String description;
 
+    @NotBlank(message = "Company is required / at least 2 / at most 80 characters")
+    @Size(min = 2, max = 80, message = "Company is required / at least 2 / at most 80 characters")
     @Field("company")
     private String company;
 
@@ -38,7 +40,8 @@ public class Job {
     @Field("location")
     private String location;
 
-    @Size(max = 50, message = "Department must not exceed 50 characters")
+    @NotBlank(message = "Department is required / at least 2 / at most 60 characters")
+    @Size(min = 2, max = 60, message = "Department is required / at least 2 / at most 60 characters")
     @Field("department")
     private String department;
 
@@ -62,6 +65,8 @@ public class Job {
     @Field("education")
     private List<String> education = new ArrayList<>();
 
+    @NotBlank(message = "Industry is required / at least 2 / at most 60 characters")
+    @Size(min = 2, max = 60, message = "Industry is required / at least 2 / at most 60 characters")
     @Field("industry")
     private String industry;
 

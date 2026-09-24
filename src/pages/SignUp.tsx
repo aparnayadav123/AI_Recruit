@@ -25,6 +25,7 @@ const SignUp: React.FC = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [role, setRole] = useState('HR Manager');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -96,7 +97,7 @@ const SignUp: React.FC = () => {
 
         setIsLoading(true);
         try {
-            const response = await api.post('/auth/register', { name: name.trim(), email: email.trim(), password });
+            const response = await api.post('/auth/register', { name: name.trim(), email: email.trim(), password, role });
             if (response.data) {
                 navigate('/login', { state: { registrationSuccess: true } });
             }
@@ -269,6 +270,21 @@ const SignUp: React.FC = () => {
                             {emailError && (
                                 <p className="text-[10px] font-semibold text-rose-600 mt-1">{emailError}</p>
                             )}
+                        </div>
+
+                        {/* Role Selection */}
+                        <div>
+                            <label htmlFor="su-role" className="block text-xs font-bold text-slate-700 mb-1.5">Role</label>
+                            <select
+                                id="su-role"
+                                value={role}
+                                onChange={(e) => setRole(e.target.value)}
+                                className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 font-semibold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 outline-none transition-all"
+                            >
+                                <option value="HR Manager">HR Manager</option>
+                                <option value="HR">HR</option>
+                                <option value="Admin">Admin</option>
+                            </select>
                         </div>
 
                         {/* Password */}

@@ -34,6 +34,9 @@ public class CompanyController {
             if (company.getDescription() != null && company.getDescription().length() > 500) {
                 return ResponseEntity.badRequest().body(java.util.Map.of("message", "Description is too long (max 500).", "error", "Description is too long (max 500)."));
             }
+            if (company.getHeadquarters() != null && company.getHeadquarters().length() > 100) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("message", "Headquarters is too long (max 100).", "error", "Headquarters is too long (max 100)."));
+            }
         }
 
         Optional<Company> existing = companyRepository.findTopByOrderByIdAsc();

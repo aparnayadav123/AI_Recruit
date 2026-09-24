@@ -146,11 +146,14 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
   const [isSaving, setIsSaving] = useState(false);
   // Field-level validation error for the profile email input (SET-002 / FR-902).
   const [emailError, setEmailError] = useState('');
+  const [firstNameError, setFirstNameError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
   // The email the account is currently identified by (may differ from the edited value).
   const [originalEmail, setOriginalEmail] = useState('');
 
   // Standard email shape: non-space local part, "@", domain with a dot.
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
+  const NAME_REGEX = /^[A-Za-z\s.'-]+$/;
   const profilePicInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -194,7 +197,7 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
     headquarters: '',
     size: '1-50 employees',
   });
-  const [companyErrors, setCompanyErrors] = useState<{ name?: string; website?: string; description?: string }>({});
+  const [companyErrors, setCompanyErrors] = useState<{ name?: string; website?: string; description?: string; headquarters?: string }>({});
   const [isSavingCompany, setIsSavingCompany] = useState(false);
   const companyLogoInputRef = useRef<HTMLInputElement>(null);
 
@@ -410,6 +413,14 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
+                    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                    const fileExt = file.name.split('.').pop()?.toLowerCase();
+                    if (!allowedTypes.includes(file.type) && !['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt || '')) {
+                      alert('File type not supported. Please upload JPG, PNG or WEBP');
+                      e.target.value = '';
+                      return;
+                    }
+
                     const targetEmail = profileData.email || originalEmail || (() => {
                       try { return JSON.parse(localStorage.getItem('user') || '{}').email; } catch { return ''; }
                     })();
@@ -448,9 +459,11 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                         }
                         showToast('Profile photo updated successfully');
                       }
-                    } catch (error) {
+                    } catch (error: any) {
                       console.error('Upload failed', error);
-                      alert('Failed to upload profile picture. Please try again.');
+                      const data = error?.response?.data;
+                      const msg = typeof data === 'string' ? data : data?.message;
+                      alert(msg || 'Failed to upload profile picture. Please try again.');
                     } finally {
                       setIsSaving(false);
                       e.target.value = '';
@@ -465,18 +478,32 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={profileData.firstName}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    aria-invalid={!!firstNameError}
+                    onChange={(e) => {
+                      setProfileData(prev => ({ ...prev, firstName: e.target.value }));
+                      if (firstNameError) setFirstNameError('');
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none focus:ring-1 ${firstNameError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-blue-500'}`}
                   />
+                  {firstNameError && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{firstNameError}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Last Name</label>
                   <input
                     type="text"
                     value={profileData.lastName}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                    aria-invalid={!!lastNameError}
+                    onChange={(e) => {
+                      setProfileData(prev => ({ ...prev, lastName: e.target.value }));
+                      if (lastNameError) setLastNameError('');
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none focus:ring-1 ${lastNameError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-blue-500'}`}
                   />
+                  {lastNameError && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{lastNameError}</p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Email Address</label>
@@ -497,12 +524,36 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                 <button
                   disabled={isSaving}
                   onClick={async () => {
+                    let hasError = false;
+                    const trimmedFirst = profileData.firstName.trim();
+                    if (!trimmedFirst) {
+                      setFirstNameError('First name is required.');
+                      hasError = true;
+                    } else if (!NAME_REGEX.test(trimmedFirst)) {
+                      setFirstNameError('Enter a valid first name.');
+                      hasError = true;
+                    } else {
+                      setFirstNameError('');
+                    }
+
+                    const trimmedLast = profileData.lastName.trim();
+                    if (trimmedLast && !NAME_REGEX.test(trimmedLast)) {
+                      setLastNameError('Enter a valid last name.');
+                      hasError = true;
+                    } else {
+                      setLastNameError('');
+                    }
+
                     // Reject an invalid email format before hitting the API — no save.
                     if (!isValidEmail(profileData.email)) {
                       setEmailError('Please enter a valid email address.');
-                      return;
+                      hasError = true;
+                    } else {
+                      setEmailError('');
                     }
-                    setEmailError('');
+
+                    if (hasError) return;
+
                     setIsSaving(true);
                     try {
                       const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
@@ -532,11 +583,17 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                         showToast('Saved successfully');
                       }
                     } catch (error: any) {
-                      // Surface a server-side rejection (e.g. invalid email) at the field.
+                      // Surface a server-side rejection at the field.
                       const data = error?.response?.data;
                       const msg = typeof data === 'string' ? data : data?.message;
-                      if (error?.response?.status === 400) {
-                        setEmailError(msg || 'Please enter a valid email address.');
+                      if (error?.response?.status === 400 || error?.response?.status === 409) {
+                        if (msg && msg.toLowerCase().includes('email')) {
+                          setEmailError(msg);
+                        } else if (msg && (msg.toLowerCase().includes('first name') || msg.toLowerCase().includes('name'))) {
+                          setFirstNameError(msg);
+                        } else {
+                          setEmailError(msg || 'Please enter a valid email address.');
+                        }
                       } else {
                         console.error('Save failed', error);
                       }
@@ -740,14 +797,35 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     >
                       Update Logo
                     </button>
+                    {companyData.logo && (
+                      <button
+                        onClick={() => setCompanyData(prev => ({ ...prev, logo: '' }))}
+                        disabled={!isManager}
+                        className="px-2.5 py-1.5 border border-rose-200 rounded-lg text-[9px] font-black text-rose-600 uppercase tracking-widest hover:bg-rose-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Remove Logo
+                      </button>
+                    )}
                     <input
                       ref={companyLogoInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          if (file.size > 2 * 1024 * 1024) {
+                            alert('File size too large. Please select an image under 2MB.');
+                            e.target.value = '';
+                            return;
+                          }
+                          const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                          const ext = file.name.split('.').pop()?.toLowerCase();
+                          if (!allowed.includes(file.type) && !['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')) {
+                            alert('File type not supported. Please upload JPG, PNG or WEBP');
+                            e.target.value = '';
+                            return;
+                          }
                           const reader = new FileReader();
                           reader.onloadend = () => setCompanyData(prev => ({ ...prev, logo: reader.result as string }));
                           reader.readAsDataURL(file);
@@ -828,9 +906,21 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     type="text"
                     value={companyData.headquarters}
                     disabled={!isManager}
-                    onChange={(e) => setCompanyData(prev => ({ ...prev, headquarters: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    aria-invalid={!!companyErrors.headquarters}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCompanyData(prev => ({ ...prev, headquarters: val }));
+                      if (companyErrors.headquarters) {
+                        setCompanyErrors(prev => ({ ...prev, headquarters: val.length > 100 ? 'Headquarters is too long (max 100).' : undefined }));
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none disabled:bg-slate-100 disabled:cursor-not-allowed ${
+                      companyErrors.headquarters ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'
+                    }`}
                   />
+                  {companyErrors.headquarters && (
+                    <p className="mt-1 text-[10px] font-bold text-rose-600">{companyErrors.headquarters}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Size</label>
@@ -853,7 +943,7 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                   onClick={async () => {
                     if (!isManager) return; // HR Manager-only (FR-901, BR-09)
                     
-                    const errors: { name?: string; website?: string; description?: string } = {};
+                    const errors: { name?: string; website?: string; description?: string; headquarters?: string } = {};
                     if (companyData.name && companyData.name.length > 100) {
                       errors.name = 'Company name is too long (max 100).';
                     }
@@ -862,6 +952,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     }
                     if (companyData.description && companyData.description.length > 500) {
                       errors.description = 'Description is too long (max 500).';
+                    }
+                    if (companyData.headquarters && companyData.headquarters.length > 100) {
+                      errors.headquarters = 'Headquarters is too long (max 100).';
                     }
 
                     if (Object.keys(errors).length > 0) {
@@ -881,7 +974,9 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                       const data = error?.response?.data;
                       const msg = typeof data === 'string' ? data : (data?.message || data?.error);
                       if (msg) {
-                        if (msg.toLowerCase().includes('name')) {
+                        if (msg.toLowerCase().includes('headquarters')) {
+                          setCompanyErrors(prev => ({ ...prev, headquarters: msg }));
+                        } else if (msg.toLowerCase().includes('name')) {
                           setCompanyErrors(prev => ({ ...prev, name: msg }));
                         } else if (msg.toLowerCase().includes('url') || msg.toLowerCase().includes('website')) {
                           setCompanyErrors(prev => ({ ...prev, website: msg }));

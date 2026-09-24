@@ -109,6 +109,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   const canDeleteDirectly = userRole === 'MANAGER' || userRole === 'ADMIN';
   const [deletionTarget, setDeletionTarget] = useState<{ id: string; name: string } | null>(null);
   const [deletionReason, setDeletionReason] = useState('');
+  const [deletionReasonError, setDeletionReasonError] = useState('');
   const [submittingDeletion, setSubmittingDeletion] = useState(false);
 
   // ============== EFFECTS ==============
@@ -344,6 +345,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     if (!canDeleteDirectly) {
       setDeletionTarget({ id, name });
       setDeletionReason('');
+      setDeletionReasonError('');
       return;
     }
     if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
@@ -362,21 +364,29 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
 
   const submitDeletionRequest = async () => {
     if (!deletionTarget) return;
-    if (deletionReason.trim().length < 5) {
-      alert('Please provide a reason of at least 5 characters.');
+    const trimmed = deletionReason.trim();
+    if (!trimmed || trimmed.length < 5) {
+      setDeletionReasonError('Please provide a reason of at least 5 characters.');
       return;
     }
+    if (trimmed.length > 500) {
+      setDeletionReasonError('Reason must be at most 500 characters.');
+      return;
+    }
+    setDeletionReasonError('');
     setSubmittingDeletion(true);
     try {
       await api.post('/deletion-requests', {
         candidateId: deletionTarget.id,
-        reason: deletionReason.trim(),
+        reason: trimmed,
       });
       alert(`Deletion request submitted for ${deletionTarget.name}. A Manager will review it.`);
       setDeletionTarget(null);
       setDeletionReason('');
+      setDeletionReasonError('');
     } catch (error: any) {
-      alert(`Could not submit request: ${error?.response?.data?.message || 'Unknown error'}`);
+      const msg = error?.response?.data?.message || 'Unknown error';
+      setDeletionReasonError(msg);
     } finally {
       setSubmittingDeletion(false);
     }
@@ -1177,21 +1187,28 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
               </span>
               <textarea
                 value={deletionReason}
-                onChange={e => setDeletionReason(e.target.value)}
+                aria-invalid={!!deletionReasonError}
+                onChange={e => {
+                  setDeletionReason(e.target.value);
+                  if (deletionReasonError) setDeletionReasonError('');
+                }}
                 rows={4}
-                placeholder="e.g. Candidate withdrew their application via email."
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg outline-none text-[12px] font-medium focus:bg-white focus:ring-1 focus:ring-blue-500 resize-none"
+                placeholder="e.g. Candidate withdrew their application via email (min 5, max 500 chars)."
+                className={`w-full px-3 py-2 bg-slate-50 border rounded-lg outline-none text-[12px] font-medium focus:bg-white resize-none ${deletionReasonError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'}`}
               />
+              {deletionReasonError && (
+                <p className="text-[10px] font-bold text-rose-600 mt-1">{deletionReasonError}</p>
+              )}
             </label>
             <div className="flex justify-end gap-2 mt-5">
               <button
-                onClick={() => { setDeletionTarget(null); setDeletionReason(''); }}
+                onClick={() => { setDeletionTarget(null); setDeletionReason(''); setDeletionReasonError(''); }}
                 disabled={submittingDeletion}
                 className="px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-100 rounded-lg"
               >Cancel</button>
               <button
                 onClick={submitDeletionRequest}
-                disabled={submittingDeletion || deletionReason.trim().length < 5}
+                disabled={submittingDeletion}
                 className="px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 rounded-lg"
               >{submittingDeletion ? 'Submitting…' : 'Submit Request'}</button>
             </div>

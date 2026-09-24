@@ -4,6 +4,7 @@ import api from '../api';
 import { Check, X as XIcon, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import { useSearchHighlight } from '../hooks/useSearchHighlight';
 import { useSearch } from '../contexts/SearchContext';
+import { canManage } from '../roles';
 
 type DeletionRequest = {
   id: string;
@@ -53,7 +54,7 @@ const DeletionRequests: React.FC = () => {
       return (u.role || '').toString().toUpperCase();
     } catch { return ''; }
   }, []);
-  const canReview = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const canReview = canManage(userRole);
 
   useEffect(() => {
     if (!canReview) {

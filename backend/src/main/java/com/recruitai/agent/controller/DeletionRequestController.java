@@ -42,7 +42,7 @@ public class DeletionRequestController {
     }
 
     private boolean isManager(String role) {
-        return "MANAGER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+        return "MANAGER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role) || "HR".equalsIgnoreCase(role) || "HR_MANAGER".equalsIgnoreCase(role);
     }
 
     @PostMapping

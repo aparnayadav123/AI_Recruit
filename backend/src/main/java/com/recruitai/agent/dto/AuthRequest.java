@@ -6,6 +6,7 @@ public class AuthRequest {
 
     private String password;
     private String provider;
+    private String role;
 
     public String getEmail() {
         return email;
@@ -37,5 +38,13 @@ public class AuthRequest {
 
     public void setProvider(String provider) {
         this.provider = provider;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }
