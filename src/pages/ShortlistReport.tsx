@@ -294,11 +294,6 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
   const filteredData = (() => {
     let data = shortlistData;
 
-    // Apply recommended filter
-    if (recommendedFilter) {
-      data = { [recommendedFilter]: data[recommendedFilter] || [] };
-    }
-
     // Apply search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
