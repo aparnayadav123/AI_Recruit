@@ -23,7 +23,11 @@ if (Test-Path $mavenBin) {
     $env:PATH = "$mavenBin;" + $env:PATH
 }
 if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
-    $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
+    if (Test-Path "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot\bin\java.exe") {
+        $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+    } elseif (Test-Path "C:\Users\krish\.gemini\jdk\jdk-17.0.13+11\bin\java.exe") {
+        $env:JAVA_HOME = "C:\Users\krish\.gemini\jdk\jdk-17.0.13+11"
+    }
 }
 
 Write-Host "Starting Backend on Port 8089..."

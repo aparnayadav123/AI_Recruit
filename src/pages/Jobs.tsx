@@ -379,7 +379,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     industry: '',
     benefits: [],
     deadline: '',
-    status: 'Hold',
+    status: 'Open',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
@@ -497,11 +497,11 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
 
   // Accepts Indian rupee formats with the currency prefix/suffix OPTIONAL, since the
   // input already shows a ₹ icon: "500000-100000", "₹50,000 - ₹1,00,000", "Rs 5L - 10L",
-  // "50000-100000 INR", "₹5L - ₹10L", "5L to 10L". Rejects "$80k" / non-numeric text.
-  const SALARY_RUPEE_PATTERN = /^\s*(?:₹|rs\.?|inr)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*\s*(?:[-–—to]+\s*(?:₹|rs\.?|inr)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*)?\s*(?:inr|lpa|per\s+annum|p\.a\.?)?\s*$/i;
+  // "50000-100000 INR", "₹5L - ₹10L", "5L to 10L", "$80k - $120k". Rejects invalid text.
+  const SALARY_RUPEE_PATTERN = /^\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*\s*(?:[-–—to]+\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*)?\s*(?:inr|lpa|per\s+annum|p\.a\.?|usd)?\s*$/i;
 
-  // Returns the error map; caller decides whether to show inline or as a popup.
-  const computeErrors = (): Partial<Record<keyof JobFormData, string>> => {
+  // Returns the error map; caller decides whether to show inline or as a banner.
+  const computeErrors = (overrideSkills?: string[]): Partial<Record<keyof JobFormData, string>> => {
     const newErrors: Partial<Record<keyof JobFormData, string>> = {};
     // Mandatory fields per spec: Title, Company, Department, Industry, Description, Location
     // (Location is optional when Remote is checked).
@@ -532,18 +532,19 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
 
     // Required Skills mandatory per BUG-034 / spec:
     // "At least one required skill must be added"
-    if (!formData.skills || formData.skills.length === 0) {
+    const currentSkills = overrideSkills !== undefined ? overrideSkills : formData.skills;
+    if (!currentSkills || currentSkills.length === 0) {
       newErrors.skills = 'At least one required skill must be added';
     }
 
     // Application Deadline mandatory per BUG-035 / spec:
     // "Application deadline is required / is invalid / must be today or in the future"
+    const todayStr = new Date().toISOString().split('T')[0];
     if (!formData.deadline) {
       newErrors.deadline = 'Application deadline is required / is invalid / must be today or in the future';
     } else {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const dl = new Date(formData.deadline);
-      if (isNaN(dl.getTime()) || dl < today) {
+      const dlStr = formData.deadline.split('T')[0];
+      if (dlStr < todayStr) {
         newErrors.deadline = 'Application deadline is required / is invalid / must be today or in the future';
       }
     }
@@ -669,30 +670,45 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newErrors = computeErrors();
+    // If the user typed a skill into the input but did not click "Add Skill", auto-include it
+    let currentSkills = [...formData.skills];
+    if (currentSkill.trim()) {
+      const skillName = currentSkill.trim();
+      if (!currentSkills.some(s => s.split(':')[0].toLowerCase() === skillName.toLowerCase())) {
+        const newPair = `${skillName}:${currentWeight}`;
+        currentSkills.push(newPair);
+        setFormData(prev => ({ ...prev, skills: currentSkills }));
+        setCurrentSkill('');
+      }
+    }
+
+    const newErrors = computeErrors(currentSkills);
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
-      // Surface every problem at once so the user doesn't fix-and-resubmit one at a time.
-      const lines = Object.values(newErrors).filter(Boolean) as string[];
-      alert(`Please fix the following before saving:\n\n• ${lines.join('\n• ')}`);
       return;
     }
 
     try {
       const payload = {
         ...formData,
-        skills: formData.skills.map(s => {
-          const [name, weight] = s.split(':');
-          return { name, weight: parseInt(weight) };
+        skills: currentSkills.map(s => {
+          const parts = s.split(':');
+          const name = parts[0].trim();
+          const weight = parts[1] ? (parseInt(parts[1], 10) || 50) : 50;
+          return { name, weight };
         }),
         type: formData.employmentType,
+        location: formData.remote && !formData.location ? 'Remote' : formData.location,
       };
 
       console.log('Sending job data:', payload);
       if (editJobId) {
         await api.put(`${API_URL}/${editJobId}`, payload);
       } else {
-        await api.post(API_URL, payload);
+        const res = await api.post(API_URL, payload);
+        if (res.data) {
+          setJobs(prev => [res.data, ...prev.filter(j => j.id !== res.data.id)]);
+        }
       }
 
       fetchJobs();
@@ -712,14 +728,18 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
         industry: '',
         benefits: [],
         deadline: '',
-        status: 'Hold',
+        status: 'Open',
       });
-
+      setErrors({});
       setIsModalOpen(false);
     } catch (error: any) {
       console.error('Error saving job:', error);
-      const message = error.response?.data?.message || error.message || 'Unknown error';
-      alert(`Failed to save job: ${message}`);
+      let message = error.response?.data?.message || error.message || 'Unknown error';
+      if (error.response?.data?.details && typeof error.response.data.details === 'object') {
+        const detailLines = Object.values(error.response.data.details);
+        message = detailLines.join('\n');
+      }
+      alert(`Failed to save job:\n${message}`);
     }
   };
 
@@ -746,11 +766,12 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
         <button
           onClick={() => {
             setEditJobId(null);
+            setErrors({});
             setFormData({
               title: '', description: '', company: '', department: '', location: '',
               employmentType: 'Full-time', remote: false, salary: '',
               experienceLevel: 'Mid Level', skills: [], education: [], industry: '',
-              benefits: [], deadline: '', status: 'Hold',
+              benefits: [], deadline: '', status: 'Open',
             });
             setIsModalOpen(true);
           }}
@@ -1030,6 +1051,11 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-5">
+              {Object.keys(errors).length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs font-semibold">
+                  Please fix the highlighted fields below to create the job.
+                </div>
+              )}
               {/* Basic Information */}
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -1236,7 +1262,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                         type="text"
                         value={currentSkill}
                         onChange={(e) => setCurrentSkill(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         placeholder="Skill (e.g. React)"
                       />
@@ -1400,8 +1426,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       onChange={(e) => handleInputChange('status', e.target.value as 'Open' | 'Hold')}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value="Hold">Hold</option>
                       <option value="Open">Open</option>
+                      <option value="Hold">Hold</option>
                     </select>
                   </div>
                 </div>
