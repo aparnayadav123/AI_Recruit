@@ -97,6 +97,9 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   // Inline (field-level) validation errors for the Add/Edit Candidate form.
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [experienceError, setExperienceError] = useState('');
+  const [noticeError, setNoticeError] = useState('');
 
   // Role-gated UI: HR users can only *request* a deletion (Manager approves);
   // Manager/Admin can delete directly.
@@ -393,26 +396,64 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   // Keep the UI limits in step with the server (@Size on Candidate/CandidateDto).
-  // Full Name accepts up to 255 chars and rejects 256 (FR-202 / CDB-004).
-  const NAME_MAX = 255;
+  // Full Name accepts up to 100 chars and rejects digits/special characters (BUG-036 / TC-054).
+  const NAME_MAX = 100;
   const EMAIL_MAX = 254;
 
   const handleSaveCandidate = async () => {
     const name = (formData.name || '').trim();
     const email = (formData.email || '').trim();
+    const phone = (formData.phone || '').trim();
 
     // Field-level validation — shown inline under each input (not a blocking alert).
     let nameErr = '';
-    if (!name) nameErr = 'Name is required.';
-    else if (name.length > NAME_MAX) nameErr = `Name must not exceed ${NAME_MAX} characters (currently ${name.length}).`;
+    if (!name) {
+      nameErr = 'Name is required.';
+    } else if (name.length > NAME_MAX || !/^[A-Za-z\s.'-]+$/.test(name)) {
+      nameErr = 'Name is required. / Name must not exceed 100 characters';
+    }
 
     let emailErr = '';
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) emailErr = 'A valid email is required.';
-    else if (email.length > EMAIL_MAX) emailErr = `Email must not exceed ${EMAIL_MAX} characters.`;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailErr = 'A valid email is required.';
+    } else if (email.length > EMAIL_MAX) {
+      emailErr = `Email must not exceed ${EMAIL_MAX} characters.`;
+    }
+
+    // Phone validation (BUG-037, BUG-038, BUG-039 / TC-061, TC-062, TC-063)
+    let phoneErr = '';
+    if (phone) {
+      const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
+      const digitsOnly = phone.replace(/\D/g, '');
+      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+        phoneErr = 'Enter a valid phone number (10-15 digits).';
+      }
+    }
+
+    // Experience validation (BUG-040 / TC-068)
+    let expErr = '';
+    const exp = formData.experience !== undefined && formData.experience !== null && (formData.experience as any) !== ''
+      ? Number(formData.experience)
+      : null;
+    if (exp !== null && (isNaN(exp) || exp < 0 || exp > 60)) {
+      expErr = 'Experience must be between 0 and 60.';
+    }
+
+    // Notice period validation (BUG-041 / TC-075)
+    let noticeErr = '';
+    const notice = formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod as any) !== ''
+      ? Number(formData.noticePeriod)
+      : null;
+    if (notice !== null && (isNaN(notice) || notice < 0 || notice > 365)) {
+      noticeErr = 'Notice must be between 0 and 365 days.';
+    }
 
     setNameError(nameErr);
     setEmailError(emailErr);
-    if (nameErr || emailErr) return;
+    setPhoneError(phoneErr);
+    setExperienceError(expErr);
+    setNoticeError(noticeErr);
+    if (nameErr || emailErr || phoneErr || expErr || noticeErr) return;
     try {
       const userStr = localStorage.getItem('user');
       let uploaderName = 'System';
@@ -628,6 +669,9 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                 setFormData({ name: '', email: '', role: '', experience: 0, skills: [], status: 'New' });
                 setNameError('');
                 setEmailError('');
+                setPhoneError('');
+                setExperienceError('');
+                setNoticeError('');
                 setIsCandidateModalOpen(true);
               }}
               className="flex items-center gap-1.5 bg-blue-600 px-4 py-2 rounded-lg shadow-lg shadow-blue-100 text-[11px] font-bold text-white hover:bg-blue-700 transition active:scale-95"
@@ -888,6 +932,9 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                               setFormData({ ...candidate });
                               setNameError('');
                               setEmailError('');
+                              setPhoneError('');
+                              setExperienceError('');
+                              setNoticeError('');
                               setIsCandidateModalOpen(true);
                             }}
                             className="p-1 text-slate-400 hover:text-blue-600 transition"
@@ -1011,10 +1058,12 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={formData.phone || ''}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    aria-invalid={!!phoneError}
+                    onChange={e => { setFormData({ ...formData, phone: e.target.value }); if (phoneError) setPhoneError(''); }}
                     placeholder="+81 00-0000-0000"
-                    className={inputClass}
+                    className={`${inputClass} ${phoneError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
+                  {phoneError && <p className="mt-1 text-[10px] font-bold text-rose-600">{phoneError}</p>}
                 </Field>
                 <Field label="Locality / Country">
                   <input
@@ -1054,9 +1103,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     type="number"
                     min={0}
                     value={formData.experience ?? 0}
-                    onChange={e => setFormData({ ...formData, experience: Number(e.target.value) })}
-                    className={inputClass}
+                    aria-invalid={!!experienceError}
+                    onChange={e => { setFormData({ ...formData, experience: Number(e.target.value) }); if (experienceError) setExperienceError(''); }}
+                    className={`${inputClass} ${experienceError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
+                  {experienceError && <p className="mt-1 text-[10px] font-bold text-rose-600">{experienceError}</p>}
                 </Field>
                 <Field label="Postal Code">
                   <input
@@ -1133,9 +1184,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     type="number"
                     min={0}
                     value={formData.noticePeriod ?? 0}
-                    onChange={e => setFormData({ ...formData, noticePeriod: parseInt(e.target.value) || 0 })}
-                    className={inputClass}
+                    aria-invalid={!!noticeError}
+                    onChange={e => { setFormData({ ...formData, noticePeriod: parseInt(e.target.value) || 0 }); if (noticeError) setNoticeError(''); }}
+                    className={`${inputClass} ${noticeError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
+                  {noticeError && <p className="mt-1 text-[10px] font-bold text-rose-600">{noticeError}</p>}
                 </Field>
               </div>
 

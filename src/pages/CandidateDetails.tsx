@@ -2141,10 +2141,23 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const trimmedName = (formData.name || '').trim();
+        if (!trimmedName || trimmedName.length > 100 || !/^[A-Za-z\s.'-]+$/.test(trimmedName)) {
+            alert("Name is required. / Name must not exceed 100 characters");
+            return;
+        }
+        if (formData.experience !== undefined && formData.experience !== null && (formData.experience < 0 || formData.experience > 60)) {
+            alert("Experience must be between 0 and 60.");
+            return;
+        }
+        if (formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod < 0 || formData.noticePeriod > 365)) {
+            alert("Notice must be between 0 and 365 days.");
+            return;
+        }
         setIsSaving(true);
         try {
-            await api.put(`/candidates/${candidate.id}`, { ...candidate, ...formData });
-            onUpdate(formData);
+            await api.put(`/candidates/${candidate.id}`, { ...candidate, ...formData, name: trimmedName });
+            onUpdate({ ...formData, name: trimmedName });
         } catch (error) {
             console.error("Update failed", error);
             alert("Failed to update candidate profile.");

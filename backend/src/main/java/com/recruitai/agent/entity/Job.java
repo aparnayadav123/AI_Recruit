@@ -26,8 +26,8 @@ public class Job {
     @Field("title")
     private String title;
 
-    @NotBlank(message = "Description is required / at least 30 / at most 5000 characters")
-    @Size(min = 30, max = 5000, message = "Description is required / at least 30 / at most 5000 characters")
+    @NotBlank(message = "Job Description is required / at least 30 / at most 5000 characters")
+    @Size(min = 30, max = 5000, message = "Job Description is required / at least 30 / at most 5000 characters")
     @Field("description")
     private String description;
 
@@ -36,7 +36,7 @@ public class Job {
     @Field("company")
     private String company;
 
-    @Size(max = 100, message = "Location must not exceed 100 characters")
+    @Size(max = 80, message = "Location is required / at least 2 / at most 80 characters")
     @Field("location")
     private String location;
 

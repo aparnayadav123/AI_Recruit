@@ -341,7 +341,7 @@ const FIELD_RULES = {
   company:     { min: 2,  max: 80,  label: 'Company' },
   department:  { min: 2,  max: 60,  label: 'Department' },
   industry:    { min: 2,  max: 60,  label: 'Industry' },
-  description: { min: 30, max: 5000, label: 'Description' },
+  description: { min: 30, max: 5000, label: 'Job Description' },
   location:    { min: 2,  max: 80,  label: 'Location' },
 } as const;
 
@@ -523,21 +523,28 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
       }
     });
 
-    // Salary optional — validate the rupee format only when provided.
-    if (trim(formData.salary) && !SALARY_RUPEE_PATTERN.test(trim(formData.salary))) {
-      newErrors.salary = 'Salary must be in rupees (e.g. ₹50,000 - ₹1,00,000 or ₹5L - ₹10L)';
+    // Salary mandatory per BUG-033 / spec:
+    // "Salary is required (in rupees...) / Salary must be in rupees (e.g. ₹5L - ₹10L)"
+    const salaryVal = trim(formData.salary);
+    if (!salaryVal || !SALARY_RUPEE_PATTERN.test(salaryVal)) {
+      newErrors.salary = 'Salary is required (in rupees...) / Salary must be in rupees (e.g. ₹5L - ₹10L)';
     }
 
-    // Skills optional (FR-101) — no minimum.
+    // Required Skills mandatory per BUG-034 / spec:
+    // "At least one required skill must be added"
+    if (!formData.skills || formData.skills.length === 0) {
+      newErrors.skills = 'At least one required skill must be added';
+    }
 
-    // Deadline optional — validate it's a valid, non-past date only when provided.
-    if (formData.deadline) {
+    // Application Deadline mandatory per BUG-035 / spec:
+    // "Application deadline is required / is invalid / must be today or in the future"
+    if (!formData.deadline) {
+      newErrors.deadline = 'Application deadline is required / is invalid / must be today or in the future';
+    } else {
       const today = new Date(); today.setHours(0,0,0,0);
       const dl = new Date(formData.deadline);
-      if (isNaN(dl.getTime())) {
-        newErrors.deadline = 'Application deadline is invalid';
-      } else if (dl < today) {
-        newErrors.deadline = 'Application deadline must be today or in the future';
+      if (isNaN(dl.getTime()) || dl < today) {
+        newErrors.deadline = 'Application deadline is required / is invalid / must be today or in the future';
       }
     }
 
@@ -558,7 +565,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
 
     setFormData({
       title: job.title,
-      description: job.description,
+      description: job.description || '',
       company: job.company,
       department: job.department,
       location: job.location,
@@ -1097,19 +1104,25 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     Job Description <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    value={formData.description}
+                    id="job-description"
+                    name="description"
+                    value={formData.description || ''}
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     rows={4}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.description ? 'border-red-500' : 'border-gray-300'
                       }`}
                     placeholder={`Describe the role, responsibilities, and requirements (min ${FIELD_RULES.description.min} characters)...`}
                   />
-                  <div className="flex justify-between mt-1">
+                  <div className="flex justify-between items-center mt-1">
                     {errors.description
                       ? <p className="text-red-500 text-xs">{errors.description}</p>
                       : <p className="text-gray-400 text-xs">Min {FIELD_RULES.description.min} characters</p>}
-                    <p className={`text-xs ${formData.description.length < FIELD_RULES.description.min ? 'text-gray-400' : 'text-emerald-600'}`}>
-                      {formData.description.length} / {FIELD_RULES.description.max}
+                    <p
+                      id="job-description-counter"
+                      data-testid="job-description-counter"
+                      className={`text-xs font-semibold ${(formData.description || '').length < FIELD_RULES.description.min ? 'text-gray-500' : 'text-emerald-600'}`}
+                    >
+                      {(formData.description || '').length} / {FIELD_RULES.description.max} characters
                     </p>
                   </div>
                 </div>
@@ -1132,7 +1145,6 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       value={formData.location}
                       onChange={(e) => handleInputChange('location', e.target.value)}
                       disabled={formData.remote}
-                      maxLength={FIELD_RULES.location.max}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.location ? 'border-red-500' : 'border-gray-300'
                         } ${formData.remote ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       placeholder="e.g., Bengaluru, Karnataka"
