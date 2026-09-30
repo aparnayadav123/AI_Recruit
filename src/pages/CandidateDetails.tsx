@@ -143,6 +143,8 @@ const CandidateDetails: React.FC = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [manualReason, setManualReason] = useState('');
+    const [reasonMode, setReasonMode] = useState<'select' | 'manual'>('select');
     const [isRejecting, setIsRejecting] = useState(false);
     const [isHiring, setIsHiring] = useState(false);
     // Candidate notes (Call Discussion / Face-to-Face Meeting)
@@ -352,21 +354,39 @@ const CandidateDetails: React.FC = () => {
         'Communication Issue', 'Salary Expectation High', 'Position Closed',
         'Candidate Not Interested', 'Other',
     ];
-    // Always open the Reject dialog with NO reason pre-selected — the reviewer must
-    // actively pick one. Prevents an accidental default (e.g. "Experience Less") from
-    // being applied just by clicking Confirm.
+    // Reset state whenever the modal opens
     useEffect(() => {
-        if (isRejectModalOpen) setRejectReason('');
+        if (isRejectModalOpen) {
+            setRejectReason('');
+            setManualReason('');
+            setReasonMode('select');
+        }
     }, [isRejectModalOpen]);
+
+    const getFinalRejectReason = (): string => {
+        if (reasonMode === 'manual') {
+            return manualReason.trim();
+        }
+        if (rejectReason === 'Other') {
+            return manualReason.trim();
+        }
+        return rejectReason.trim();
+    };
 
     const handleReject = async () => {
         if (!id) return;
-        if (!rejectReason) { alert('Please select a rejection reason before confirming.'); return; }
+        const reasonToSubmit = getFinalRejectReason();
+        if (!reasonToSubmit) {
+            alert(reasonMode === 'manual' || rejectReason === 'Other'
+                ? 'Please enter the rejection reason before confirming.'
+                : 'Please select a rejection reason before confirming.');
+            return;
+        }
         setIsRejecting(true);
         try {
             let by = 'HR';
             try { const u = JSON.parse(localStorage.getItem('user') || '{}'); by = u?.name || u?.email || 'HR'; } catch { /* ignore */ }
-            await api.post(`/candidates/${id}/reject`, { reason: rejectReason, rejectedBy: by });
+            await api.post(`/candidates/${id}/reject`, { reason: reasonToSubmit, rejectedBy: by });
             await fetchCandidate();
             setIsRejectModalOpen(false);
         } catch (e: any) {
@@ -1314,7 +1334,7 @@ const CandidateDetails: React.FC = () => {
             {/* Reject-with-reason Modal */}
             {isRejectModalOpen && candidate && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={() => !isRejecting && setIsRejectModalOpen(false)}>
-                    <div className="w-[420px] rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                    <div className="w-[440px] rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
                         <div className="mb-4 flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600"><XCircle size={20} /></div>
                             <div>
@@ -1322,20 +1342,118 @@ const CandidateDetails: React.FC = () => {
                                 <p className="text-[12px] text-slate-500">Recorded in the candidate's history &amp; audit trail.</p>
                             </div>
                         </div>
-                        <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Rejection reason</label>
-                        <select
-                            value={rejectReason}
-                            onChange={e => setRejectReason(e.target.value)}
-                            className="mt-1 mb-5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
-                        >
-                            <option value="" disabled>Select a reason…</option>
-                            {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+
+                        {/* Mode Switch: Select Preset vs Enter Manually */}
+                        <div className="mb-3 flex items-center justify-between">
+                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                                Rejection Reason <span className="text-rose-500">*</span>
+                            </label>
+                            <div className="flex items-center rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
+                                <button
+                                    type="button"
+                                    onClick={() => setReasonMode('select')}
+                                    className={`rounded-md px-2.5 py-1 transition-all ${reasonMode === 'select' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Select Preset
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setReasonMode('manual');
+                                        if (!manualReason && rejectReason && rejectReason !== 'Other') {
+                                            setManualReason(rejectReason);
+                                        }
+                                    }}
+                                    className={`rounded-md px-2.5 py-1 transition-all ${reasonMode === 'manual' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Enter Manually
+                                </button>
+                            </div>
+                        </div>
+
+                        {reasonMode === 'select' ? (
+                            <div className="space-y-3 mb-5">
+                                <select
+                                    value={rejectReason}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setRejectReason(val);
+                                        if (val === 'Other' && !manualReason) {
+                                            setManualReason('');
+                                        }
+                                    }}
+                                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none"
+                                >
+                                    <option value="" disabled>Select a reason…</option>
+                                    {REJECTION_REASONS.map(r => (
+                                        <option key={r} value={r}>
+                                            {r === 'Other' ? 'Other (Enter manually)' : r}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                {rejectReason === 'Other' && (
+                                    <div className="space-y-1 animate-in fade-in duration-200">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-semibold text-slate-600">
+                                                Specify reason manually <span className="text-rose-500">*</span>
+                                            </label>
+                                            <span className="text-[10px] text-slate-400">{manualReason.length}/300</span>
+                                        </div>
+                                        <textarea
+                                            rows={3}
+                                            value={manualReason}
+                                            maxLength={300}
+                                            onChange={e => setManualReason(e.target.value)}
+                                            placeholder="Type custom rejection reason (e.g. Compensation above budget, candidate declined relocation)..."
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none resize-none"
+                                            autoFocus
+                                        />
+                                    </div>
+                                )}
+
+                                {rejectReason && rejectReason !== 'Other' && (
+                                    <p className="text-[11px] text-slate-500">
+                                        Want to customize this reason?{' '}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setReasonMode('manual');
+                                                setManualReason(rejectReason);
+                                            }}
+                                            className="font-bold text-blue-600 hover:text-blue-700 underline"
+                                        >
+                                            Switch to manual entry
+                                        </button>
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5 mb-5 animate-in fade-in duration-200">
+                                <textarea
+                                    rows={4}
+                                    value={manualReason}
+                                    maxLength={300}
+                                    onChange={e => setManualReason(e.target.value)}
+                                    placeholder="Enter rejection reason manually (e.g. Notice period exceeds 60 days, candidate accepted another offer, failed coding challenge)..."
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none resize-none"
+                                    autoFocus
+                                />
+                                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                    <span>Recorded directly into candidate audit history</span>
+                                    <span>{manualReason.length}/300</span>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setIsRejectModalOpen(false)} disabled={isRejecting}
                                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                            <button onClick={handleReject} disabled={isRejecting || !rejectReason}
-                                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
+                            <button
+                                onClick={handleReject}
+                                disabled={isRejecting || !getFinalRejectReason()}
+                                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                            >
                                 {isRejecting ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
                                 Confirm Reject
                             </button>
