@@ -143,6 +143,8 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(e.target.files);
+    } else {
+      processFiles(null);
     }
   };
 

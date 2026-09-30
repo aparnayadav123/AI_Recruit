@@ -2158,21 +2158,27 @@ const MeetingSchedulerModal: React.FC<{
                                 const todayStr = new Date().toISOString().split('T')[0];
                                 let hasError = false;
 
-                                if (!startDate) {
-                                    setDateError("Please select a date.");
-                                    hasError = true;
-                                } else if (startDate < todayStr) {
-                                    setDateError("Interview date can't be in the past.");
+                                if (!startDate && !startTime) {
+                                    setDateError("Please select a date. / Please select both date and time");
+                                    setTimeError("Time needs to be selected. / Please select both date and time");
                                     hasError = true;
                                 } else {
-                                    setDateError("");
-                                }
+                                    if (!startDate) {
+                                        setDateError("Please select a date.");
+                                        hasError = true;
+                                    } else if (startDate < todayStr) {
+                                        setDateError("Interview date can't be in the past.");
+                                        hasError = true;
+                                    } else {
+                                        setDateError("");
+                                    }
 
-                                if (!startTime) {
-                                    setTimeError("Time needs to be selected.");
-                                    hasError = true;
-                                } else {
-                                    setTimeError("");
+                                    if (!startTime) {
+                                        setTimeError("Time needs to be selected. / Please select both date and time");
+                                        hasError = true;
+                                    } else {
+                                        setTimeError("");
+                                    }
                                 }
 
                                 if (hasError) return;
