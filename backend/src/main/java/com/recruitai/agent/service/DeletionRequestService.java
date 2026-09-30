@@ -34,11 +34,8 @@ public class DeletionRequestService {
 
     public DeletionRequest createRequest(String candidateId, String reason,
                                           String requestedByEmail, String requestedByName) {
-        if (reason == null || reason.trim().length() < 5) {
+        if (reason == null || reason.trim().length() < 5 || reason.trim().length() > 500) {
             throw new IllegalArgumentException("Please provide a reason of at least 5 characters.");
-        }
-        if (reason.trim().length() > 500) {
-            throw new IllegalArgumentException("Reason must be at most 500 characters.");
         }
         Candidate candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate", candidateId));

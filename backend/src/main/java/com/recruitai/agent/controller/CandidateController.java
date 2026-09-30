@@ -133,11 +133,23 @@ public class CandidateController {
     public ResponseEntity<?> createCandidate(@Valid @RequestBody CandidateDto candidateDto,
             org.springframework.validation.BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
+            String firstErrorMsg = bindingResult.getFieldErrors().isEmpty() ? "Validation failed" : bindingResult.getFieldErrors().get(0).getDefaultMessage();
             List<String> errors = bindingResult.getFieldErrors().stream()
                     .map(error -> error.getField() + ": " + error.getDefaultMessage())
                     .collect(Collectors.toList());
             log.error("Validation failed for candidate creation: {}", errors);
-            return ResponseEntity.badRequest().body(Map.of("message", "Validation failed", "errors", errors));
+            return ResponseEntity.badRequest().body(Map.of("message", firstErrorMsg != null ? firstErrorMsg : "Validation failed", "errors", errors));
+        }
+
+        if (candidateDto.getPhone() != null && !candidateDto.getPhone().isBlank()) {
+            String p = candidateDto.getPhone().trim();
+            String digits = p.replaceAll("\\D", "");
+            boolean hasInvalid = !p.matches("^[+]?[0-9\\s\\-()]+$");
+            if (hasInvalid || digits.length() < 10 || digits.length() > 15) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message", "Enter a valid phone number (10-15 digits).",
+                        "errors", List.of("phone: Enter a valid phone number (10-15 digits).")));
+            }
         }
 
         log.debug("Received request to create candidate: {}", candidateDto.getName());
@@ -236,9 +248,29 @@ public class CandidateController {
 
     // ---------------- UPDATE ----------------
     @PutMapping("/{id}")
-    public ResponseEntity<CandidateDto> updateCandidate(
+    public ResponseEntity<?> updateCandidate(
             @PathVariable String id,
-            @Valid @RequestBody CandidateDto candidateDto) {
+            @Valid @RequestBody CandidateDto candidateDto,
+            org.springframework.validation.BindingResult bindingResult) {
+
+        if (bindingResult.hasErrors()) {
+            String firstErrorMsg = bindingResult.getFieldErrors().isEmpty() ? "Validation failed" : bindingResult.getFieldErrors().get(0).getDefaultMessage();
+            List<String> errors = bindingResult.getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .collect(Collectors.toList());
+            return ResponseEntity.badRequest().body(Map.of("message", firstErrorMsg != null ? firstErrorMsg : "Validation failed", "errors", errors));
+        }
+
+        if (candidateDto.getPhone() != null && !candidateDto.getPhone().isBlank()) {
+            String p = candidateDto.getPhone().trim();
+            String digits = p.replaceAll("\\D", "");
+            boolean hasInvalid = !p.matches("^[+]?[0-9\\s\\-()]+$");
+            if (hasInvalid || digits.length() < 10 || digits.length() > 15) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message", "Enter a valid phone number (10-15 digits).",
+                        "errors", List.of("phone: Enter a valid phone number (10-15 digits).")));
+            }
+        }
 
         Candidate updatedCandidate = candidateService.updateCandidate(id, convertToEntity(candidateDto));
         return ResponseEntity.ok(convertToDto(updatedCandidate));

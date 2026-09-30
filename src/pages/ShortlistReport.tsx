@@ -150,19 +150,7 @@ const ShortlistReport: React.FC<ShortlistReportProps> = ({ searchQuery = '' }) =
 
   const submitInterview = async () => {
     if (!showInterviewModal.candidate) return;
-    if (!interviewData.date && !interviewData.time) {
-      setInterviewFormError("Please select both date and time");
-      setToast({ message: "Please select both date and time", type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    if (!interviewData.date) {
-      setInterviewFormError("Date is required");
-      setToast({ message: "Date is required", type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    if (!interviewData.time) {
+    if (!interviewData.date || !interviewData.time) {
       setInterviewFormError("Please select both date and time");
       setToast({ message: "Please select both date and time", type: 'error' });
       setTimeout(() => setToast(null), 3000);

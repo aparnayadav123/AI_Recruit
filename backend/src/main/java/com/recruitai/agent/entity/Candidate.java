@@ -6,6 +6,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import java.time.LocalDateTime;
 import java.util.List;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -22,6 +25,7 @@ public class Candidate {
 
     @NotBlank(message = "Name is required. / Name must not exceed 100 characters")
     @Size(max = 100, message = "Name is required. / Name must not exceed 100 characters")
+    @Pattern(regexp = "^[A-Za-z\\s.'-]+$", message = "Name is required. / Name must not exceed 100 characters")
     @Field("name")
     private String name;
 
@@ -39,6 +43,8 @@ public class Candidate {
     @Field("skills")
     private List<String> skills;
 
+    @Min(value = 0, message = "Experience must be between 0 and 60.")
+    @Max(value = 60, message = "Experience must be between 0 and 60.")
     @Field("experience")
     private Double experience;
 
@@ -129,6 +135,8 @@ public class Candidate {
     @Field("current_organization")
     private String currentOrganization;
 
+    @Min(value = 0, message = "Notice must be between 0 and 365 days.")
+    @Max(value = 365, message = "Notice must be between 0 and 365 days.")
     @Field("notice_period")
     private Integer noticePeriod;
 

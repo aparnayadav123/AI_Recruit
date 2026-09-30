@@ -344,36 +344,17 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   const handleDeleteCandidate = async (id: string, name: string) => {
-    // HR can't delete — show the request-deletion modal instead.
-    if (!canDeleteDirectly) {
-      setDeletionTarget({ id, name });
-      setDeletionReason('');
-      setDeletionReasonError('');
-      return;
-    }
-    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
-    const previousCandidates = [...candidates];
-    setCandidates(prev => prev.filter(c => c.id !== id));
-    setFilteredCandidates(prev => prev.filter(c => c.id !== id));
-    try {
-      await api.delete(`/candidates/${id}`);
-    } catch (error: any) {
-      console.error("Failed to delete candidate:", error);
-      alert(`Failed to delete candidate: ${error?.response?.data?.message || error?.response?.data?.error || 'Unknown error'}`);
-      setCandidates(previousCandidates);
-      setFilteredCandidates(previousCandidates);
-    }
+    // Show deletion request modal with reason input for all roles
+    setDeletionTarget({ id, name });
+    setDeletionReason('');
+    setDeletionReasonError('');
   };
 
   const submitDeletionRequest = async () => {
     if (!deletionTarget) return;
     const trimmed = deletionReason.trim();
-    if (!trimmed || trimmed.length < 5) {
+    if (!trimmed || trimmed.length < 5 || trimmed.length > 500) {
       setDeletionReasonError('Please provide a reason of at least 5 characters.');
-      return;
-    }
-    if (trimmed.length > 500) {
-      setDeletionReasonError('Reason must be at most 500 characters.');
       return;
     }
     setDeletionReasonError('');
@@ -383,7 +364,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
         candidateId: deletionTarget.id,
         reason: trimmed,
       });
-      alert(`Deletion request submitted for ${deletionTarget.name}. A Manager will review it.`);
+      alert(`Deletion request submitted for ${deletionTarget.name}.`);
       setDeletionTarget(null);
       setDeletionReason('');
       setDeletionReasonError('');
@@ -399,6 +380,44 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   // Full Name accepts up to 100 chars and rejects digits/special characters (BUG-036 / TC-054).
   const NAME_MAX = 100;
   const EMAIL_MAX = 254;
+
+  const handleNameBlur = () => {
+    const name = (formData.name || '').trim();
+    if (!name) {
+      setNameError('Name is required.');
+    } else if (name.length > NAME_MAX || !/^[A-Za-z\s.'-]+$/.test(name)) {
+      setNameError('Name is required. / Name must not exceed 100 characters');
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    const phone = (formData.phone || '').trim();
+    if (phone) {
+      const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
+      const digitsOnly = phone.replace(/\D/g, '');
+      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+        setPhoneError('Enter a valid phone number (10-15 digits).');
+      }
+    }
+  };
+
+  const handleExpBlur = () => {
+    const exp = formData.experience !== undefined && formData.experience !== null && (formData.experience as any) !== ''
+      ? Number(formData.experience)
+      : null;
+    if (exp !== null && (isNaN(exp) || exp < 0 || exp > 60)) {
+      setExperienceError('Experience must be between 0 and 60.');
+    }
+  };
+
+  const handleNoticeBlur = () => {
+    const notice = formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod as any) !== ''
+      ? Number(formData.noticePeriod)
+      : null;
+    if (notice !== null && (isNaN(notice) || notice < 0 || notice > 365)) {
+      setNoticeError('Notice must be between 0 and 365 days.');
+    }
+  };
 
   const handleSaveCandidate = async () => {
     const name = (formData.name || '').trim();
@@ -1035,6 +1054,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     value={formData.name || ''}
                     aria-invalid={!!nameError}
                     onChange={e => { setFormData({ ...formData, name: e.target.value }); if (nameError) setNameError(''); }}
+                    onBlur={handleNameBlur}
                     placeholder="e.g. John Doe"
                     className={`${inputClass} ${nameError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
@@ -1060,6 +1080,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     value={formData.phone || ''}
                     aria-invalid={!!phoneError}
                     onChange={e => { setFormData({ ...formData, phone: e.target.value }); if (phoneError) setPhoneError(''); }}
+                    onBlur={handlePhoneBlur}
                     placeholder="+81 00-0000-0000"
                     className={`${inputClass} ${phoneError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
@@ -1105,6 +1126,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     value={formData.experience ?? 0}
                     aria-invalid={!!experienceError}
                     onChange={e => { setFormData({ ...formData, experience: Number(e.target.value) }); if (experienceError) setExperienceError(''); }}
+                    onBlur={handleExpBlur}
                     className={`${inputClass} ${experienceError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
                   {experienceError && <p className="mt-1 text-[10px] font-bold text-rose-600">{experienceError}</p>}
@@ -1186,6 +1208,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                     value={formData.noticePeriod ?? 0}
                     aria-invalid={!!noticeError}
                     onChange={e => { setFormData({ ...formData, noticePeriod: parseInt(e.target.value) || 0 }); if (noticeError) setNoticeError(''); }}
+                    onBlur={handleNoticeBlur}
                     className={`${inputClass} ${noticeError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
                   {noticeError && <p className="mt-1 text-[10px] font-bold text-rose-600">{noticeError}</p>}
@@ -1236,9 +1259,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
             </div>
             <label className="block">
               <span className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">
-                Reason <span className="text-rose-500">*</span>
+                Deletion Request Reason <span className="text-rose-500">*</span>
               </span>
               <textarea
+                id="deletion-request-reason"
+                name="deletionReason"
                 value={deletionReason}
                 aria-invalid={!!deletionReasonError}
                 onChange={e => {

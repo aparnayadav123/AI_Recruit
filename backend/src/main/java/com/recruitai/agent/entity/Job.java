@@ -21,8 +21,8 @@ public class Job {
     @Id
     private String id; // Changed to String to match frontend ID generation or allow UUID
 
-    @NotBlank(message = "Job Title is required")
-    @Size(min = 3, max = 100, message = "Job Title must be at most 100 characters")
+    @NotBlank(message = "Job Title is required / at least 3 characters / at most 100 characters")
+    @Size(min = 3, max = 100, message = "Job Title is required / at least 3 characters / at most 100 characters")
     @Field("title")
     private String title;
 

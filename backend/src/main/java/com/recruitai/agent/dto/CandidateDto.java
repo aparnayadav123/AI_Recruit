@@ -3,6 +3,9 @@ package com.recruitai.agent.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 
 public class CandidateDto {
 
@@ -11,6 +14,7 @@ public class CandidateDto {
 
     @NotBlank(message = "Name is required. / Name must not exceed 100 characters")
     @Size(max = 100, message = "Name is required. / Name must not exceed 100 characters")
+    @Pattern(regexp = "^[A-Za-z\\s.'-]+$", message = "Name is required. / Name must not exceed 100 characters")
     private String name;
 
     @Email(message = "Email should be valid")
@@ -20,6 +24,9 @@ public class CandidateDto {
     private String role;
     private String phone;
     private java.util.List<String> skills;
+
+    @Min(value = 0, message = "Experience must be between 0 and 60.")
+    @Max(value = 60, message = "Experience must be between 0 and 60.")
     private Double experience;
     private Integer fitScore;
     private String resumeId;
@@ -40,6 +47,9 @@ public class CandidateDto {
     private String interviewRound;
     private String roundStatus;
     private String currentOrganization;
+
+    @Min(value = 0, message = "Notice must be between 0 and 365 days.")
+    @Max(value = 365, message = "Notice must be between 0 and 365 days.")
     private Integer noticePeriod;
     private String postalCode;
     private String currentEmploymentStatus;

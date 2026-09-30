@@ -23,13 +23,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
+        String firstErrorMsg = null;
+        for (org.springframework.validation.ObjectError error : ex.getBindingResult().getAllErrors()) {
+            String fieldName = error instanceof FieldError ? ((FieldError) error).getField() : error.getObjectName();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
-        });
+            if (firstErrorMsg == null) {
+                firstErrorMsg = errorMessage;
+            }
+        }
         logger.warn("Validation failed: {}", errors);
-        return new ResponseEntity<>(createErrorResponse("Validation Failed", errors), HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(createErrorResponse(firstErrorMsg != null ? firstErrorMsg : "Validation Failed", errors), HttpStatus.BAD_REQUEST);
     }
 
     // Handle Resource Not Found (if custom exception exists, otherwise general

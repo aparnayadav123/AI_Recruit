@@ -585,17 +585,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     } catch (error: any) {
                       // Surface a server-side rejection at the field.
                       const data = error?.response?.data;
-                      const msg = typeof data === 'string' ? data : data?.message;
-                      if (error?.response?.status === 400 || error?.response?.status === 409) {
-                        if (msg && msg.toLowerCase().includes('email')) {
-                          setEmailError(msg);
-                        } else if (msg && (msg.toLowerCase().includes('first name') || msg.toLowerCase().includes('name'))) {
-                          setFirstNameError(msg);
-                        } else {
-                          setEmailError(msg || 'Please enter a valid email address.');
-                        }
+                      const msg = typeof data === 'string' ? data : (data?.message || data?.details);
+                      if (msg && msg.toLowerCase().includes('email')) {
+                        setEmailError(msg);
+                      } else if (msg && (msg.toLowerCase().includes('first name') || msg.toLowerCase().includes('name'))) {
+                        setFirstNameError(msg);
                       } else {
-                        console.error('Save failed', error);
+                        setEmailError(msg || 'Email already in use');
                       }
                     } finally {
                       setIsSaving(false);

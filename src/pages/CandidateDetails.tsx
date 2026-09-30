@@ -2092,7 +2092,11 @@ const MeetingSchedulerModal: React.FC<{
                             disabled={isSubmitting}
                             onClick={() => {
                                 const todayStr = new Date().toISOString().split('T')[0];
-                                if (!startDate || startDate < todayStr) {
+                                if (!startDate || !startTime) {
+                                    setDateError("Please select both date and time");
+                                    return;
+                                }
+                                if (startDate < todayStr) {
                                     setDateError("Interview date can't be in the past.");
                                     return;
                                 }
@@ -2115,6 +2119,7 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
         name: candidate.name,
         role: candidate.role,
         email: candidate.email,
+        phone: candidate.phone || '',
         experience: candidate.experience,
         status: candidate.status,
         uploadedBy: candidate.uploadedBy || 'System',
@@ -2138,29 +2143,118 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
     });
 
     const [isSaving, setIsSaving] = useState(false);
+    const [nameError, setNameError] = useState('');
+    const [phoneError, setPhoneError] = useState('');
+    const [experienceError, setExperienceError] = useState('');
+    const [noticeError, setNoticeError] = useState('');
+
+    const handleNameBlur = () => {
+        const trimmedName = (formData.name || '').trim();
+        if (!trimmedName) {
+            setNameError('Name is required.');
+        } else if (trimmedName.length > 100 || !/^[A-Za-z\s.'-]+$/.test(trimmedName)) {
+            setNameError('Name is required. / Name must not exceed 100 characters');
+        } else {
+            setNameError('');
+        }
+    };
+
+    const handlePhoneBlur = () => {
+        const phone = (formData.phone || '').trim();
+        if (phone) {
+            const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+                setPhoneError('Enter a valid phone number (10-15 digits).');
+            } else {
+                setPhoneError('');
+            }
+        } else {
+            setPhoneError('');
+        }
+    };
+
+    const handleExpBlur = () => {
+        const exp = formData.experience !== undefined && formData.experience !== null && (formData.experience as any) !== ''
+            ? Number(formData.experience)
+            : null;
+        if (exp !== null && (isNaN(exp) || exp < 0 || exp > 60)) {
+            setExperienceError('Experience must be between 0 and 60.');
+        } else {
+            setExperienceError('');
+        }
+    };
+
+    const handleNoticeBlur = () => {
+        const notice = formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod as any) !== ''
+            ? Number(formData.noticePeriod)
+            : null;
+        if (notice !== null && (isNaN(notice) || notice < 0 || notice > 365)) {
+            setNoticeError('Notice must be between 0 and 365 days.');
+        } else {
+            setNoticeError('');
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmedName = (formData.name || '').trim();
-        if (!trimmedName || trimmedName.length > 100 || !/^[A-Za-z\s.'-]+$/.test(trimmedName)) {
-            alert("Name is required. / Name must not exceed 100 characters");
+        let nameErr = '';
+        if (!trimmedName) {
+            nameErr = 'Name is required.';
+        } else if (trimmedName.length > 100 || !/^[A-Za-z\s.'-]+$/.test(trimmedName)) {
+            nameErr = 'Name is required. / Name must not exceed 100 characters';
+        }
+
+        let phoneErr = '';
+        const phone = (formData.phone || '').trim();
+        if (phone) {
+            const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+                phoneErr = 'Enter a valid phone number (10-15 digits).';
+            }
+        }
+
+        let expErr = '';
+        const exp = formData.experience !== undefined && formData.experience !== null && (formData.experience as any) !== ''
+            ? Number(formData.experience)
+            : null;
+        if (exp !== null && (isNaN(exp) || exp < 0 || exp > 60)) {
+            expErr = 'Experience must be between 0 and 60.';
+        }
+
+        let notErr = '';
+        const notice = formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod as any) !== ''
+            ? Number(formData.noticePeriod)
+            : null;
+        if (notice !== null && (isNaN(notice) || notice < 0 || notice > 365)) {
+            notErr = 'Notice must be between 0 and 365 days.';
+        }
+
+        setNameError(nameErr);
+        setPhoneError(phoneErr);
+        setExperienceError(expErr);
+        setNoticeError(notErr);
+
+        if (nameErr || phoneErr || expErr || notErr) {
             return;
         }
-        if (formData.experience !== undefined && formData.experience !== null && (formData.experience < 0 || formData.experience > 60)) {
-            alert("Experience must be between 0 and 60.");
-            return;
-        }
-        if (formData.noticePeriod !== undefined && formData.noticePeriod !== null && (formData.noticePeriod < 0 || formData.noticePeriod > 365)) {
-            alert("Notice must be between 0 and 365 days.");
-            return;
-        }
+
         setIsSaving(true);
         try {
-            await api.put(`/candidates/${candidate.id}`, { ...candidate, ...formData, name: trimmedName });
-            onUpdate({ ...formData, name: trimmedName });
-        } catch (error) {
+            await api.put(`/candidates/${candidate.id}`, { ...candidate, ...formData, name: trimmedName, phone });
+            onUpdate({ ...formData, name: trimmedName, phone });
+            onClose();
+        } catch (error: any) {
             console.error("Update failed", error);
-            alert("Failed to update candidate profile.");
+            const data = error?.response?.data;
+            const msg = data?.message || data?.error || 'Failed to update candidate profile.';
+            if (msg.includes('Name')) setNameError(msg);
+            else if (msg.includes('phone')) setPhoneError(msg);
+            else if (msg.includes('Experience')) setExperienceError(msg);
+            else if (msg.includes('Notice')) setNoticeError(msg);
+            else alert(msg);
         } finally {
             setIsSaving(false);
         }
@@ -2180,9 +2274,11 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                             <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Full Name</label>
                             <input 
                                 type="text" value={formData.name}
-                                onChange={e => setFormData({...formData, name: e.target.value})}
-                                className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[11px] font-bold text-slate-700 outline-none"
+                                onChange={e => { setFormData({...formData, name: e.target.value}); if (nameError) setNameError(''); }}
+                                onBlur={handleNameBlur}
+                                className={`w-full px-4 py-2 bg-slate-50 border rounded-xl text-[11px] font-bold text-slate-700 outline-none ${nameError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
                             />
+                            {nameError && <p className="text-[10px] font-bold text-rose-600 px-1 mt-1">{nameError}</p>}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -2209,9 +2305,11 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Total Exp. (Yrs)</label>
                                 <input 
                                     type="number" value={formData.experience}
-                                    onChange={e => setFormData({...formData, experience: parseInt(e.target.value) || 0})}
-                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[11px] font-bold text-slate-700 outline-none"
+                                    onChange={e => { setFormData({...formData, experience: parseInt(e.target.value) || 0}); if (experienceError) setExperienceError(''); }}
+                                    onBlur={handleExpBlur}
+                                    className={`w-full px-4 py-2 bg-slate-50 border rounded-xl text-[11px] font-bold text-slate-700 outline-none ${experienceError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
                                 />
+                                {experienceError && <p className="text-[10px] font-bold text-rose-600 px-1 mt-1">{experienceError}</p>}
                             </div>
                             <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Relevant Exp. (Yrs)</label>
@@ -2233,6 +2331,20 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                 />
                             </div>
                             <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Phone</label>
+                                <input 
+                                    type="text" value={formData.phone}
+                                    onChange={e => { setFormData({...formData, phone: e.target.value}); if (phoneError) setPhoneError(''); }}
+                                    onBlur={handlePhoneBlur}
+                                    placeholder="+81 00-0000-0000"
+                                    className={`w-full px-4 py-2 bg-slate-50 border rounded-xl text-[11px] font-bold text-slate-700 outline-none ${phoneError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
+                                />
+                                {phoneError && <p className="text-[10px] font-bold text-rose-600 px-1 mt-1">{phoneError}</p>}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Status</label>
                                 <select 
                                     value={formData.status}
@@ -2244,9 +2356,6 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                     ))}
                                 </select>
                             </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Locality</label>
                                 <input 
@@ -2255,6 +2364,9 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                     className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[11px] font-bold text-slate-700 outline-none"
                                 />
                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Postal Code</label>
                                 <input 
@@ -2263,9 +2375,19 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                     className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[11px] font-bold text-slate-700 outline-none"
                                 />
                             </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Notice (Days)</label>
+                                <input 
+                                    type="number" value={formData.noticePeriod}
+                                    onChange={e => { setFormData({...formData, noticePeriod: parseInt(e.target.value) || 0}); if (noticeError) setNoticeError(''); }}
+                                    onBlur={handleNoticeBlur}
+                                    className={`w-full px-2 py-2 bg-slate-50 border rounded-xl text-[10px] font-bold text-slate-700 outline-none ${noticeError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
+                                />
+                                {noticeError && <p className="text-[10px] font-bold text-rose-600 px-1 mt-1">{noticeError}</p>}
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-300">
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-300">
                             <div className="space-y-1">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Cur. Salary</label>
                                 <input 
@@ -2279,14 +2401,6 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                 <input 
                                     type="text" value={formData.salaryExpectation}
                                     onChange={e => setFormData({...formData, salaryExpectation: e.target.value})}
-                                    className="w-full px-2 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[10px] font-bold text-slate-700 outline-none"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Notice (Days)</label>
-                                <input 
-                                    type="number" value={formData.noticePeriod}
-                                    onChange={e => setFormData({...formData, noticePeriod: parseInt(e.target.value) || 0})}
                                     className="w-full px-2 py-2 bg-slate-50 border border-slate-300 rounded-xl text-[10px] font-bold text-slate-700 outline-none"
                                 />
                             </div>

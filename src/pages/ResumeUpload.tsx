@@ -18,6 +18,7 @@ interface ResumeUploadProps {
 
 const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [files, setFiles] = useState<{ name: string, status: 'processing' | 'completed' | 'error', progress: number, error?: string }[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [sources, setSources] = useState<SourceStatus[]>([
@@ -38,25 +39,36 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
     setIsDragging(false);
   };
 
-  const processFiles = (fileList: FileList) => {
+  const processFiles = (fileList: FileList | null | undefined) => {
     const MAX_SIZE = 10 * 1024 * 1024; // 10MB
     const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt'];
 
+    if (!fileList || fileList.length === 0) {
+      setUploadError('"" was skipped: only PDF/DOC/DOCX/TXT up to 10MB are allowed.');
+      return;
+    }
+
+    let skippedError: string | null = null;
     const validFiles = Array.from(fileList).filter((file: File) => {
       const lowerName = file.name.toLowerCase();
       const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => lowerName.endsWith(ext));
+      const errorMsg = `"${file.name}" was skipped: only PDF/DOC/DOCX/TXT up to 10MB are allowed.`;
       if (!hasValidExtension) {
-        alert('File type not supported. Please upload PDF, DOCX, DOC or TXT');
+        skippedError = errorMsg;
         return false;
       }
       if (file.size > MAX_SIZE) {
-        alert(`"${file.name}" was skipped: file size exceeds 10MB limit.`);
+        skippedError = errorMsg;
         return false;
       }
       return true;
     });
 
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+      setUploadError(skippedError || '"" was skipped: only PDF/DOC/DOCX/TXT up to 10MB are allowed.');
+      return;
+    }
+    setUploadError(null);
 
     const newFiles = validFiles.map((file: File) => ({
       name: file.name,
@@ -180,6 +192,23 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Upload Area */}
         <div className="lg:col-span-2 space-y-4">
+          {uploadError && (
+            <div id="resume-upload-error" className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-rose-700 text-xs font-semibold animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="text-rose-400 hover:text-rose-600 transition-colors p-1"
+                aria-label="Dismiss error"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <div
             className={`relative group border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all duration-300 ${isDragging
               ? 'border-blue-400 bg-blue-50/50 scale-[1.01]'
@@ -200,17 +229,34 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
 
             <div className="flex flex-col gap-3 w-full max-w-xs relative z-10">
               <button
+                type="button"
                 onClick={handleSelectFilesClick}
                 className="w-full bg-slate-900 text-white px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2"
               >
                 <FileUp className="w-4 h-4" />
                 Browse Files
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
+                    processFiles(fileInputRef.current.files);
+                  } else {
+                    processFiles(null);
+                  }
+                }}
+                className="w-full bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2"
+              >
+                Upload Selected Files
+              </button>
             </div>
 
             <input
               ref={fileInputRef}
               type="file"
+              id="resume-file-input"
+              name="resumeFiles"
+              aria-label="Resume file(s)"
               accept=".pdf,.doc,.docx,.txt"
               multiple
               onChange={handleFileSelect}

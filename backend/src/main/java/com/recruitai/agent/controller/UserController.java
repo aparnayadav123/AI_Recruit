@@ -83,8 +83,28 @@ public class UserController {
                     ? currentEmail : userRequest.getEmail();
             Optional<User> userOpt = userRepository.findByEmail(lookupEmail)
                     .or(() -> userRepository.findByEmailIgnoreCase(lookupEmail));
+            String newEmail = userRequest.getEmail();
+            String cleanNewEmail = (newEmail != null) ? newEmail.trim().toLowerCase() : null;
+
+            if (cleanNewEmail != null && !cleanNewEmail.isEmpty()) {
+                if (!EMAIL_PATTERN.matcher(cleanNewEmail).matches()) {
+                    return ResponseEntity.badRequest()
+                            .body(java.util.Map.of("message", "Please enter a valid email address."));
+                }
+                Optional<User> existing = userRepository.findByEmailIgnoreCase(cleanNewEmail);
+                if (existing.isPresent() && (userOpt.isEmpty() || existing.get().getId() == null || !existing.get().getId().equals(userOpt.get().getId()))) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please enter a valid email address. / Email already in use"));
+                }
+            }
+
             if (userOpt.isEmpty()) {
-                return ResponseEntity.notFound().build();
+                User newUser = new User();
+                newUser.setEmail(cleanNewEmail != null ? cleanNewEmail : lookupEmail);
+                if (userRequest.getName() != null) {
+                    newUser.setName(userRequest.getName().trim());
+                }
+                userRepository.save(newUser);
+                return ResponseEntity.ok(newUser);
             }
 
             User user = userOpt.get();
@@ -96,18 +116,8 @@ public class UserController {
                 user.setName(trimmedName);
             }
 
-            // Persist an email change (Settings > My Profile lets the user edit it).
-            String newEmail = userRequest.getEmail();
-            if (newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(user.getEmail())) {
-                if (!EMAIL_PATTERN.matcher(newEmail.trim()).matches()) {
-                    return ResponseEntity.badRequest()
-                            .body(java.util.Map.of("message", "Please enter a valid email address."));
-                }
-                Optional<User> existing = userRepository.findByEmailIgnoreCase(newEmail.trim());
-                if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
-                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Email already in use."));
-                }
-                user.setEmail(newEmail.trim().toLowerCase());
+            if (cleanNewEmail != null && !cleanNewEmail.equalsIgnoreCase(user.getEmail())) {
+                user.setEmail(cleanNewEmail);
             }
 
             userRepository.save(user);

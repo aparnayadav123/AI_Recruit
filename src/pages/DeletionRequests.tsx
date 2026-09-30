@@ -253,9 +253,11 @@ const DeletionRequests: React.FC = () => {
             </div>
             <label className="block">
               <span className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">
-                Decision notes (optional)
+                Reject Deletion - Decision notes (optional)
               </span>
               <textarea
+                id="reject-deletion-decision-notes"
+                name="decisionNotes"
                 value={rejectNotes}
                 onChange={e => setRejectNotes(e.target.value)}
                 rows={3}

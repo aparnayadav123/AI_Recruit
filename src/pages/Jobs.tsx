@@ -429,12 +429,31 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     if (field in FIELD_RULES && typeof value === 'string') {
       const rule = (FIELD_RULES as any)[field];
       if (rule && value.trim().length > rule.max) {
-        setErrors(prev => ({ ...prev, [field]: `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters` }));
+        const msg = field === 'title'
+          ? 'Job Title is required / at least 3 characters / at most 100 characters'
+          : `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters`;
+        setErrors(prev => ({ ...prev, [field]: msg }));
         return;
       }
     }
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const handleInputBlur = (field: keyof JobFormData) => {
+    if (field in FIELD_RULES) {
+      const rule = (FIELD_RULES as any)[field];
+      const val = safeTrim(formData[field]);
+      const specMsg = field === 'title'
+        ? 'Job Title is required / at least 3 characters / at most 100 characters'
+        : `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters`;
+      if (!val) {
+        if (field === 'location' && formData.remote) return;
+        setErrors(prev => ({ ...prev, [field]: specMsg }));
+      } else if (val.length < rule.min || val.length > rule.max) {
+        setErrors(prev => ({ ...prev, [field]: specMsg }));
+      }
     }
   };
 
@@ -512,7 +531,9 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     (Object.keys(FIELD_RULES) as Array<keyof typeof FIELD_RULES>).forEach(key => {
       const rule = FIELD_RULES[key];
       const value = safeTrim(formData[key]);
-      const specMsg = `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters`;
+      const specMsg = key === 'title'
+        ? 'Job Title is required / at least 3 characters / at most 100 characters'
+        : `${rule.label} is required / at least ${rule.min} / at most ${rule.max} characters`;
       if (!value) {
         if (REQUIRED.includes(key)) {
           if (key === 'location' && formData.remote) return;
@@ -1074,6 +1095,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.title}
                       onChange={(e) => handleInputChange('title', e.target.value)}
+                      onBlur={() => handleInputBlur('title')}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.title ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Senior Software Engineer"
@@ -1089,6 +1111,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
+                      onBlur={() => handleInputBlur('company')}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.company ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="Company name"
@@ -1104,6 +1127,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.department}
                       onChange={(e) => handleInputChange('department', e.target.value)}
+                      onBlur={() => handleInputBlur('department')}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.department ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Engineering, Marketing"
@@ -1119,6 +1143,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.industry}
                       onChange={(e) => handleInputChange('industry', e.target.value)}
+                      onBlur={() => handleInputBlur('industry')}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.industry ? 'border-red-500' : 'border-gray-300'
                         }`}
                       placeholder="e.g., Technology, Healthcare"
@@ -1136,6 +1161,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     name="description"
                     value={formData.description || ''}
                     onChange={(e) => handleInputChange('description', e.target.value)}
+                    onBlur={() => handleInputBlur('description')}
                     rows={4}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.description ? 'border-red-500' : 'border-gray-300'
                       }`}
@@ -1172,6 +1198,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       type="text"
                       value={formData.location}
                       onChange={(e) => handleInputChange('location', e.target.value)}
+                      onBlur={() => handleInputBlur('location')}
                       disabled={formData.remote}
                       className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.location ? 'border-red-500' : 'border-gray-300'
                         } ${formData.remote ? 'bg-gray-100 cursor-not-allowed' : ''}`}
