@@ -1970,8 +1970,9 @@ const MeetingSchedulerModal: React.FC<{
     const [location, setLocation] = useState('');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [dateError, setDateError] = useState('');
-    const [startTime, setStartTime] = useState(defaultSlot);
-    const [endTime, setEndTime] = useState(TIME_SLOTS[defaultEndIdx]);
+    const [timeError, setTimeError] = useState('');
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [isConnectingZoom, setIsConnectingZoom] = useState(false);
 
     const handleConnectZoom = async () => {
@@ -2181,25 +2182,39 @@ const MeetingSchedulerModal: React.FC<{
                                 )}
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Time</label>
+                                <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                                    Time <span className="text-rose-500">*</span>
+                                </label>
                                 <select
                                     value={startTime}
+                                    aria-invalid={!!timeError}
                                     onChange={(e) => {
                                         const newStart = e.target.value;
                                         setStartTime(newStart);
+                                        if (timeError) setTimeError('');
                                         // Auto-advance the end time by 30 min so the user doesn't have
                                         // to set it manually — the backend stores both.
-                                        const idx = TIME_SLOTS.indexOf(newStart);
-                                        if (idx >= 0 && idx + 1 < TIME_SLOTS.length) {
-                                            setEndTime(TIME_SLOTS[idx + 1]);
+                                        if (newStart) {
+                                            const idx = TIME_SLOTS.indexOf(newStart);
+                                            if (idx >= 0 && idx + 1 < TIME_SLOTS.length) {
+                                                setEndTime(TIME_SLOTS[idx + 1]);
+                                            } else {
+                                                setEndTime(newStart);
+                                            }
+                                        } else {
+                                            setEndTime('');
                                         }
                                     }}
-                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700 outline-none cursor-pointer"
+                                    className={`w-full px-4 py-2 bg-slate-50 border rounded-lg text-[11px] font-bold text-slate-700 outline-none cursor-pointer ${timeError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
                                 >
+                                    <option value="">Select a time…</option>
                                     {TIME_SLOTS.map(slot => (
                                         <option key={slot} value={slot}>{slot}</option>
                                     ))}
                                 </select>
+                                {timeError && (
+                                    <p className="text-[10px] font-bold text-rose-600 mt-1">{timeError}</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -2210,15 +2225,28 @@ const MeetingSchedulerModal: React.FC<{
                             disabled={isSubmitting}
                             onClick={() => {
                                 const todayStr = new Date().toISOString().split('T')[0];
-                                if (!startDate || !startTime) {
-                                    setDateError("Please select both date and time");
-                                    return;
-                                }
-                                if (startDate < todayStr) {
+                                let hasError = false;
+
+                                if (!startDate) {
+                                    setDateError("Please select a date.");
+                                    hasError = true;
+                                } else if (startDate < todayStr) {
                                     setDateError("Interview date can't be in the past.");
-                                    return;
+                                    hasError = true;
+                                } else {
+                                    setDateError("");
                                 }
-                                onSubmit({ title, location, startDate, startTime, endTime });
+
+                                if (!startTime) {
+                                    setTimeError("Time needs to be selected.");
+                                    hasError = true;
+                                } else {
+                                    setTimeError("");
+                                }
+
+                                if (hasError) return;
+
+                                onSubmit({ title, location, startDate, startTime, endTime: endTime || startTime });
                             }}
                             className="flex-[2] px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
                         >
