@@ -123,6 +123,12 @@ const DeletionRequests: React.FC = () => {
   if (!canReview) return null;
 
   const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+  const displayRequests = useMemo(() => {
+    if (filter === 'PENDING') {
+      return requests.filter(r => r.status === 'PENDING');
+    }
+    return requests;
+  }, [requests, filter]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -154,7 +160,7 @@ const DeletionRequests: React.FC = () => {
 
       {loading ? (
         <div className="text-center py-12 text-slate-500 text-sm">Loading…</div>
-      ) : requests.length === 0 ? (
+      ) : displayRequests.length === 0 ? (
         <div className="border-2 border-dashed border-slate-200 rounded-2xl py-16 text-center text-slate-500">
           <AlertCircle size={32} className="mx-auto mb-2 text-slate-400" />
           <p className="text-sm font-bold">
@@ -183,7 +189,7 @@ const DeletionRequests: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {requests.map(req => (
+              {displayRequests.map(req => (
                 <tr key={req.id} className="text-[12px] hover:bg-slate-50/50">
                   <td className="px-4 py-3">
                     <div className="font-black text-slate-800">{req.candidateName}</div>
