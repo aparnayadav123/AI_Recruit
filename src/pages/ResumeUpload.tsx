@@ -229,41 +229,57 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
               Our AI engine supports <span className="font-black text-slate-700">PDF, DOCX, TXT</span> formats up to 10MB per file.
             </p>
 
-            <div className="flex flex-col gap-3 w-full max-w-xs relative z-10">
-              <button
-                type="button"
-                onClick={handleSelectFilesClick}
-                className="w-full bg-slate-900 text-white px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2"
-              >
-                <FileUp className="w-4 h-4" />
-                Browse Files
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
-                    processFiles(fileInputRef.current.files);
-                  } else {
-                    processFiles(null);
-                  }
-                }}
-                className="w-full bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2"
-              >
-                Upload Selected Files
-              </button>
-            </div>
+            {/* Explicit Form Area for QA Test Case TC-196 */}
+            <div className="w-full max-w-md bg-slate-50 p-4 rounded-xl border border-slate-200 text-left relative z-10 space-y-3">
+              <label htmlFor="resume-file-input" className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
+                Resume file(s) <span className="text-rose-500">*</span>
+              </label>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="resume-file-input"
+                name="resumeFiles"
+                aria-label="Resume file(s)"
+                accept=".pdf,.doc,.docx,.txt"
+                multiple
+                onChange={handleFileSelect}
+                className="block w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-blue-600 file:cursor-pointer bg-white p-2 rounded-lg border border-slate-300"
+              />
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              id="resume-file-input"
-              name="resumeFiles"
-              aria-label="Resume file(s)"
-              accept=".pdf,.doc,.docx,.txt"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+              {uploadError && (
+                <p id="resume-file-error" className="text-[11px] font-bold text-rose-600">
+                  {uploadError}
+                </p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  id="submit-resume-btn"
+                  name="submitResume"
+                  onClick={() => {
+                    if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
+                      processFiles(fileInputRef.current.files);
+                    } else {
+                      processFiles(null);
+                    }
+                  }}
+                  className="flex-1 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition shadow-sm active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  Submit / Proceed
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectFilesClick}
+                  className="bg-white border border-slate-300 text-slate-700 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <FileUp className="w-4 h-4" />
+                  Browse
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Processing Queue */}

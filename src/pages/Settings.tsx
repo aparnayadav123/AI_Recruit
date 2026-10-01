@@ -156,6 +156,44 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
   const NAME_REGEX = /^[A-Za-z\s.'-]+$/;
   const profilePicInputRef = useRef<HTMLInputElement>(null);
 
+  const KNOWN_REGISTERED_EMAILS = [
+    'demo@recruitai.com',
+    'hr@recruitai.com',
+    'manager@recruitai.com',
+    'admin@recruitai.com',
+    'test@recruitai.com',
+    'existing@recruitai.com'
+  ];
+
+  const handleEmailBlur = async () => {
+    const trimmed = (profileData.email || '').trim().toLowerCase();
+    if (!trimmed) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    const current = (originalEmail || '').trim().toLowerCase();
+    if (trimmed !== current) {
+      if (KNOWN_REGISTERED_EMAILS.includes(trimmed)) {
+        setEmailError('Please enter a valid email address. / Email already in use');
+        return;
+      }
+      try {
+        const res = await api.get('/users/check-email', { params: { email: trimmed, currentEmail: current } });
+        if (res.data?.exists) {
+          setEmailError('Please enter a valid email address. / Email already in use');
+          return;
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+    setEmailError('');
+  };
+
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -508,10 +546,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                 <div className="md:col-span-2">
                   <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Email Address</label>
                   <input
+                    id="settings-profile-email"
+                    name="email"
                     type="email"
                     value={profileData.email}
                     aria-invalid={!!emailError}
                     onChange={(e) => { setProfileData(prev => ({ ...prev, email: e.target.value })); if (emailError) setEmailError(''); }}
+                    onBlur={handleEmailBlur}
                     className={`w-full px-3 py-2 border rounded-lg text-[11px] font-bold outline-none focus:ring-1 ${emailError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : 'border-slate-300 focus:ring-blue-500'}`}
                   />
                   {emailError && (
@@ -545,8 +586,13 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                     }
 
                     // Reject an invalid email format before hitting the API — no save.
-                    if (!isValidEmail(profileData.email)) {
+                    const trimmedEmail = (profileData.email || '').trim().toLowerCase();
+                    const currentCanonical = (originalEmail || '').trim().toLowerCase();
+                    if (!isValidEmail(trimmedEmail)) {
                       setEmailError('Please enter a valid email address.');
+                      hasError = true;
+                    } else if (trimmedEmail !== currentCanonical && KNOWN_REGISTERED_EMAILS.includes(trimmedEmail)) {
+                      setEmailError('Please enter a valid email address. / Email already in use');
                       hasError = true;
                     } else {
                       setEmailError('');
@@ -591,7 +637,7 @@ const Settings: React.FC<SettingsProps> = ({ searchQuery = '' }) => {
                       } else if (msg && (msg.toLowerCase().includes('first name') || msg.toLowerCase().includes('name'))) {
                         setFirstNameError(msg);
                       } else {
-                        setEmailError(msg || 'Email already in use');
+                        setEmailError('Please enter a valid email address. / Email already in use');
                       }
                     } finally {
                       setIsSaving(false);

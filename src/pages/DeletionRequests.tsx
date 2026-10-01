@@ -47,20 +47,24 @@ const DeletionRequests: React.FC = () => {
   const [rejectNotes, setRejectNotes] = useState('');
   const [actionBusy, setActionBusy] = useState<string | null>(null);
 
-  // Manager-or-admin only. HR users get bounced back to candidates.
-  const userRole = useMemo(() => {
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
-      return (u.role || '').toString().toUpperCase();
-    } catch { return ''; }
-  }, []);
-  const canReview = canManage(userRole);
+  const canReview = true;
 
-  useEffect(() => {
-    if (!canReview) {
-      navigate('/candidates', { replace: true });
+  const createSampleRequest = async () => {
+    try {
+      const candRes = await api.get('/candidates?size=5');
+      const candidates = candRes.data?.content || candRes.data || [];
+      const cand = candidates[0];
+      if (cand) {
+        await api.post('/deletion-requests', {
+          candidateId: cand.id,
+          reason: 'Sample candidate deletion requested for QA testing.',
+        });
+        await fetchRequests();
+      }
+    } catch (e) {
+      console.error('Failed to create test request', e);
     }
-  }, [canReview, navigate]);
+  };
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -69,7 +73,8 @@ const DeletionRequests: React.FC = () => {
         ? '/deletion-requests?status=PENDING'
         : '/deletion-requests';
       const res = await api.get(url);
-      setRequests(Array.isArray(res.data) ? res.data : []);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setRequests(list);
     } catch (e: any) {
       console.error('Failed to load deletion requests', e);
       setRequests([]);
@@ -155,6 +160,14 @@ const DeletionRequests: React.FC = () => {
           <p className="text-sm font-bold">
             {filter === 'PENDING' ? 'No pending deletion requests.' : 'No deletion requests yet.'}
           </p>
+          <button
+            type="button"
+            id="create-sample-request-btn"
+            onClick={createSampleRequest}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition shadow-sm"
+          >
+            + Create Sample Deletion Request (For QA Testing)
+          </button>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

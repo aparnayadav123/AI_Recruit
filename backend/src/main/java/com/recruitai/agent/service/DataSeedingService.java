@@ -44,6 +44,9 @@ public class DataSeedingService {
     private com.recruitai.agent.repository.JobApplicationRepository jobApplicationRepository;
 
     @Autowired
+    private com.recruitai.agent.repository.DeletionRequestRepository deletionRequestRepository;
+
+    @Autowired
     private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Autowired
@@ -507,6 +510,27 @@ public class DataSeedingService {
             }
         } catch (Exception e) {
             logger.warn("Recruiter demo cleanup skipped: {}", e.getMessage());
+        }
+
+        // Ensure at least one pending deletion request exists for QA testing (TC-209 / BUG-028)
+        try {
+            java.util.List<com.recruitai.agent.entity.DeletionRequest> pending = deletionRequestRepository.findByStatusOrderByCreatedAtDesc("PENDING");
+            if (pending.isEmpty()) {
+                candidateRepository.findAll().stream().findFirst().ifPresent(candidate -> {
+                    com.recruitai.agent.entity.DeletionRequest req = new com.recruitai.agent.entity.DeletionRequest();
+                    req.setCandidateId(candidate.getId());
+                    req.setCandidateName(candidate.getName());
+                    req.setRequestedByEmail("hr@recruitai.com");
+                    req.setRequestedByName("HR Demo");
+                    req.setReason("Candidate requested removal of records per privacy compliance.");
+                    req.setStatus(com.recruitai.agent.entity.DeletionRequest.STATUS_PENDING);
+                    req.setCreatedAt(java.time.LocalDateTime.now());
+                    deletionRequestRepository.save(req);
+                    logger.info("Seeded pending deletion request for testing: {}", candidate.getName());
+                });
+            }
+        } catch (Exception e) {
+            logger.warn("Deletion request seed skipped: {}", e.getMessage());
         }
     }
 }

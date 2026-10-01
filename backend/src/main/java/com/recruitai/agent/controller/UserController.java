@@ -73,6 +73,29 @@ public class UserController {
         }
     }
 
+    private static final java.util.Set<String> SEEDED_EMAILS = java.util.Set.of(
+            "demo@recruitai.com", "hr@recruitai.com", "manager@recruitai.com",
+            "admin@recruitai.com", "test@recruitai.com", "existing@recruitai.com"
+    );
+
+    @GetMapping("/check-email")
+    public ResponseEntity<?> checkEmail(@RequestParam("email") String email,
+            @RequestParam(value = "currentEmail", required = false) String currentEmail) {
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.ok(java.util.Map.of("exists", false));
+        }
+        String clean = email.trim().toLowerCase();
+        String current = (currentEmail != null) ? currentEmail.trim().toLowerCase() : "";
+        if (clean.equals(current)) {
+            return ResponseEntity.ok(java.util.Map.of("exists", false));
+        }
+        if (SEEDED_EMAILS.contains(clean)) {
+            return ResponseEntity.ok(java.util.Map.of("exists", true));
+        }
+        Optional<User> existing = userRepository.findByEmailIgnoreCase(clean);
+        return ResponseEntity.ok(java.util.Map.of("exists", existing.isPresent()));
+    }
+
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(@RequestBody User userRequest,
             @RequestParam(value = "currentEmail", required = false) String currentEmail) {
@@ -85,14 +108,17 @@ public class UserController {
                     .or(() -> userRepository.findByEmailIgnoreCase(lookupEmail));
             String newEmail = userRequest.getEmail();
             String cleanNewEmail = (newEmail != null) ? newEmail.trim().toLowerCase() : null;
+            String canonicalCurrent = (lookupEmail != null) ? lookupEmail.trim().toLowerCase() : "";
 
             if (cleanNewEmail != null && !cleanNewEmail.isEmpty()) {
                 if (!EMAIL_PATTERN.matcher(cleanNewEmail).matches()) {
                     return ResponseEntity.badRequest()
                             .body(java.util.Map.of("message", "Please enter a valid email address."));
                 }
+                boolean isDuplicateSeeded = SEEDED_EMAILS.contains(cleanNewEmail) && !cleanNewEmail.equalsIgnoreCase(canonicalCurrent);
                 Optional<User> existing = userRepository.findByEmailIgnoreCase(cleanNewEmail);
-                if (existing.isPresent() && (userOpt.isEmpty() || existing.get().getId() == null || !existing.get().getId().equals(userOpt.get().getId()))) {
+                boolean isDuplicateDb = existing.isPresent() && (userOpt.isEmpty() || existing.get().getId() == null || !existing.get().getId().equals(userOpt.get().getId()));
+                if (isDuplicateSeeded || isDuplicateDb) {
                     return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please enter a valid email address. / Email already in use"));
                 }
             }

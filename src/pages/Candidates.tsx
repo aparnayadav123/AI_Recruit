@@ -343,6 +343,15 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     }
   };
 
+  const handleDeletionReasonBlur = () => {
+    const trimmed = (deletionReason || '').trim();
+    if (!trimmed || trimmed.length < 5 || trimmed.length > 500) {
+      setDeletionReasonError('Please provide a reason of at least 5 characters.');
+    } else {
+      setDeletionReasonError('');
+    }
+  };
+
   const handleDeleteCandidate = async (id: string, name: string) => {
     // Show deletion request modal with reason input for all roles
     setDeletionTarget({ id, name });
@@ -1258,9 +1267,14 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
               <div className="text-[10px] text-slate-500 font-bold">{deletionTarget.id}</div>
             </div>
             <label className="block">
-              <span className="block text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">
-                Deletion Request Reason <span className="text-rose-500">*</span>
-              </span>
+              <div className="flex justify-between items-center mb-1">
+                <span className="block text-[9px] font-black text-gray-600 uppercase tracking-widest">
+                  Deletion Request Reason <span className="text-rose-500">*</span>
+                </span>
+                <span className={`text-[10px] font-bold ${deletionReason.trim().length > 0 && deletionReason.trim().length < 5 ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {deletionReason.length}/500 (min 5)
+                </span>
+              </div>
               <textarea
                 id="deletion-request-reason"
                 name="deletionReason"
@@ -1270,12 +1284,13 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                   setDeletionReason(e.target.value);
                   if (deletionReasonError) setDeletionReasonError('');
                 }}
+                onBlur={handleDeletionReasonBlur}
                 rows={4}
                 placeholder="e.g. Candidate withdrew their application via email (min 5, max 500 chars)."
                 className={`w-full px-3 py-2 bg-slate-50 border rounded-lg outline-none text-[12px] font-medium focus:bg-white resize-none ${deletionReasonError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'}`}
               />
               {deletionReasonError && (
-                <p className="text-[10px] font-bold text-rose-600 mt-1">{deletionReasonError}</p>
+                <p id="deletion-reason-error" className="text-[10px] font-bold text-rose-600 mt-1">{deletionReasonError}</p>
               )}
             </label>
             <div className="flex justify-end gap-2 mt-5">
