@@ -144,6 +144,7 @@ const CandidateDetails: React.FC = () => {
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [manualReason, setManualReason] = useState('');
+    const [manualReasonError, setManualReasonError] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
     const [isHiring, setIsHiring] = useState(false);
     // Candidate notes (Call Discussion / Face-to-Face Meeting)
@@ -358,6 +359,7 @@ const CandidateDetails: React.FC = () => {
         if (isRejectModalOpen) {
             setRejectReason('');
             setManualReason('');
+            setManualReasonError('');
         }
     }, [isRejectModalOpen]);
 
@@ -374,9 +376,12 @@ const CandidateDetails: React.FC = () => {
             alert('Please select a rejection reason before confirming.');
             return;
         }
-        if (rejectReason === 'Other' && !manualReason.trim()) {
-            alert('Please enter the rejection reason before confirming.');
-            return;
+        if (rejectReason === 'Other') {
+            const trimmed = manualReason.trim();
+            if (!trimmed || trimmed.length < 5) {
+                setManualReasonError('Please provide a reason of at least 5 characters.');
+                return;
+            }
         }
         const reasonToSubmit = getFinalRejectReason();
         setIsRejecting(true);
@@ -1348,6 +1353,7 @@ const CandidateDetails: React.FC = () => {
                                 setRejectReason(val);
                                 if (val !== 'Other') {
                                     setManualReason('');
+                                    setManualReasonError('');
                                 }
                             }}
                             className="mt-1 mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none"
@@ -1363,17 +1369,48 @@ const CandidateDetails: React.FC = () => {
                                     <label className="text-[11px] font-semibold text-slate-600">
                                         Specify reason manually <span className="text-rose-500">*</span>
                                     </label>
-                                    <span className="text-[10px] text-slate-400">{manualReason.length}/300</span>
+                                    <span className={`text-[10px] font-bold ${(manualReason.trim().length > 0 && manualReason.trim().length < 5) || !!manualReasonError ? 'text-rose-500' : 'text-slate-400'}`}>
+                                        {manualReason.length}/300 (min 5)
+                                    </span>
                                 </div>
                                 <textarea
+                                    id="manual-rejection-reason"
+                                    name="manualReason"
                                     rows={3}
                                     value={manualReason}
                                     maxLength={300}
-                                    onChange={e => setManualReason(e.target.value)}
-                                    placeholder="Type rejection reason here…"
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none resize-none"
+                                    aria-invalid={!!manualReasonError || (manualReason.trim().length > 0 && manualReason.trim().length < 5)}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setManualReason(val);
+                                        const trimmed = val.trim();
+                                        if (trimmed.length > 0 && trimmed.length < 5) {
+                                            setManualReasonError('Please provide a reason of at least 5 characters.');
+                                        } else {
+                                            setManualReasonError('');
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        const trimmed = manualReason.trim();
+                                        if (!trimmed || trimmed.length < 5) {
+                                            setManualReasonError('Please provide a reason of at least 5 characters.');
+                                        } else {
+                                            setManualReasonError('');
+                                        }
+                                    }}
+                                    placeholder="Type rejection reason here (min 5 characters)…"
+                                    className={`w-full rounded-lg border px-3 py-2 text-sm outline-none resize-none ${
+                                        (manualReasonError || (manualReason.trim().length > 0 && manualReason.trim().length < 5))
+                                            ? 'border-rose-400 ring-1 ring-rose-300 focus:border-rose-400 focus:ring-1 focus:ring-rose-300'
+                                            : 'border-slate-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
+                                    }`}
                                     autoFocus
                                 />
+                                {(manualReasonError || (manualReason.trim().length > 0 && manualReason.trim().length < 5)) && (
+                                    <p id="manual-rejection-reason-error" className="text-[10px] font-bold text-rose-600 mt-1">
+                                        {manualReasonError || 'Please provide a reason of at least 5 characters.'}
+                                    </p>
+                                )}
                             </div>
                         )}
 
@@ -1382,7 +1419,7 @@ const CandidateDetails: React.FC = () => {
                                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
                             <button
                                 onClick={handleReject}
-                                disabled={isRejecting || !rejectReason || (rejectReason === 'Other' && !manualReason.trim())}
+                                disabled={isRejecting || !rejectReason || (rejectReason === 'Other' && manualReason.trim().length < 5)}
                                 className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
                             >
                                 {isRejecting ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}

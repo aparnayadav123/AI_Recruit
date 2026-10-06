@@ -93,8 +93,14 @@ public class CandidateController {
     public ResponseEntity<?> rejectCandidate(@PathVariable String id,
             @RequestBody(required = false) Map<String, Object> body) {
         String reason = body == null ? null : (String) body.get("reason");
+        if (reason == null || reason.trim().length() < 5) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Please provide a reason of at least 5 characters."));
+        }
+        if (reason.trim().length() > 300) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Reason must not exceed 300 characters."));
+        }
         String by = body == null ? null : (String) body.get("rejectedBy");
-        return ResponseEntity.ok(candidateService.rejectCandidate(id, reason, by));
+        return ResponseEntity.ok(candidateService.rejectCandidate(id, reason.trim(), by));
     }
 
     // Reconsideration: reopen (optionally reassign to a new job) + audit trail.

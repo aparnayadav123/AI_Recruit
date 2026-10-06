@@ -220,18 +220,19 @@ public class CandidateService {
 
     // ✅ REJECT — capture structured rejection reason + who, mirror to the application + audit.
     public Candidate rejectCandidate(String id, String reason, String by) {
+        if (reason == null || reason.trim().length() < 5) {
+            throw new IllegalArgumentException("Please provide a reason of at least 5 characters.");
+        }
         Candidate c = candidateRepository.findById(id)
                 .orElseThrow(() -> new com.recruitai.agent.exception.ResourceNotFoundException("Candidate", id));
         String from = c.getStatus();
         c.setStatus("Rejected");
-        if (reason != null && !reason.isBlank()) {
-            c.setRejectionReason(reason);
-        }
+        c.setRejectionReason(reason.trim());
         c.setUpdatedAt(LocalDateTime.now());
         Candidate saved = candidateRepository.save(c);
         try {
-            lifecycleService.recordRejection(saved, reason, by);
-            lifecycleService.audit(saved.getId(), "REJECT", reason, by, from, "Rejected", saved.getJobId());
+            lifecycleService.recordRejection(saved, reason.trim(), by);
+            lifecycleService.audit(saved.getId(), "REJECT", reason.trim(), by, from, "Rejected", saved.getJobId());
         } catch (Exception e) {
             log.warn("Reject lifecycle skipped for {}: {}", id, e.getMessage());
         }
