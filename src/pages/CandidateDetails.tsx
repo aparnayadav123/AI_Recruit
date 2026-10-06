@@ -2247,8 +2247,8 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
         if (phone) {
             const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
             const digitsOnly = phone.replace(/\D/g, '');
-            if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
-                setPhoneError('Enter a valid phone number (10-15 digits).');
+            if (hasInvalidChars || digitsOnly.length !== 10) {
+                setPhoneError('Enter a valid phone number (10 digits).');
             } else {
                 setPhoneError('');
             }
@@ -2294,8 +2294,8 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
         if (phone) {
             const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
             const digitsOnly = phone.replace(/\D/g, '');
-            if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
-                phoneErr = 'Enter a valid phone number (10-15 digits).';
+            if (hasInvalidChars || digitsOnly.length !== 10) {
+                phoneErr = 'Enter a valid phone number (10 digits).';
             }
         }
 
@@ -2417,9 +2417,14 @@ const EditCandidateModal: React.FC<{ candidate: Candidate; onClose: () => void; 
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">Phone</label>
                                 <input 
                                     type="text" value={formData.phone}
-                                    onChange={e => { setFormData({...formData, phone: e.target.value}); if (phoneError) setPhoneError(''); }}
+                                    maxLength={10}
+                                    onChange={e => {
+                                        const val = e.target.value.slice(0, 10);
+                                        setFormData({...formData, phone: val});
+                                        if (phoneError) setPhoneError('');
+                                    }}
                                     onBlur={handlePhoneBlur}
-                                    placeholder="+81 00-0000-0000"
+                                    placeholder="e.g. 9876543210"
                                     className={`w-full px-4 py-2 bg-slate-50 border rounded-xl text-[11px] font-bold text-slate-700 outline-none ${phoneError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'}`}
                                 />
                                 {phoneError && <p className="text-[10px] font-bold text-rose-600 px-1 mt-1">{phoneError}</p>}

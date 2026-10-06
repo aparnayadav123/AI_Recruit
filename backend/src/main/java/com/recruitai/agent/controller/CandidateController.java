@@ -145,10 +145,10 @@ public class CandidateController {
             String p = candidateDto.getPhone().trim();
             String digits = p.replaceAll("\\D", "");
             boolean hasInvalid = !p.matches("^[+]?[0-9\\s\\-()]+$");
-            if (hasInvalid || digits.length() < 10 || digits.length() > 15) {
+            if (hasInvalid || digits.length() != 10) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "message", "Enter a valid phone number (10-15 digits).",
-                        "errors", List.of("phone: Enter a valid phone number (10-15 digits).")));
+                        "message", "Enter a valid phone number (10 digits).",
+                        "errors", List.of("phone: Enter a valid phone number (10 digits).")));
             }
         }
 
@@ -265,10 +265,10 @@ public class CandidateController {
             String p = candidateDto.getPhone().trim();
             String digits = p.replaceAll("\\D", "");
             boolean hasInvalid = !p.matches("^[+]?[0-9\\s\\-()]+$");
-            if (hasInvalid || digits.length() < 10 || digits.length() > 15) {
+            if (hasInvalid || digits.length() != 10) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "message", "Enter a valid phone number (10-15 digits).",
-                        "errors", List.of("phone: Enter a valid phone number (10-15 digits).")));
+                        "message", "Enter a valid phone number (10 digits).",
+                        "errors", List.of("phone: Enter a valid phone number (10 digits).")));
             }
         }
 

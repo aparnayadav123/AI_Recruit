@@ -410,9 +410,13 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     if (phone) {
       const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
       const digitsOnly = phone.replace(/\D/g, '');
-      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
-        setPhoneError('Enter a valid phone number (10-15 digits).');
+      if (hasInvalidChars || digitsOnly.length !== 10) {
+        setPhoneError('Enter a valid phone number (10 digits).');
+      } else {
+        setPhoneError('');
       }
+    } else {
+      setPhoneError('');
     }
   };
 
@@ -459,8 +463,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     if (phone) {
       const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
       const digitsOnly = phone.replace(/\D/g, '');
-      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
-        phoneErr = 'Enter a valid phone number (10-15 digits).';
+      if (hasInvalidChars || digitsOnly.length !== 10) {
+        phoneErr = 'Enter a valid phone number (10 digits).';
       }
     }
 
@@ -1093,10 +1097,15 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                   <input
                     type="text"
                     value={formData.phone || ''}
+                    maxLength={10}
                     aria-invalid={!!phoneError}
-                    onChange={e => { setFormData({ ...formData, phone: e.target.value }); if (phoneError) setPhoneError(''); }}
+                    onChange={e => {
+                      const val = e.target.value.slice(0, 10);
+                      setFormData({ ...formData, phone: val });
+                      if (phoneError) setPhoneError('');
+                    }}
                     onBlur={handlePhoneBlur}
-                    placeholder="+81 00-0000-0000"
+                    placeholder="e.g. 9876543210"
                     className={`${inputClass} ${phoneError ? 'border-rose-400 ring-1 ring-rose-300 focus:ring-rose-400' : ''}`}
                   />
                   {phoneError && <p className="mt-1 text-[10px] font-bold text-rose-600">{phoneError}</p>}
