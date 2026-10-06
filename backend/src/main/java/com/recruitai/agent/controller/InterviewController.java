@@ -39,8 +39,11 @@ public class InterviewController {
     @PostMapping("/generate-link")
     public ResponseEntity<java.util.Map<String, String>> generateMeetingLink(@RequestParam String candidateName) {
         String link = interviewService.generateMeetingLink(candidateName);
+        String provider = (link != null && link.contains("zoom.us")) ? "zoom" : "jitsi";
         java.util.Map<String, String> response = new java.util.HashMap<>();
         response.put("link", link != null ? link : "");
+        response.put("meetingLink", link != null ? link : "");
+        response.put("provider", provider);
         return ResponseEntity.ok(response);
     }
 

@@ -52,8 +52,11 @@ public class DeletionRequestController {
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, String> body) {
         String reason = body != null ? body.get("reason") : null;
-        if (reason == null || reason.trim().length() < 5 || reason.trim().length() > 500) {
+        if (reason == null || reason.trim().length() < 5) {
             return ResponseEntity.badRequest().body(Map.of("message", "Please provide a reason of at least 5 characters."));
+        }
+        if (reason.trim().length() > 500) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Reason must not exceed 500 characters."));
         }
         String candidateId = body != null ? body.get("candidateId") : null;
         if (candidateId == null || candidateId.isBlank()) {
