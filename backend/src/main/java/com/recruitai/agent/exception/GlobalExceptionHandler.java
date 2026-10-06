@@ -56,6 +56,12 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(createErrorResponse(ex.getMessage(), null), HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Object> handleMaxSizeException(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        logger.warn("Max upload size exceeded: {}", ex.getMessage());
+        return new ResponseEntity<>(createErrorResponse("File size exceeds the 10MB limit.", null), HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
     // Handle Everything Else (500)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGlobalException(Exception ex, WebRequest request) {
