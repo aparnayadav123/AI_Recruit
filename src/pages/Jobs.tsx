@@ -517,7 +517,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   // Accepts Indian rupee formats with the currency prefix/suffix OPTIONAL, since the
   // input already shows a ₹ icon: "500000-100000", "₹50,000 - ₹1,00,000", "Rs 5L - 10L",
   // "50000-100000 INR", "₹5L - ₹10L", "5L to 10L", "$80k - $120k". Rejects invalid text.
-  const SALARY_RUPEE_PATTERN = /^\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*\s*(?:[-–—to]+\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*)?\s*(?:inr|lpa|per\s+annum|p\.a\.?|usd)?\s*$/i;
+  const SALARY_RUPEE_PATTERN = /^\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*\s*(?:(?:[-–—]+|\bto\b)\s*(?:₹|rs\.?|inr|\$)?\s*[\d,]+(?:\.\d+)?\s*[lkcr]*)?\s*(?:inr|lpa|per\s+annum|p\.a\.?|usd)?\s*$/i;
 
   const safeTrim = (str: unknown): string => (typeof str === 'string' ? str.trim() : '');
 
