@@ -345,8 +345,10 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
 
   const handleDeletionReasonBlur = () => {
     const trimmed = (deletionReason || '').trim();
-    if (!trimmed || trimmed.length < 5 || trimmed.length > 500) {
+    if (!trimmed || trimmed.length < 5) {
       setDeletionReasonError('Please provide a reason of at least 5 characters.');
+    } else if (trimmed.length > 500) {
+      setDeletionReasonError('Reason must not exceed 500 characters.');
     } else {
       setDeletionReasonError('');
     }
@@ -362,8 +364,12 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   const submitDeletionRequest = async () => {
     if (!deletionTarget) return;
     const trimmed = deletionReason.trim();
-    if (!trimmed || trimmed.length < 5 || trimmed.length > 500) {
+    if (!trimmed || trimmed.length < 5) {
       setDeletionReasonError('Please provide a reason of at least 5 characters.');
+      return;
+    }
+    if (trimmed.length > 500) {
+      setDeletionReasonError('Reason must not exceed 500 characters.');
       return;
     }
     setDeletionReasonError('');
@@ -1271,7 +1277,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                 <span className="block text-[9px] font-black text-gray-600 uppercase tracking-widest">
                   Deletion Request Reason <span className="text-rose-500">*</span>
                 </span>
-                <span className={`text-[10px] font-bold ${deletionReason.trim().length > 0 && deletionReason.trim().length < 5 ? 'text-rose-500' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-bold ${(deletionReason.trim().length > 0 && deletionReason.trim().length < 5) || !!deletionReasonError ? 'text-rose-500' : 'text-slate-400'}`}>
                   {deletionReason.length}/500 (min 5)
                 </span>
               </div>
@@ -1279,18 +1285,32 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                 id="deletion-request-reason"
                 name="deletionReason"
                 value={deletionReason}
-                aria-invalid={!!deletionReasonError}
+                aria-invalid={!!deletionReasonError || (deletionReason.trim().length > 0 && deletionReason.trim().length < 5)}
                 onChange={e => {
-                  setDeletionReason(e.target.value);
-                  if (deletionReasonError) setDeletionReasonError('');
+                  const val = e.target.value;
+                  setDeletionReason(val);
+                  const trimmed = val.trim();
+                  if (trimmed.length > 0 && trimmed.length < 5) {
+                    setDeletionReasonError('Please provide a reason of at least 5 characters.');
+                  } else if (trimmed.length > 500) {
+                    setDeletionReasonError('Reason must not exceed 500 characters.');
+                  } else {
+                    setDeletionReasonError('');
+                  }
                 }}
                 onBlur={handleDeletionReasonBlur}
                 rows={4}
                 placeholder="e.g. Candidate withdrew their application via email (min 5, max 500 chars)."
-                className={`w-full px-3 py-2 bg-slate-50 border rounded-lg outline-none text-[12px] font-medium focus:bg-white resize-none ${deletionReasonError ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300 focus:ring-1 focus:ring-blue-500'}`}
+                className={`w-full px-3 py-2 bg-slate-50 border rounded-lg outline-none text-[12px] font-medium resize-none ${
+                  (deletionReasonError || (deletionReason.trim().length > 0 && deletionReason.trim().length < 5))
+                    ? 'border-rose-400 ring-1 ring-rose-300 focus:bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-300'
+                    : 'border-slate-300 focus:bg-white focus:ring-1 focus:ring-blue-500'
+                }`}
               />
-              {deletionReasonError && (
-                <p id="deletion-reason-error" className="text-[10px] font-bold text-rose-600 mt-1">{deletionReasonError}</p>
+              {(deletionReasonError || (deletionReason.trim().length > 0 && deletionReason.trim().length < 5)) && (
+                <p id="deletion-reason-error" className="text-[10px] font-bold text-rose-600 mt-1">
+                  {deletionReasonError || 'Please provide a reason of at least 5 characters.'}
+                </p>
               )}
             </label>
             <div className="flex justify-end gap-2 mt-5">
