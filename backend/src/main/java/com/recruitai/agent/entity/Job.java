@@ -4,7 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import jakarta.validation.constraints.NotBlank;
-
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -59,6 +59,7 @@ public class Job {
     @Field("hiring_manager")
     private String hiringManager;
 
+    @NotEmpty(message = "At least one required skill must be added")
     @Field("skills")
     private List<SkillWeight> skills = new ArrayList<>();
 

@@ -460,22 +460,30 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   const [currentWeight, setCurrentWeight] = useState(50);
 
   const addSkill = () => {
-    // ... (keep existing implementation)
-    if (currentSkill.trim() && !formData.skills.some(s => s.split(':')[0] === currentSkill.trim())) {
+    if (currentSkill.trim() && !formData.skills.some(s => s.split(':')[0].toLowerCase() === currentSkill.trim().toLowerCase())) {
       setFormData(prev => ({
         ...prev,
         skills: [...prev.skills, `${currentSkill.trim()}:${currentWeight}`]
       }));
       setCurrentSkill('');
       setCurrentWeight(50);
+      if (errors.skills) {
+        setErrors(prev => ({ ...prev, skills: undefined }));
+      }
     }
   };
 
   const removeSkill = (skillPair: string) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: prev.skills.filter(s => s !== skillPair)
-    }));
+    setFormData(prev => {
+      const nextSkills = prev.skills.filter(s => s !== skillPair);
+      if (nextSkills.length === 0) {
+        setErrors(errs => ({ ...errs, skills: 'At least one required skill must be added' }));
+      }
+      return {
+        ...prev,
+        skills: nextSkills
+      };
+    });
   };
 
   const addEducation = () => {
@@ -604,6 +612,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
       deadline: job.deadline || '',
       status: mappedStatus,
     });
+    setCurrentSkill('');
+    setErrors({});
     setMenuOpenId(null);
     setIsModalOpen(true);
   };
@@ -708,6 +718,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
     const newErrors = computeErrors(currentSkills);
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
+      if (newErrors.skills) {
+        const skillsEl = document.getElementById('job-skills') || document.getElementById('job-skills-error');
+        skillsEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -790,6 +804,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
           onClick={() => {
             setEditJobId(null);
             setErrors({});
+            setCurrentSkill('');
             setFormData({
               title: '', description: '', company: '', department: '', location: '',
               employmentType: 'Full-time', remote: false, salary: '',
@@ -1282,23 +1297,31 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                 </h4>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="job-skills" className="block text-sm font-medium text-gray-700 mb-1">
                     Required Skills <span className="text-red-500">*</span>
                   </label>
                   <div className="flex flex-col gap-3 mb-2">
                     <div className="flex gap-2">
                       <input
+                        id="job-skills"
+                        name="skills"
                         type="text"
                         value={currentSkill}
-                        onChange={(e) => setCurrentSkill(e.target.value)}
+                        onChange={(e) => {
+                          setCurrentSkill(e.target.value);
+                          if (errors.skills && (formData.skills.length > 0 || e.target.value.trim())) {
+                            setErrors(prev => ({ ...prev, skills: undefined }));
+                          }
+                        }}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.skills ? 'border-red-500 ring-1 ring-red-300' : 'border-gray-300'}`}
                         placeholder="Skill (e.g. React)"
                       />
                       <button
+                        id="btn-add-skill"
                         type="button"
                         onClick={addSkill}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition lg:whitespace-nowrap"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition lg:whitespace-nowrap font-medium"
                       >
                         Add Skill
                       </button>
@@ -1316,7 +1339,11 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                       <span className="text-sm font-bold text-indigo-700 w-8">{currentWeight}%</span>
                     </div>
                   </div>
-                  {errors.skills && <p className="text-red-500 text-xs mb-2">{errors.skills}</p>}
+                  {errors.skills && (
+                    <p id="job-skills-error" data-testid="job-skills-error" className="text-red-500 text-xs mb-2 font-semibold">
+                      {errors.skills}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {formData.skills.map((skillPair) => {
                       const [name, weight] = skillPair.split(':');
