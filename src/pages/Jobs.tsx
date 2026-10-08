@@ -56,7 +56,17 @@ interface JobsProps {
   searchQuery?: string;
 }
 
-const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () => void }) => {
+const JobDetailsModal = ({
+  job: initialJob,
+  onClose,
+  onEdit,
+  onDeleted
+}: {
+  job: Job;
+  onClose: () => void;
+  onEdit?: (job: Job) => void;
+  onDeleted?: () => void;
+}) => {
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
@@ -91,7 +101,7 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
     ]);
     const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const safeTitle = (job.title || 'job').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     link.href = URL.createObjectURL(blob);
@@ -113,30 +123,53 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl my-4 flex flex-col max-h-[90vh] border border-slate-300">
 
-        {/* Header Section with Blue Divider */}
-        <div className="p-4 border-b border-slate-300 relative">
+        {/* Header Section */}
+        <div className="p-5 border-b border-slate-300 relative bg-white">
           <button onClick={onClose} className="absolute top-4 right-4 p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
-            <X size={14} />
+            <X size={16} />
           </button>
 
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 text-blue-600">
-              <Briefcase size={24} />
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 text-blue-600 border border-blue-100 shadow-sm">
+              <Briefcase size={22} />
             </div>
-            <div>
-              <h2 className="text-lg font-black text-gray-900 leading-none mb-1.5">{job.title}</h2>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+            <div className="flex-1 pr-8">
+              <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                <h2 className="text-xl font-black text-gray-900 leading-tight">{job.title}</h2>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                  ['Active', 'Open'].includes(job.status)
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : job.status === 'Cancelled'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : job.status === 'Closed'
+                        ? 'bg-slate-100 text-slate-700 border-slate-300'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  {job.status === 'Active' ? 'Open' : (job.status === 'Draft' ? 'Hold' : job.status)}
+                </span>
+                {job.publishedToCareers && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                    Live on Careers
+                  </span>
+                )}
+                {job.remote && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Remote
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold text-gray-600 uppercase tracking-widest">
                 <div className="flex items-center gap-1.5">
-                  <Building2 size={12} className="text-blue-300" />
-                  <span>{job.department}</span>
+                  <Building2 size={13} className="text-blue-500" />
+                  <span>{job.company || 'RecruitAI'} • {job.department}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <MapPin size={12} className="text-blue-300" />
+                  <MapPin size={13} className="text-blue-500" />
                   <span>{job.location}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Clock size={12} className="text-blue-300" />
-                  <span>{job.employmentType}</span>
+                  <Clock size={13} className="text-blue-500" />
+                  <span>{job.employmentType || job.type || 'Full-time'}</span>
                 </div>
               </div>
             </div>
@@ -144,117 +177,201 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-300 border-b border-slate-300 bg-slate-50/30">
-          <div className="p-3 flex flex-col items-center justify-center text-center">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-300 border-b border-slate-300 bg-slate-50/40">
+          <div className="p-3.5 flex flex-col items-center justify-center text-center">
             <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-0.5">Total</span>
             <span className="text-base font-black text-gray-900">{stats.total}</span>
           </div>
-          <div className="p-3 flex flex-col items-center justify-center text-center">
+          <div className="p-3.5 flex flex-col items-center justify-center text-center">
             <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-0.5">Interviews</span>
             <span className="text-base font-black text-blue-700">{stats.interview}</span>
           </div>
-          <div className="p-3 flex flex-col items-center justify-center text-center">
+          <div className="p-3.5 flex flex-col items-center justify-center text-center">
             <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Offered</span>
             <span className="text-base font-black text-emerald-700">{stats.offer}</span>
           </div>
-          <div className="p-3 flex flex-col items-center justify-center text-center">
+          <div className="p-3.5 flex flex-col items-center justify-center text-center">
             <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-0.5">Rejected</span>
             <span className="text-base font-black text-rose-600">{stats.rejected}</span>
           </div>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Left Column: Job Details (2/3 width) */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Requirements */}
-            <section>
-              <h3 className="flex items-center gap-2 text-md font-bold text-gray-900 mb-4">
-                <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
-                Requirements
-              </h3>
-              <ul className="space-y-3 pl-2">
-                {job.requirements?.map((req, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm leading-relaxed text-gray-600">
-                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></div>
-                    {req}
-                  </li>
-                ))}
-              </ul>
-            </section>
+          <div className="lg:col-span-2 space-y-6">
 
-            {/* Responsibilities */}
-            <section>
-              <h3 className="flex items-center gap-2 text-md font-bold text-gray-900 mb-4">
-                <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
-                Responsibilities
-              </h3>
-              <ul className="space-y-3 pl-2">
-                {job.responsibilities?.map((res, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm leading-relaxed text-gray-600">
-                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></div>
-                    {res}
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            {/* Benefits */}
-            <section>
-              <h3 className="flex items-center gap-2 text-md font-bold text-gray-900 mb-4">
-                <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
-                Benefits & Perks
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {job.benefits?.map((ben, i) => (
-                  <div key={i} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 border border-slate-300">
-                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                    {ben}
-                  </div>
-                ))}
+            {/* Quick Overview Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
+              <div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-0.5">Salary</span>
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                  <IndianRupee size={12} className="text-blue-600 shrink-0" />
+                  {job.salary || 'Competitive'}
+                </span>
               </div>
-            </section>
-          </div>
-
-          {/* Right Column: Skills & Candidates (1/3 width) */}
-          <div className="space-y-8">
-
-            {/* Skills */}
-            <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm">
-              <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Required Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {job.skills?.length ? job.skills.map((skill, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-100">
-                    {skill.name}
-                  </span>
-                )) : <p className="text-sm text-gray-600 italic">No specific skills listed.</p>}
+              <div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-0.5">Experience</span>
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                  <Briefcase size={12} className="text-blue-600 shrink-0" />
+                  {job.experienceLevel || 'Mid Level'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-0.5">Industry</span>
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                  <Building2 size={12} className="text-blue-600 shrink-0" />
+                  {job.industry || 'Technology'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-0.5">Deadline</span>
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                  <Calendar size={12} className="text-blue-600 shrink-0" />
+                  {job.deadline || 'Ongoing'}
+                </span>
               </div>
             </div>
 
-            {/* Candidates */}
+            {/* Job Description (Primary & Mandatory) */}
+            {job.description ? (
+              <section>
+                <h3 className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider mb-2.5">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Job Description
+                </h3>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                  <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-line font-normal">
+                    {job.description}
+                  </p>
+                </div>
+              </section>
+            ) : null}
+
+            {/* Education Requirements (if present) */}
+            {job.education && job.education.length > 0 && (
+              <section>
+                <h3 className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider mb-2.5">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Education Requirements
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {job.education.map((edu, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-800 text-xs font-semibold rounded-lg border border-blue-200/70">
+                      <GraduationCap size={13} className="text-blue-600 shrink-0" />
+                      {edu}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Requirements (ONLY if provided in seed/API) */}
+            {job.requirements && job.requirements.length > 0 && (
+              <section>
+                <h3 className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider mb-2.5">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Key Requirements
+                </h3>
+                <ul className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200">
+                  {job.requirements.map((req, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-700">
+                      <div className="mt-2 w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0"></div>
+                      <span>{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Responsibilities (ONLY if provided in seed/API) */}
+            {job.responsibilities && job.responsibilities.length > 0 && (
+              <section>
+                <h3 className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider mb-2.5">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Responsibilities
+                </h3>
+                <ul className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200">
+                  {job.responsibilities.map((res, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-700">
+                      <div className="mt-2 w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0"></div>
+                      <span>{res}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Benefits & Perks (ONLY if present) */}
+            {job.benefits && job.benefits.length > 0 && (
+              <section>
+                <h3 className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider mb-2.5">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Benefits & Perks
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {job.benefits.map((ben, i) => (
+                    <div key={i} className="flex items-center gap-2.5 p-3 bg-emerald-50/40 rounded-xl text-xs font-semibold text-slate-800 border border-emerald-100">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{ben}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Right Column: Skills & Candidates (1/3 width) */}
+          <div className="space-y-6">
+
+            {/* Required Skills Card */}
+            <div className="bg-white rounded-xl border border-slate-300 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">Required Skills</h3>
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold">
+                  {job.skills?.length || 0}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {job.skills?.length ? job.skills.map((skill, i) => {
+                  const name = typeof skill === 'string' ? skill : skill.name;
+                  const weight = typeof skill === 'object' && skill.weight ? skill.weight : null;
+                  return (
+                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-800 text-xs font-semibold rounded-lg border border-blue-200">
+                      <span>{name}</span>
+                      {weight ? <span className="text-blue-500 text-[10px] font-bold">({weight}%)</span> : null}
+                    </span>
+                  );
+                }) : (
+                  <p className="text-xs text-slate-400 italic">No specific skills listed.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Candidates Card */}
             <div className="bg-white rounded-xl border border-slate-300 shadow-sm flex flex-col h-[400px]">
               <div className="p-4 border-b border-slate-300">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Applicants</h3>
-                    <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs font-medium text-gray-600">{filteredCandidates.length}</span>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">Applicants</h3>
+                    <span className="px-2 py-0.5 bg-slate-100 rounded-full text-xs font-bold text-slate-700">{filteredCandidates.length}</span>
                   </div>
                   <button
                     onClick={handleExportApplicants}
                     disabled={filteredCandidates.length === 0}
                     title="Export applicants to Excel (CSV)"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
                   >
                     <Download className="w-3.5 h-3.5" /> Export
                   </button>
                 </div>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 w-3.5 h-3.5" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
                   <input
                     type="text"
-                    placeholder="Search..."
-                    className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                    placeholder="Search applicants..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -263,33 +380,33 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
 
               <div className="flex-1 overflow-y-auto">
                 {loadingCandidates ? (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-600">
-                    <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <span className="text-xs">Loading...</span>
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <span className="text-xs">Loading applicants...</span>
                   </div>
                 ) : filteredCandidates.length > 0 ? (
-                  <div className="divide-y divide-slate-300">
+                  <div className="divide-y divide-slate-200">
                     {filteredCandidates.map((c, i) => (
-                      <div key={i} onClick={() => navigate(`/candidates/${c.id}`)} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group cursor-pointer" title="View Candidate">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold ring-2 ring-white shadow-sm">
-                            {c.name.charAt(0)}
+                      <div key={i} onClick={() => navigate(`/candidates/${c.id}`)} className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer" title="View Candidate">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                            {c.name ? c.name.charAt(0) : '?'}
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{c.name}</div>
-                            <div className="text-xs text-gray-600">{c.email}</div>
+                            <div className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{c.name}</div>
+                            <div className="text-[11px] text-gray-500">{c.email}</div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${c.status === 'Offer' ? 'bg-green-50 text-green-700 border-green-100' :
-                            c.status === 'Interview' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                              c.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-100' :
-                                'bg-gray-100 text-gray-600 border-slate-300'
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${c.status === 'Offer' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            c.status === 'Interview' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              c.status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                'bg-slate-100 text-slate-600 border-slate-200'
                             }`}>
                             {c.status}
                           </span>
                           {c.assignedBy && (
-                            <div className="flex items-center gap-1 text-[10px] font-black text-blue-500 uppercase tracking-tighter">
+                            <div className="flex items-center gap-1 text-[9px] font-black text-blue-600 uppercase tracking-tighter">
                               <User size={8} />
                               BY {c.assignedBy.split(' ')[0]}
                             </div>
@@ -299,10 +416,10 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-600 p-6 text-center">
-                    <Users className="w-8 h-8 mb-2 opacity-20" />
-                    <p className="text-sm font-medium text-gray-600">No applicants yet</p>
-                    <p className="text-xs text-gray-600 mt-1">Candidates applied to this job will appear here.</p>
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 p-6 text-center">
+                    <Users className="w-8 h-8 mb-2 opacity-30 text-slate-400" />
+                    <p className="text-xs font-bold text-slate-600">No applicants yet</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Candidates assigned or applied will appear here.</p>
                   </div>
                 )}
               </div>
@@ -318,7 +435,8 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
                 try {
                   await api.delete(`/jobs/${job.id}`);
                   alert('Job deleted.');
-                  onClose();
+                  if (onDeleted) onDeleted();
+                  else onClose();
                 } catch (e: any) {
                   alert('Failed to delete job: ' + (e?.response?.data?.message || e?.message));
                 }
@@ -327,9 +445,19 @@ const JobDetailsModal = ({ job: initialJob, onClose }: { job: Job; onClose: () =
             className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-widest transition">
             Delete Requisition
           </button>
-          <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 shadow-sm rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition">
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(job)}
+                className="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-sm rounded-lg text-[10px] font-black uppercase tracking-widest transition"
+              >
+                Edit Job
+              </button>
+            )}
+            <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 shadow-sm rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1017,6 +1145,14 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
         <JobDetailsModal
           job={selectedJobForDetails}
           onClose={() => setSelectedJobForDetails(null)}
+          onEdit={(j) => {
+            setSelectedJobForDetails(null);
+            handleEditJob(j);
+          }}
+          onDeleted={() => {
+            setSelectedJobForDetails(null);
+            fetchJobs();
+          }}
         />
       )}
 
