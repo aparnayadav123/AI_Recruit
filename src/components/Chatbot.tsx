@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Bot, Send, X, Sparkles, MessageCircle } from 'lucide-react';
 import api from '../api';
 
@@ -58,6 +58,12 @@ const fmtScore = (s?: number) => (s == null ? 'â€”' : `${s}%`);
 
 const Chatbot: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Hide completely on candidate pages so the floating button never covers pagination
+  if (location.pathname.startsWith('/candidates')) {
+    return null;
+  }
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([greeting()]);
   const [input, setInput] = useState('');

@@ -21,6 +21,7 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeft,
+  CheckCircle2,
 } from 'lucide-react';
 import api from '../api';
 
@@ -80,6 +81,22 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
 
   const [localSearch, setLocalSearch] = useState('');
+  const [successPopup, setSuccessPopup] = useState<{ title: string; message: string; subtext?: string } | null>(null);
+
+  useEffect(() => {
+    if (successPopup) {
+      const timer = setTimeout(() => setSuccessPopup(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successPopup]);
+
+  // Sync URL search query param if present (?search= or ?q=)
+  useEffect(() => {
+    const qParam = searchParams.get('search') || searchParams.get('q');
+    if (qParam && qParam !== localSearch) {
+      setLocalSearch(qParam);
+    }
+  }, [searchParams]);
   const [selectedSkill, setSelectedSkill] = useState('All Skills');
   const [selectedJob, setSelectedJob] = useState('All Jobs');
   // Candidate ids whose skill list is expanded (the "+N" badge was clicked).
@@ -171,14 +188,21 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   // ============== HELPERS ==============
-  const highlightText = (text: string) => {
-    if (!searchQuery) return text;
-    const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
-    return parts.map((part, i) =>
-      part.toLowerCase() === searchQuery.toLowerCase()
-        ? <mark key={i} className="bg-yellow-100 text-yellow-800 px-0.5 rounded-sm">{part}</mark>
-        : part
-    );
+  const currentSearchTerm = (localSearch || searchQuery).trim();
+  const highlightText = (text: string | null | undefined) => {
+    if (!text) return '';
+    if (!currentSearchTerm) return text;
+    try {
+      const escaped = currentSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const parts = String(text).split(new RegExp(`(${escaped})`, 'gi'));
+      return parts.map((part, i) =>
+        part.toLowerCase() === currentSearchTerm.toLowerCase()
+          ? <mark key={i} className="bg-yellow-100 text-yellow-800 px-0.5 rounded-sm">{part}</mark>
+          : part
+      );
+    } catch {
+      return text;
+    }
   };
 
   const getFitScoreColor = (score: number) => {
@@ -203,27 +227,41 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
       filtered = filtered.filter(c => getCandidateHotlists(c).includes(selectedHotlist));
     }
 
-    const q = (localSearch || searchQuery).toLowerCase();
+    const rawQ = (localSearch || searchQuery).trim();
+    const q = rawQ.toLowerCase();
     if (q) {
-      // Strip a leading "can" + zero padding so "CAN008", "can8", "008" and "8"
-      // all match the candidate whose displayed ID is CAN008.
+      const terms = q.split(/\s+/).filter(Boolean);
+      // Strip leading "can" + zero padding
       const qIdDigits = q.replace(/^can[-\s]?0*/i, '').replace(/^0+/, '');
+
       filtered = filtered.filter(c => {
-        const displayId = formatCandidateId(c.sequenceId).toLowerCase(); // e.g. "can008"
-        const idDigits = String(c.sequenceId ?? '');                      // e.g. "8"
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.role.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          (c.skills || []).some(s => s.toLowerCase().includes(q)) ||
-          c.status.toLowerCase().includes(q) ||
-          (c.assignedBy || '').toLowerCase().includes(q) ||
-          (c.assignedTo || '').toLowerCase().includes(q) ||
-          // Search by candidate ID — the displayed CANxxx, the raw id, or the bare number.
-          displayId.includes(q) ||
-          (c.id || '').toLowerCase().includes(q) ||
-          (qIdDigits !== '' && idDigits === qIdDigits)
-        );
+        const sequenceIdStr = c.sequenceId != null ? String(c.sequenceId) : '';
+        const displayId = c.sequenceId != null ? formatCandidateId(c.sequenceId).toLowerCase() : '';
+        const rawId = (c.id || '').toLowerCase();
+
+        // 1. Candidate ID match (CAN008, can8, 8, etc.)
+        if (displayId && displayId.includes(q)) return true;
+        if (rawId && rawId.includes(q)) return true;
+        if (qIdDigits !== '' && sequenceIdStr === qIdDigits) return true;
+
+        // 2. Comprehensive text search across all relevant candidate attributes
+        const candidatePool = [
+          c.name || '',
+          c.role || '',
+          c.email || '',
+          c.phone || '',
+          c.status || '',
+          c.source || '',
+          (c as any).locality || '',
+          (c as any).country || '',
+          (c as any).currentOrganization || '',
+          (c as any).assignedBy || '',
+          (c as any).assignedTo || '',
+          ...(c.skills || []).map(s => String(s || ''))
+        ].join(' ').toLowerCase();
+
+        // Matches if full query is contained, or if every word in a multi-word search matches
+        return candidatePool.includes(q) || (terms.length > 1 && terms.every(t => candidatePool.includes(t)));
       });
     }
 
@@ -502,6 +540,10 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
           uploaderName = fullName.split(' ')[0];
         } catch (e) {}
       }
+      const savedName = formData.name || 'Candidate';
+      const savedRole = formData.role || '';
+      const isAdding = modalMode === 'add';
+
       const payload: any = { ...formData };
       if (modalMode === 'add') {
         payload.source = payload.source || 'Manual';
@@ -518,6 +560,14 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
       }
       setIsCandidateModalOpen(false);
       fetchCandidates();
+
+      setSuccessPopup({
+        title: isAdding ? 'Candidate Added Successfully!' : 'Candidate Profile Updated!',
+        message: isAdding
+          ? `Candidate "${savedName}" has been successfully added to your talent pipeline.`
+          : `Profile details for "${savedName}" have been updated successfully.`,
+        subtext: isAdding && savedRole ? `Position: ${savedRole}` : undefined
+      });
     } catch (error: any) {
       console.error("Save failed:", error);
       // Surface the exact field reason the server sent (e.g. "Name must not exceed 100
@@ -732,8 +782,18 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                 placeholder="Search ID, name, email, role, skills..."
                 value={localSearch}
                 onChange={e => setLocalSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-3 bg-white border border-slate-300 rounded-lg outline-none text-[11px] font-bold text-gray-600 hover:border-indigo-100 transition-all shadow-sm placeholder:text-gray-400"
+                className="w-full h-9 pl-9 pr-8 bg-white border border-slate-300 rounded-lg outline-none text-[11px] font-bold text-gray-600 hover:border-indigo-100 transition-all shadow-sm placeholder:text-gray-400"
               />
+              {localSearch && (
+                <button
+                  type="button"
+                  onClick={() => setLocalSearch('')}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-0 w-9 flex items-center justify-center text-gray-500">
@@ -1334,6 +1394,33 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                 className="px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 rounded-lg"
               >{submittingDeletion ? 'Submitting…' : 'Submit Request'}</button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Success Notification Pop-up */}
+      {successPopup && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50">
+              <CheckCircle2 size={32} />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">
+              {successPopup.title}
+            </h3>
+            <p className="text-sm text-gray-600 mb-2 leading-relaxed">
+              {successPopup.message}
+            </p>
+            {successPopup.subtext && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full mb-4">
+                {successPopup.subtext}
+              </p>
+            )}
+            <button
+              onClick={() => setSuccessPopup(null)}
+              className="mt-3 w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-lg shadow-emerald-200"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

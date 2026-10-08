@@ -511,6 +511,14 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
+  const [successPopup, setSuccessPopup] = useState<{ title: string; message: string; subtext?: string } | null>(null);
+
+  useEffect(() => {
+    if (successPopup) {
+      const timer = setTimeout(() => setSuccessPopup(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successPopup]);
 
   // ... (rest of the component stays mostly the same, except for the view details integration)
 
@@ -866,6 +874,10 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
         location: formData.remote && !formData.location ? 'Remote' : formData.location,
       };
 
+      const savedTitle = formData.title || 'Job';
+      const savedCompany = formData.company || '';
+      const isEditing = !!editJobId;
+
       console.log('Sending job data:', payload);
       if (editJobId) {
         await api.put(`${API_URL}/${editJobId}`, payload);
@@ -897,6 +909,14 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
       });
       setErrors({});
       setIsModalOpen(false);
+
+      setSuccessPopup({
+        title: isEditing ? 'Job Updated Successfully!' : 'Job Created Successfully!',
+        message: isEditing
+          ? `Changes to "${savedTitle}" have been saved successfully.`
+          : `Job requisition for "${savedTitle}" at "${savedCompany}" has been created successfully!`,
+        subtext: isEditing ? undefined : 'The job is now active and ready for sourcing candidates.'
+      });
     } catch (error: any) {
       console.error('Error saving job:', error);
       let message = error.response?.data?.message || error.message || 'Unknown error';
@@ -1653,6 +1673,33 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Success Notification Pop-up */}
+      {successPopup && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50">
+              <CheckCircle size={32} />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">
+              {successPopup.title}
+            </h3>
+            <p className="text-sm text-gray-600 mb-2 leading-relaxed">
+              {successPopup.message}
+            </p>
+            {successPopup.subtext && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full mb-4">
+                {successPopup.subtext}
+              </p>
+            )}
+            <button
+              onClick={() => setSuccessPopup(null)}
+              className="mt-3 w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-lg shadow-emerald-200"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}
