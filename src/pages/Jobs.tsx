@@ -1244,6 +1244,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     </label>
                     <input
                       type="text"
+                      id="job-title"
+                      maxLength={FIELD_RULES.title.max}
                       value={formData.title}
                       onChange={(e) => handleInputChange('title', e.target.value)}
                       onBlur={() => handleInputBlur('title')}
@@ -1260,6 +1262,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     </label>
                     <input
                       type="text"
+                      id="job-company"
+                      maxLength={FIELD_RULES.company.max}
                       value={formData.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
                       onBlur={() => handleInputBlur('company')}
@@ -1276,6 +1280,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     </label>
                     <input
                       type="text"
+                      id="job-department"
+                      maxLength={FIELD_RULES.department.max}
                       value={formData.department}
                       onChange={(e) => handleInputChange('department', e.target.value)}
                       onBlur={() => handleInputBlur('department')}
@@ -1292,6 +1298,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     </label>
                     <input
                       type="text"
+                      id="job-industry"
+                      maxLength={FIELD_RULES.industry.max}
                       value={formData.industry}
                       onChange={(e) => handleInputChange('industry', e.target.value)}
                       onBlur={() => handleInputBlur('industry')}
@@ -1310,6 +1318,7 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                   <textarea
                     id="job-description"
                     name="description"
+                    maxLength={FIELD_RULES.description.max}
                     value={formData.description || ''}
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     onBlur={() => handleInputBlur('description')}
@@ -1347,6 +1356,8 @@ const Jobs: React.FC<JobsProps> = ({ searchQuery = '' }) => {
                     </label>
                     <input
                       type="text"
+                      id="job-location"
+                      maxLength={FIELD_RULES.location.max}
                       value={formData.location}
                       onChange={(e) => handleInputChange('location', e.target.value)}
                       onBlur={() => handleInputBlur('location')}
