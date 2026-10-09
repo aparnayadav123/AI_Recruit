@@ -524,7 +524,7 @@ const Layout: React.FC = () => {
                 </div>
             )}
             <InterviewAlert />
-            {!location.pathname.startsWith('/candidates') && <Chatbot />}
+            {!location.pathname.includes('candidates') && <Chatbot />}
 
             {/* User Documentation Modal */}
             {isDocsOpen && (

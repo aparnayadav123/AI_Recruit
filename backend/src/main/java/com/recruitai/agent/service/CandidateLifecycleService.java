@@ -78,8 +78,11 @@ public class CandidateLifecycleService {
             if (joblessApp.getRejectionReason() == null) {
                 joblessApp.setRejectionReason(c.getRejectionReason());
             }
+            if (joblessApp.getRejectedBy() == null || joblessApp.getRejectedBy().isBlank()) {
+                joblessApp.setRejectedBy(c.getRejectedBy() != null && !c.getRejectedBy().isBlank() ? c.getRejectedBy() : "Hiring Team");
+            }
             if (joblessApp.getRejectedDate() == null) {
-                joblessApp.setRejectedDate(LocalDateTime.now());
+                joblessApp.setRejectedDate(c.getRejectedDate() != null ? c.getRejectedDate() : (c.getUpdatedAt() != null ? c.getUpdatedAt() : LocalDateTime.now()));
             }
             joblessApp.setUpdatedAt(LocalDateTime.now());
             return applicationRepository.save(joblessApp);
@@ -106,8 +109,11 @@ public class CandidateLifecycleService {
             if (app.getRejectionReason() == null) {
                 app.setRejectionReason(c.getRejectionReason());
             }
+            if (app.getRejectedBy() == null || app.getRejectedBy().isBlank()) {
+                app.setRejectedBy(c.getRejectedBy() != null && !c.getRejectedBy().isBlank() ? c.getRejectedBy() : "Hiring Team");
+            }
             if (app.getRejectedDate() == null) {
-                app.setRejectedDate(LocalDateTime.now());
+                app.setRejectedDate(c.getRejectedDate() != null ? c.getRejectedDate() : (c.getUpdatedAt() != null ? c.getUpdatedAt() : LocalDateTime.now()));
             }
         }
         if (mapped == ApplicationStatus.HIRED && app.getHiredDate() == null) {
@@ -197,9 +203,9 @@ public class CandidateLifecycleService {
         }
         app.setStatus(ApplicationStatus.REJECTED);
         app.setRejectionReason(reason);
-        app.setRejectedBy(by);
+        app.setRejectedBy(by != null && !by.isBlank() ? by.trim() : "Hiring Team");
         if (app.getRejectedDate() == null) {
-            app.setRejectedDate(LocalDateTime.now());
+            app.setRejectedDate(c.getRejectedDate() != null ? c.getRejectedDate() : LocalDateTime.now());
         }
         applicationRepository.save(app);
     }

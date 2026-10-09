@@ -31,6 +31,12 @@ public class JobApplicationService {
     @Autowired
     private JobRepository jobRepository;
 
+    @Autowired(required = false)
+    private com.recruitai.agent.repository.CandidateAuditEventRepository auditRepository;
+
+    @Autowired(required = false)
+    private CandidateLifecycleService lifecycleService;
+
     public JobApplication createApplication(JobApplication application) {
         // Validate candidate exists
         if (!candidateRepository.existsById(application.getCandidateId())) {
@@ -74,7 +80,81 @@ public class JobApplicationService {
     }
 
     public List<JobApplication> getApplicationsByStatus(ApplicationStatus status) {
-        return applicationRepository.findByStatus(status);
+        if (status == ApplicationStatus.REJECTED) {
+            try {
+                if (lifecycleService != null) {
+                    List<com.recruitai.agent.entity.Candidate> rejectedCandidates = candidateRepository.findByStatus("Rejected");
+                    for (com.recruitai.agent.entity.Candidate c : rejectedCandidates) {
+                        try {
+                            lifecycleService.syncApplication(c);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        List<JobApplication> list = applicationRepository.findByStatus(status);
+        if (status == ApplicationStatus.REJECTED) {
+            for (JobApplication app : list) {
+                boolean dirty = false;
+                com.recruitai.agent.entity.Candidate c = candidateRepository.findById(app.getCandidateId()).orElse(null);
+                if ((app.getCandidateName() == null || app.getCandidateName().isBlank()) && c != null) {
+                    app.setCandidateName(c.getName());
+                    dirty = true;
+                }
+                if (app.getJobTitle() == null || app.getJobTitle().isBlank()) {
+                    if (app.getJobId() != null) {
+                        jobRepository.findById(app.getJobId()).ifPresent(j -> app.setJobTitle(j.getTitle()));
+                    }
+                    if ((app.getJobTitle() == null || app.getJobTitle().isBlank()) && c != null && c.getRole() != null) {
+                        app.setJobTitle(c.getRole());
+                    }
+                    if (app.getJobTitle() != null) dirty = true;
+                }
+                if (app.getRejectionReason() == null || app.getRejectionReason().isBlank()) {
+                    if (c != null && c.getRejectionReason() != null && !c.getRejectionReason().isBlank()) {
+                        app.setRejectionReason(c.getRejectionReason());
+                    } else {
+                        app.setRejectionReason("Profile does not meet criteria");
+                    }
+                    dirty = true;
+                }
+                if (app.getRejectedBy() == null || app.getRejectedBy().isBlank()) {
+                    if (c != null && c.getRejectedBy() != null && !c.getRejectedBy().isBlank()) {
+                        app.setRejectedBy(c.getRejectedBy());
+                    } else if (auditRepository != null) {
+                        List<com.recruitai.agent.entity.CandidateAuditEvent> events =
+                                auditRepository.findByCandidateIdOrderByTimestampDesc(app.getCandidateId());
+                        String foundActor = events.stream()
+                                .filter(e -> "REJECT".equalsIgnoreCase(e.getAction()) && e.getActor() != null && !e.getActor().isBlank())
+                                .map(com.recruitai.agent.entity.CandidateAuditEvent::getActor)
+                                .findFirst()
+                                .orElse("Hiring Team");
+                        app.setRejectedBy(foundActor);
+                    } else {
+                        app.setRejectedBy("Hiring Team");
+                    }
+                    dirty = true;
+                }
+                if (app.getRejectedDate() == null) {
+                    if (c != null && c.getRejectedDate() != null) {
+                        app.setRejectedDate(c.getRejectedDate());
+                    } else if (c != null && c.getUpdatedAt() != null) {
+                        app.setRejectedDate(c.getUpdatedAt());
+                    } else if (app.getUpdatedAt() != null) {
+                        app.setRejectedDate(app.getUpdatedAt());
+                    } else {
+                        app.setRejectedDate(LocalDateTime.now());
+                    }
+                    dirty = true;
+                }
+                if (dirty) {
+                    try {
+                        applicationRepository.save(app);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        return list;
     }
 
     public Page<JobApplication> getApplicationsByStatus(ApplicationStatus status, Pageable pageable) {

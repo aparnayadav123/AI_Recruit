@@ -43,6 +43,8 @@ public class CandidateDto {
     private String appliedDate;
     private String createdAt;
     private String rejectionReason;
+    private String rejectedBy;
+    private String rejectedDate;
     private String jobId;
     private String interviewRound;
     private String roundStatus;
@@ -549,5 +551,21 @@ public class CandidateDto {
 
     public void setBlockedDate(String blockedDate) {
         this.blockedDate = blockedDate;
+    }
+
+    public String getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public void setRejectedBy(String rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+
+    public String getRejectedDate() {
+        return rejectedDate;
+    }
+
+    public void setRejectedDate(String rejectedDate) {
+        this.rejectedDate = rejectedDate;
     }
 }

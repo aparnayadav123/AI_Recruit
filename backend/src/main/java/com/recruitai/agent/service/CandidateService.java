@@ -228,11 +228,14 @@ public class CandidateService {
         String from = c.getStatus();
         c.setStatus("Rejected");
         c.setRejectionReason(reason.trim());
+        String actor = (by != null && !by.isBlank()) ? by.trim() : "Hiring Team";
+        c.setRejectedBy(actor);
+        c.setRejectedDate(LocalDateTime.now());
         c.setUpdatedAt(LocalDateTime.now());
         Candidate saved = candidateRepository.save(c);
         try {
-            lifecycleService.recordRejection(saved, reason.trim(), by);
-            lifecycleService.audit(saved.getId(), "REJECT", reason.trim(), by, from, "Rejected", saved.getJobId());
+            lifecycleService.recordRejection(saved, reason.trim(), actor);
+            lifecycleService.audit(saved.getId(), "REJECT", reason.trim(), actor, from, "Rejected", saved.getJobId());
         } catch (Exception e) {
             log.warn("Reject lifecycle skipped for {}: {}", id, e.getMessage());
         }
@@ -294,6 +297,8 @@ public class CandidateService {
         }
         c.setStatus("Screening");
         c.setRejectionReason(null);
+        c.setRejectedBy(null);
+        c.setRejectedDate(null);
         c.setUpdatedAt(LocalDateTime.now());
         recomputeFitScore(c);
         Candidate saved = candidateRepository.save(c);
@@ -613,6 +618,21 @@ public class CandidateService {
                 .map(candidate -> {
                     String previous = candidate.getStatus();
                     candidate.setStatus(status);
+                    if ("Rejected".equalsIgnoreCase(status)) {
+                        if (candidate.getRejectionReason() == null || candidate.getRejectionReason().isBlank()) {
+                            candidate.setRejectionReason("Profile does not meet criteria");
+                        }
+                        if (candidate.getRejectedBy() == null || candidate.getRejectedBy().isBlank()) {
+                            candidate.setRejectedBy("Hiring Team");
+                        }
+                        if (candidate.getRejectedDate() == null) {
+                            candidate.setRejectedDate(LocalDateTime.now());
+                        }
+                    } else if (candidate.getRejectionReason() != null) {
+                        candidate.setRejectionReason(null);
+                        candidate.setRejectedBy(null);
+                        candidate.setRejectedDate(null);
+                    }
                     candidate.setUpdatedAt(LocalDateTime.now());
                     Candidate saved = candidateRepository.save(candidate);
 

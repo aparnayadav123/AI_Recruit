@@ -61,7 +61,7 @@ const Chatbot: React.FC = () => {
   const location = useLocation();
 
   // Hide completely on candidate pages so the floating button never covers pagination
-  if (location.pathname.startsWith('/candidates')) {
+  if (location.pathname.includes('candidates')) {
     return null;
   }
   const [open, setOpen] = useState(false);

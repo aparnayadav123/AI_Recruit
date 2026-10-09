@@ -452,6 +452,8 @@ public class CandidateController {
         // therefore never reflected a scheduled round). Carry them through.
         candidate.setInterviewRound(dto.getInterviewRound());
         candidate.setRoundStatus(dto.getRoundStatus());
+        candidate.setRejectionReason(dto.getRejectionReason());
+        candidate.setRejectedBy(dto.getRejectedBy());
         return candidate;
     }
 
@@ -519,6 +521,12 @@ public class CandidateController {
         dto.setBlockReason(candidate.getBlockReason());
         dto.setBlockedBy(candidate.getBlockedBy());
         dto.setBlockedDate(candidate.getBlockedDate());
+        dto.setRejectionReason(candidate.getRejectionReason());
+        dto.setRejectedBy(candidate.getRejectedBy());
+        if (candidate.getRejectedDate() != null) {
+            dto.setRejectedDate(candidate.getRejectedDate()
+                    .atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime().toString());
+        }
         if (candidate.getCreatedAt() != null) {
             dto.setAppliedDate(candidate.getCreatedAt().toLocalDate().toString());
             // Full ISO timestamp WITH the server's zone offset (e.g. "…Z" / "…+05:30") for

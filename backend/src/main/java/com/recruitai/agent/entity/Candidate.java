@@ -112,6 +112,14 @@ public class Candidate {
     @Field("rejection_reason")
     private String rejectionReason;
 
+    @Field("rejected_by")
+    private String rejectedBy;
+
+    @Field("rejected_date")
+    @JsonSerialize(using = JsonTimestamp.Serializer.class)
+    @JsonDeserialize(using = JsonTimestamp.Deserializer.class)
+    private LocalDateTime rejectedDate;
+
     // --- Block (fake / inappropriate candidates — permanently excluded) ---
     @Field("blocked")
     private boolean blocked = false;
@@ -716,5 +724,21 @@ public class Candidate {
 
     public void setJapaneseLanguageProficiency(String japaneseLanguageProficiency) {
         this.japaneseLanguageProficiency = japaneseLanguageProficiency;
+    }
+
+    public String getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public void setRejectedBy(String rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+
+    public LocalDateTime getRejectedDate() {
+        return rejectedDate;
+    }
+
+    public void setRejectedDate(LocalDateTime rejectedDate) {
+        this.rejectedDate = rejectedDate;
     }
 }

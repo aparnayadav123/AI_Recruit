@@ -24,6 +24,8 @@ export interface Candidate {
   interviewNotes?: string;
   interviewMeetingLink?: string;
   rejectionReason?: string;
+  rejectedBy?: string;
+  rejectedDate?: string;
   blocked?: boolean;
   blockReason?: string;
   blockedBy?: string;
