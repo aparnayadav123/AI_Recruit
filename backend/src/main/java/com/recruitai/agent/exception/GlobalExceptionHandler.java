@@ -62,6 +62,12 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(createErrorResponse("File size exceeds the 10MB limit.", null), HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<Object> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        logger.warn("Route or resource not found: {}", ex.getMessage());
+        return new ResponseEntity<>(createErrorResponse("Resource not found: " + ex.getResourcePath(), null), HttpStatus.NOT_FOUND);
+    }
+
     // Handle Everything Else (500)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGlobalException(Exception ex, WebRequest request) {

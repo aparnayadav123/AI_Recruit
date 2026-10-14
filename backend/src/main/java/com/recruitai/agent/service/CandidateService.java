@@ -548,13 +548,13 @@ public class CandidateService {
                     // candidate with these as null, which would otherwise blow
                     // away the values the extension scraped earlier.
                     if (isFilled(candidateDetails.getCurrentOrganization())) candidate.setCurrentOrganization(candidateDetails.getCurrentOrganization());
-                    if (candidateDetails.getNoticePeriod() != null && candidateDetails.getNoticePeriod() > 0) candidate.setNoticePeriod(candidateDetails.getNoticePeriod());
+                    if (candidateDetails.getNoticePeriod() != null && candidateDetails.getNoticePeriod() >= 0) candidate.setNoticePeriod(candidateDetails.getNoticePeriod());
                     if (isFilled(candidateDetails.getPostalCode())) candidate.setPostalCode(candidateDetails.getPostalCode());
                     if (isFilled(candidateDetails.getCurrentEmploymentStatus())) candidate.setCurrentEmploymentStatus(candidateDetails.getCurrentEmploymentStatus());
                     if (candidateDetails.getLanguageSkills() != null && !candidateDetails.getLanguageSkills().isEmpty()) candidate.setLanguageSkills(candidateDetails.getLanguageSkills());
                     if (isFilled(candidateDetails.getCurrentSalary())) candidate.setCurrentSalary(candidateDetails.getCurrentSalary());
                     if (isFilled(candidateDetails.getSalaryExpectation())) candidate.setSalaryExpectation(candidateDetails.getSalaryExpectation());
-                    if (candidateDetails.getRelevantExperience() != null && candidateDetails.getRelevantExperience() > 0) candidate.setRelevantExperience(candidateDetails.getRelevantExperience());
+                    if (candidateDetails.getRelevantExperience() != null && candidateDetails.getRelevantExperience() >= 0) candidate.setRelevantExperience(candidateDetails.getRelevantExperience());
                     if (isFilled(candidateDetails.getCountry())) candidate.setCountry(candidateDetails.getCountry());
                     if (isFilled(candidateDetails.getAvailableFrom())) candidate.setAvailableFrom(candidateDetails.getAvailableFrom());
                     if (isFilled(candidateDetails.getSalaryType())) candidate.setSalaryType(candidateDetails.getSalaryType());

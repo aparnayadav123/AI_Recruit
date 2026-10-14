@@ -22,6 +22,8 @@ public class CandidateDto {
     private String email;
 
     private String role;
+
+    @Pattern(regexp = "^$|^[+]?[0-9\\s\\-()]{10,20}$", message = "Enter a valid phone number (10-15 digits).")
     private String phone;
     private java.util.List<String> skills;
 

@@ -22,6 +22,9 @@ import {
   PanelLeftClose,
   PanelLeft,
   CheckCircle2,
+  User,
+  Calendar,
+  RotateCcw,
 } from 'lucide-react';
 import api from '../api';
 
@@ -221,6 +224,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
       filtered = filtered.filter(c => c.source === 'Website');
     } else if (selectedView === 'Not In Any Hotlist') {
       filtered = filtered.filter(c => getCandidateHotlists(c).length === 0);
+    } else if (selectedView === 'Rejected Candidates') {
+      filtered = filtered.filter(c => (c.status || '').toLowerCase() === 'rejected');
     }
     if (selectedHotlist) {
       // A candidate can be in many hotlists (FR-204) — match if the set includes it.
@@ -316,15 +321,23 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Candidate ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'Experience (yrs)', 'Fit Score', 'Skills', 'Source', 'Assigned To', 'Assigned By'];
-    const rows = filteredCandidates.map(c => [
+    const isRejected = selectedView === 'Rejected Candidates' || statusParam?.toLowerCase() === 'rejected';
+    const headers = isRejected
+      ? ['Candidate ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'Rejection Reason', 'Rejected By Whom', 'Rejected Date', 'Source']
+      : ['Candidate ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'Experience (yrs)', 'Fit Score', 'Skills', 'Source', 'Assigned To', 'Assigned By', 'Rejected By Whom', 'Rejected Date'];
+    const rows = filteredCandidates.map(c => isRejected ? [
       formatCandidateId(c.sequenceId), c.name, c.email, c.phone || 'N/A', c.role, c.status,
-      c.experience, c.fitScore, (c.skills || []).join('; '), c.source || 'N/A', c.assignedTo || '—', c.assignedBy || '—'
+      c.rejectionReason || 'Profile criteria not met', c.rejectedBy || 'Hiring Team',
+      c.rejectedDate || (c as any).updatedAt || '—', c.source || 'N/A'
+    ] : [
+      formatCandidateId(c.sequenceId), c.name, c.email, c.phone || 'N/A', c.role, c.status,
+      c.experience, c.fitScore, (c.skills || []).join('; '), c.source || 'N/A', c.assignedTo || '—', c.assignedBy || '—',
+      c.rejectedBy || '—', c.rejectedDate || '—'
     ]);
     const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
     // BOM so Excel reads UTF-8 correctly.
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `recruitai-candidates-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -332,6 +345,20 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
+  };
+
+  const handleReconsider = async (id: string, name: string, jobId?: string) => {
+    if (!window.confirm(`Reconsider ${name} and restore to active pipeline (Screening)?`)) return;
+    try {
+      await api.post(`/candidates/${id}/reconsider`, { jobId: jobId || '', by: 'HR Manager' });
+      setSuccessPopup({
+        title: 'Candidate Reconsidered',
+        message: `${name} has been restored to active pipeline (Screening).`
+      });
+      fetchCandidates();
+    } catch (e: any) {
+      alert('Reconsider failed: ' + (e?.response?.data?.message || e?.message || 'Server error'));
+    }
   };
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
@@ -448,8 +475,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     if (phone) {
       const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
       const digitsOnly = phone.replace(/\D/g, '');
-      if (hasInvalidChars || digitsOnly.length !== 10) {
-        setPhoneError('Enter a valid phone number (10 digits).');
+      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+        setPhoneError('Enter a valid phone number (10-15 digits).');
       } else {
         setPhoneError('');
       }
@@ -501,8 +528,8 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     if (phone) {
       const hasInvalidChars = !/^\+?[0-9\s\-()]+$/.test(phone);
       const digitsOnly = phone.replace(/\D/g, '');
-      if (hasInvalidChars || digitsOnly.length !== 10) {
-        phoneErr = 'Enter a valid phone number (10 digits).';
+      if (hasInvalidChars || digitsOnly.length < 10 || digitsOnly.length > 15) {
+        phoneErr = 'Enter a valid phone number (10-15 digits).';
       }
     }
 
@@ -585,9 +612,11 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
   };
 
   // ============== DERIVED ==============
+  const isRejectedView = selectedView === 'Rejected Candidates' || statusParam?.toLowerCase() === 'rejected';
   const myCandidatesCount = candidates.filter(c => c.source === 'Manual' || c.source?.includes('Internal')).length;
   const websiteApplicantsCount = candidates.filter(c => c.source === 'Website').length;
   const notInHotlistCount = candidates.filter(c => getCandidateHotlists(c).length === 0).length;
+  const rejectedCandidatesCount = candidates.filter(c => (c.status || '').toLowerCase() === 'rejected').length;
 
   // Count each candidate under EVERY hotlist they belong to (FR-204).
   const hotlistCounts = candidates.reduce((acc, c) => {
@@ -605,6 +634,7 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
     { label: 'My Candidates',      key: 'My Candidates',           count: myCandidatesCount },
     { label: 'Website Applicants', key: 'All Website Applicants',  count: websiteApplicantsCount },
     { label: 'Not in any Hotlist', key: 'Not In Any Hotlist',      count: notInHotlistCount },
+    { label: 'Rejected Candidates',key: 'Rejected Candidates',     count: rejectedCandidatesCount },
   ];
 
   // ============== RENDER ==============
@@ -834,12 +864,25 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                   <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest w-16">ID</th>
                   <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Candidate</th>
                   <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Role</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest w-16">Exp</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Skills</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest w-32">Fit</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Status</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Source</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Assign</th>
+                  {isRejectedView ? (
+                    <>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest min-w-[140px]">Rejection Reason</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest min-w-[130px]">Rejected By Whom</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest min-w-[110px]">Rejected Date</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Status</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Source</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Assign</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest w-16">Exp</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Skills</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest w-32">Fit</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Status</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Source</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-black text-slate-600 uppercase tracking-widest">Assign</th>
+                    </>
+                  )}
                   <th className="px-3 py-2.5 text-right text-[10px] font-black text-slate-600 uppercase tracking-widest w-40">Actions</th>
                 </tr>
               </thead>
@@ -918,52 +961,84 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                         </div>
                       </td>
 
-                      <td className="px-3 py-2.5 text-[11px] font-bold text-gray-700 whitespace-nowrap align-top pt-3">
-                        {candidate.experience || 0}y
-                      </td>
-
-                      <td className="px-3 py-2.5 align-top pt-3">
-                        {(() => {
-                          const skills = candidate.skills || [];
-                          const isExpanded = expandedSkills.has(candidate.id);
-                          const shown = isExpanded ? skills : skills.slice(0, 2);
-                          return (
-                            <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-                              {shown.map((skill, idx) => (
-                                <span key={idx} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold border border-indigo-100/50">
-                                  {skill}
-                                </span>
-                              ))}
-                              {skills.length > 2 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); toggleSkills(candidate.id); }}
-                                  className="px-1.5 py-0.5 bg-white text-indigo-600 rounded text-[10px] font-bold border border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                >
-                                  {isExpanded ? 'Show less' : `+${skills.length - 2}`}
-                                </button>
-                              )}
-                              {skills.length === 0 && (
-                                <span className="text-[10px] text-gray-400 font-bold">—</span>
-                              )}
+                      {isRejectedView ? (
+                        <>
+                          <td className="px-3 py-2.5 align-top pt-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              {candidate.rejectionReason || 'Profile criteria not met'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top pt-3">
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                              <span className="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                                <User size={11} />
+                              </span>
+                              <span className="truncate max-w-[130px]" title={candidate.rejectedBy || 'Hiring Team'}>{candidate.rejectedBy || 'Hiring Team'}</span>
                             </div>
-                          );
-                        })()}
-                      </td>
+                          </td>
+                          <td className="px-3 py-2.5 align-top pt-3">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
+                              <Calendar size={11} className="text-slate-400 shrink-0" />
+                              <span>
+                                {candidate.rejectedDate
+                                  ? new Date(candidate.rejectedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                  : (candidate as any).updatedAt
+                                  ? new Date((candidate as any).updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                  : '—'}
+                              </span>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2.5 text-[11px] font-bold text-gray-700 whitespace-nowrap align-top pt-3">
+                            {candidate.experience || 0}y
+                          </td>
 
-                      <td className="px-3 py-2.5 align-top pt-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${getFitScoreColor(candidate.fitScore)} transition-all duration-1000 ease-out`}
-                              style={{ width: `${candidate.fitScore || 0}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-black text-gray-900 tabular-nums">
-                            {candidate.fitScore || 0}%
-                          </span>
-                        </div>
-                      </td>
+                          <td className="px-3 py-2.5 align-top pt-3">
+                            {(() => {
+                              const skills = candidate.skills || [];
+                              const isExpanded = expandedSkills.has(candidate.id);
+                              const shown = isExpanded ? skills : skills.slice(0, 2);
+                              return (
+                                <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+                                  {shown.map((skill, idx) => (
+                                    <span key={idx} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold border border-indigo-100/50">
+                                      {skill}
+                                    </span>
+                                  ))}
+                                  {skills.length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleSkills(candidate.id); }}
+                                      className="px-1.5 py-0.5 bg-white text-indigo-600 rounded text-[10px] font-bold border border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                    >
+                                      {isExpanded ? 'Show less' : `+${skills.length - 2}`}
+                                    </button>
+                                  )}
+                                  {skills.length === 0 && (
+                                    <span className="text-[10px] text-gray-400 font-bold">—</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          <td className="px-3 py-2.5 align-top pt-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${getFitScoreColor(candidate.fitScore)} transition-all duration-1000 ease-out`}
+                                  style={{ width: `${candidate.fitScore || 0}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-black text-gray-900 tabular-nums">
+                                {candidate.fitScore || 0}%
+                              </span>
+                            </div>
+                          </td>
+                        </>
+                      )}
 
                       <td className="px-3 py-2.5 align-top pt-3" onClick={e => e.stopPropagation()}>
                         <select
@@ -1022,6 +1097,18 @@ const Candidates: React.FC<CandidatesProps> = ({ searchQuery = '' }) => {
                               </span>
                             );
                           })()}
+                          {isRejectedView && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReconsider(candidate.id, candidate.name, candidate.jobId);
+                              }}
+                              className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition"
+                              title="Reconsider candidate"
+                            >
+                              <RotateCcw size={13} />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

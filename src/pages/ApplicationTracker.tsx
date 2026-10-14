@@ -57,7 +57,7 @@ const ApplicationTracker: React.FC = () => {
     }), [apps, q, statusFilter]);
 
     const exportCsv = () => {
-        const headers = ['Candidate', 'Job', 'Status', 'Current Stage', 'Match %', 'Source', 'Applied Date', 'Rejection Reason', 'Rejected By', 'Hired Date'];
+        const headers = ['Candidate', 'Job', 'Status', 'Current Stage', 'Match %', 'Source', 'Applied Date', 'Rejection Reason', 'Rejected By Whom', 'Rejected Date', 'Hired Date'];
         const rows = filtered.map(a => [
             a.candidateName || a.candidateId || '',
             a.jobTitle || a.jobId || '',
@@ -68,6 +68,7 @@ const ApplicationTracker: React.FC = () => {
             fmtDate(a.appliedDate),
             a.rejectionReason || '',
             a.rejectedBy || '',
+            fmtDate(a.rejectedDate),
             fmtDate(a.hiredDate),
         ]);
         const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
@@ -141,6 +142,8 @@ const ApplicationTracker: React.FC = () => {
                                 <th className="px-4 py-3 text-left">Source</th>
                                 <th className="px-4 py-3 text-left">Applied</th>
                                 <th className="px-4 py-3 text-left">Rejection Reason</th>
+                                <th className="px-4 py-3 text-left">Rejected By Whom</th>
+                                <th className="px-4 py-3 text-left">Rejected Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -163,6 +166,12 @@ const ApplicationTracker: React.FC = () => {
                                     <td className="px-4 py-3 text-slate-500">{a.source || '—'}</td>
                                     <td className="px-4 py-3 text-slate-500">{fmtDate(a.appliedDate) || '—'}</td>
                                     <td className="px-4 py-3 text-slate-500">{a.rejectionReason || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-600 font-medium">
+                                        {a.status === 'REJECTED' ? (a.rejectedBy || 'Hiring Team') : (a.rejectedBy || '—')}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-500">
+                                        {fmtDate(a.rejectedDate) || (a.status === 'REJECTED' ? fmtDate(a.updatedAt) : '—')}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

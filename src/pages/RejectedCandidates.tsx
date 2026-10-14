@@ -274,6 +274,7 @@ const RejectedCandidates: React.FC = () => {
                 const matchesReviewer = reviewerFilter === 'All' || r.rejectedBy === reviewerFilter;
 
                 const q = searchQuery.toLowerCase().trim();
+                const dt = fmtDateDetails(r.rejectedDate);
                 const hay = [
                     r.candidateName,
                     r.sequenceId,
@@ -282,6 +283,9 @@ const RejectedCandidates: React.FC = () => {
                     r.jobTitle,
                     r.rejectionReason,
                     r.rejectedBy,
+                    dt.date,
+                    dt.time,
+                    dt.relative,
                 ].filter(Boolean).join(' ').toLowerCase();
 
                 const matchesQuery = !q || hay.includes(q);
@@ -326,7 +330,7 @@ const RejectedCandidates: React.FC = () => {
             'Phone',
             'Applied Job',
             'Rejection Reason',
-            'Rejected By',
+            'Rejected By Whom',
             'Rejected Date',
             'Rejected Time',
             'Source'
@@ -477,7 +481,7 @@ const RejectedCandidates: React.FC = () => {
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Reviewers</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Rejected By Whom</span>
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                             <Users className="h-4 w-4" />
                         </div>
@@ -497,7 +501,7 @@ const RejectedCandidates: React.FC = () => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search by name, ID (CANxxx), email, job title, reason, or reviewer..."
+                            placeholder="Search by name, ID (CANxxx), email, job title, reason, rejected by whom, or date..."
                             className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-9 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
                         />
                         {searchQuery && (
@@ -531,14 +535,14 @@ const RejectedCandidates: React.FC = () => {
                             <Filter className="absolute right-2.5 top-3 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                         </div>
 
-                        {/* Filter by Rejected By */}
-                        <div className="relative min-w-[160px]">
+                        {/* Filter by Rejected By Whom */}
+                        <div className="relative min-w-[170px]">
                             <select
                                 value={reviewerFilter}
                                 onChange={e => setReviewerFilter(e.target.value)}
                                 className="w-full appearance-none rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer"
                             >
-                                <option value="All">All Reviewers ({availableReviewers.length - 1})</option>
+                                <option value="All">All (Rejected By Whom) ({availableReviewers.length - 1})</option>
                                 {availableReviewers.filter(r => r !== 'All').map(r => (
                                     <option key={r} value={r}>
                                         {r}
@@ -629,8 +633,8 @@ const RejectedCandidates: React.FC = () => {
                                     <th scope="col" className="px-5 py-4 min-w-[240px]">Candidate Details</th>
                                     <th scope="col" className="px-5 py-4 min-w-[190px]">Applied Job / Role</th>
                                     <th scope="col" className="px-5 py-4 min-w-[180px]">Rejection Reason</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[170px]">Rejected By</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[170px]">Date & Time</th>
+                                    <th scope="col" className="px-5 py-4 min-w-[180px]">Rejected By Whom</th>
+                                    <th scope="col" className="px-5 py-4 min-w-[170px]">Rejected Date</th>
                                     <th scope="col" className="px-5 py-4 text-right min-w-[150px]">Actions</th>
                                 </tr>
                             </thead>

@@ -25,6 +25,20 @@ public class UserController {
     private static final java.util.regex.Pattern NAME_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z\\s.'-]+$");
 
+    @GetMapping
+    public ResponseEntity<?> getAllUsers() {
+        return ResponseEntity.ok(userRepository.findAll());
+    }
+
+    @GetMapping("/{email}")
+    public ResponseEntity<?> getUserByEmail(@PathVariable String email) {
+        String trimmed = (email != null) ? email.trim() : "";
+        return userRepository.findByEmail(trimmed)
+                .or(() -> userRepository.findByEmailIgnoreCase(trimmed))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/profile-picture")
     public ResponseEntity<?> updateProfilePicture(@RequestParam("email") String email,
             @RequestParam("file") MultipartFile file) {

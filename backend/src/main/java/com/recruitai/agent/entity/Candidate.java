@@ -37,6 +37,7 @@ public class Candidate {
     @Field("role")
     private String role; // e.g. "Senior Backend Dev"
 
+    @Pattern(regexp = "^$|^[+]?[0-9\\s\\-()]{10,20}$", message = "Enter a valid phone number (10-15 digits).")
     @Field("phone")
     private String phone;
 

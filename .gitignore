@@ -41,3 +41,11 @@ dist-ssr
 # Rotated / compressed logs
 *.gz
 *.log.*
+
+# Local data & scratch
+backend/data/mongodata/
+*.cjs
+*.ps1
+qa_bugs_dump.txt
+scratch_xlsx_strings.txt
+find_user_inputs.js

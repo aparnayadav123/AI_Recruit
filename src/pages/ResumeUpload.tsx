@@ -148,6 +148,20 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
     }
   };
 
+  React.useEffect(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    const onCancel = () => {
+      if (!input.files || input.files.length === 0) {
+        processFiles(null);
+      }
+    };
+    input.addEventListener('cancel', onCancel);
+    return () => {
+      input.removeEventListener('cancel', onCancel);
+    };
+  }, []);
+
   const handleSelectFilesClick = () => {
     fileInputRef.current?.click();
   };
@@ -244,11 +258,6 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({ searchQuery = '' }) => {
                 accept=".pdf,.doc,.docx,.txt"
                 multiple
                 onChange={handleFileSelect}
-                onCancel={() => {
-                  if (!fileInputRef.current?.files || fileInputRef.current.files.length === 0) {
-                    processFiles(null);
-                  }
-                }}
                 className="block w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-blue-600 file:cursor-pointer bg-white p-2 rounded-lg border border-slate-300"
               />
 
