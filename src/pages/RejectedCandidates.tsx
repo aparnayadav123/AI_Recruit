@@ -627,15 +627,15 @@ const RejectedCandidates: React.FC = () => {
             ) : (
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                            <thead className="bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                        <table className="w-full divide-y divide-slate-200 text-left text-xs">
+                            <thead className="bg-slate-50/80 text-[10px] font-black uppercase tracking-wider text-slate-600">
                                 <tr>
-                                    <th scope="col" className="px-5 py-4 min-w-[240px]">Candidate Details</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[190px]">Applied Job / Role</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[180px]">Rejection Reason</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[180px]">Rejected By Whom</th>
-                                    <th scope="col" className="px-5 py-4 min-w-[170px]">Rejected Date</th>
-                                    <th scope="col" className="px-5 py-4 text-right min-w-[150px]">Actions</th>
+                                    <th scope="col" className="px-3.5 py-3.5 w-[23%]">Candidate Details</th>
+                                    <th scope="col" className="px-3 py-3.5 w-[18%]">Applied Job / Role</th>
+                                    <th scope="col" className="px-3 py-3.5 w-[15%]">Rejection Reason</th>
+                                    <th scope="col" className="px-3 py-3.5 w-[16%]">Rejected By Whom</th>
+                                    <th scope="col" className="px-3 py-3.5 w-[15%]">Rejected Date</th>
+                                    <th scope="col" className="px-3 py-3.5 text-right w-[13%]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
@@ -647,37 +647,37 @@ const RejectedCandidates: React.FC = () => {
                                     return (
                                         <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                                             {/* Candidate Details */}
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-xs font-black shadow-sm ${avatarClass}`}>
+                                            <td className="px-3.5 py-3">
+                                                <div className="flex items-start gap-2.5 min-w-0">
+                                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px] font-black shadow-sm ${avatarClass}`}>
                                                         {initials}
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
                                                             <button
                                                                 onClick={() => navigate(`/candidates/${r.candidateId}`)}
-                                                                className="font-bold text-slate-900 hover:text-indigo-600 transition-colors text-sm truncate"
+                                                                className="font-bold text-slate-900 hover:text-indigo-600 transition-colors text-xs truncate max-w-[130px]"
                                                                 title="View full candidate profile"
                                                             >
                                                                 {r.candidateName}
                                                             </button>
                                                             {r.sequenceId && (
-                                                                <span className="rounded-md bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-black text-slate-600">
+                                                                <span className="rounded bg-slate-100 border border-slate-200 px-1 py-0.2 text-[9px] font-black text-slate-600">
                                                                     {r.sequenceId}
                                                                 </span>
                                                             )}
                                                         </div>
 
                                                         {r.email && (
-                                                            <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-1 truncate" title={r.email}>
-                                                                <Mail className="h-3 w-3 shrink-0 text-slate-400" />
+                                                            <div className="flex items-center gap-1 text-slate-500 text-[10px] mt-0.5 truncate max-w-[150px]" title={r.email}>
+                                                                <Mail className="h-2.5 w-2.5 shrink-0 text-slate-400" />
                                                                 <span className="truncate">{r.email}</span>
                                                             </div>
                                                         )}
 
                                                         {r.phone && (
-                                                            <div className="flex items-center gap-1.5 text-slate-400 text-[11px] mt-0.5">
-                                                                <Phone className="h-3 w-3 shrink-0 text-slate-400" />
+                                                            <div className="flex items-center gap-1 text-slate-400 text-[10px] mt-0.5 truncate max-w-[150px]">
+                                                                <Phone className="h-2.5 w-2.5 shrink-0 text-slate-400" />
                                                                 <span>{r.phone}</span>
                                                             </div>
                                                         )}
@@ -686,63 +686,63 @@ const RejectedCandidates: React.FC = () => {
                                             </td>
 
                                             {/* Applied Job */}
-                                            <td className="px-5 py-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
-                                                        <Briefcase className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                            <td className="px-3 py-3">
+                                                <div className="space-y-0.5 min-w-0">
+                                                    <div className="flex items-center gap-1 font-bold text-slate-800 text-xs truncate max-w-[150px]" title={r.jobTitle}>
+                                                        <Briefcase className="h-3 w-3 text-slate-400 shrink-0" />
                                                         <span className="truncate">{r.jobTitle}</span>
                                                     </div>
                                                     {r.source && (
-                                                        <div className="text-[11px] text-slate-500">
+                                                        <div className="text-[10px] text-slate-500 truncate">
                                                             Source: <span className="font-medium text-slate-700">{r.source}</span>
                                                         </div>
                                                     )}
                                                     {r.experience != null && r.experience > 0 && (
-                                                        <div className="text-[10px] text-slate-400">
-                                                            {r.experience} {r.experience === 1 ? 'yr' : 'yrs'} total exp
+                                                        <div className="text-[9px] text-slate-400">
+                                                            {r.experience} {r.experience === 1 ? 'yr' : 'yrs'} exp
                                                         </div>
                                                     )}
                                                 </div>
                                             </td>
 
                                             {/* Rejection Reason */}
-                                            <td className="px-5 py-4">
-                                                <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1.5 text-rose-700 font-semibold shadow-2xs">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0 animate-pulse" />
-                                                    <span className="text-[11px] tracking-tight">{r.rejectionReason}</span>
+                                            <td className="px-3 py-3">
+                                                <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50/90 px-2 py-0.5 text-rose-700 font-semibold shadow-2xs max-w-[140px]">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
+                                                    <span className="text-[10px] truncate" title={r.rejectionReason}>{r.rejectionReason}</span>
                                                 </div>
                                             </td>
 
-                                            {/* Rejected By */}
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 border border-slate-200 text-slate-600 shrink-0">
-                                                        <User className="h-3.5 w-3.5" />
+                                            {/* Rejected By Whom */}
+                                            <td className="px-3 py-3">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 border border-slate-200 text-slate-600 shrink-0">
+                                                        <User className="h-3 w-3" />
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <div className="font-bold text-slate-800 truncate text-xs" title={r.rejectedBy}>
-                                                            {r.rejectedBy}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="font-bold text-slate-800 truncate text-xs" title={r.rejectedBy || 'Hiring Team'}>
+                                                            {r.rejectedBy || 'Hiring Team'}
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400 font-medium">
-                                                            Reviewer / Recruiter
+                                                        <div className="text-[9px] text-slate-400 font-medium">
+                                                            Reviewer
                                                         </div>
                                                     </div>
                                                 </div>
                                             </td>
 
-                                            {/* Date & Time */}
-                                            <td className="px-5 py-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-1.5 font-bold text-slate-700 text-xs">
-                                                        <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                        <span>{dt.date}</span>
+                                            {/* Rejected Date */}
+                                            <td className="px-3 py-3">
+                                                <div className="space-y-0.5">
+                                                    <div className="flex items-center gap-1 font-bold text-slate-700 text-xs whitespace-nowrap">
+                                                        <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
+                                                        <span>{dt.date || '—'}</span>
                                                     </div>
                                                     {dt.time && (
-                                                        <div className="flex items-center gap-1.5 text-slate-400 text-[10px]">
-                                                            <Clock className="h-3 w-3 shrink-0" />
+                                                        <div className="flex items-center gap-1 text-slate-400 text-[10px] whitespace-nowrap">
+                                                            <Clock className="h-2.5 w-2.5 shrink-0" />
                                                             <span>{dt.time}</span>
                                                             {dt.relative && (
-                                                                <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-semibold text-slate-600">
+                                                                <span className="rounded bg-slate-100 px-1 py-0.2 text-[9px] font-semibold text-slate-600 ml-0.5">
                                                                     {dt.relative}
                                                                 </span>
                                                             )}
@@ -752,28 +752,28 @@ const RejectedCandidates: React.FC = () => {
                                             </td>
 
                                             {/* Actions */}
-                                            <td className="px-5 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
+                                            <td className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
                                                     <button
                                                         disabled={busyId === r.candidateId}
                                                         onClick={() => setReconsiderTarget(r)}
-                                                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 active:bg-indigo-200 transition-all disabled:opacity-50 shadow-2xs"
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 active:bg-indigo-200 transition-all disabled:opacity-50 shadow-2xs whitespace-nowrap"
                                                         title="Restore candidate to active pipeline"
                                                     >
                                                         {busyId === r.candidateId ? (
-                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
                                                         ) : (
-                                                            <RotateCcw className="h-3.5 w-3.5 text-indigo-600" />
+                                                            <RotateCcw className="h-3 w-3 text-indigo-600" />
                                                         )}
                                                         Reconsider
                                                     </button>
 
                                                     <button
                                                         onClick={() => navigate(`/candidates/${r.candidateId}/history`)}
-                                                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all shadow-2xs"
+                                                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all shadow-2xs"
                                                         title="View full application history"
                                                     >
-                                                        <History className="h-3.5 w-3.5" />
+                                                        <History className="h-3 w-3" />
                                                     </button>
                                                 </div>
                                             </td>
