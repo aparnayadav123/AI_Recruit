@@ -6,7 +6,7 @@ import { isSessionExpired, clearSession } from "./session";
 // Local dev: leave VITE_API_BASE_URL unset — requests hit "/api" and Vite proxies them
 // to the local backend (see vite.config.ts).
 // Production (Vercel): set VITE_API_BASE_URL to the always-on backend, e.g.
-//   https://recruitai-backend.onrender.com/api
+//   https://recruitai-backend-bvo0.onrender.com/api
 // so the deployed dashboard talks to the hosted server instead of a dev proxy.
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || "/api",

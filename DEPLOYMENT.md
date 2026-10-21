@@ -52,10 +52,10 @@ Reuse it — RecruitAI will live in its own `RecruitAI` database on the same clu
    - `MONGODB_DATABASE` = `RecruitAI` (already defaulted in the blueprint)
    - `GEMINI_API_KEY` = *(optional; leave blank — the app falls back to the deterministic parser)*
 4. Deploy. First build takes a few minutes (Maven downloads dependencies).
-5. When live, note the URL, e.g. **`https://recruitai-backend.onrender.com`**.
+5. When live, note the URL, e.g. **`https://recruitai-backend-bvo0.onrender.com`**.
 6. Verify:
-   - `https://recruitai-backend.onrender.com/api/health` → `200`
-   - `https://recruitai-backend.onrender.com/api/jobs/public` → JSON array
+   - `https://recruitai-backend-bvo0.onrender.com/api/health` → `200`
+   - `https://recruitai-backend-bvo0.onrender.com/api/jobs/public` → JSON array
 
 > ⚠️ **Free-tier cold start.** Render's free plan sleeps a service after ~15 min idle; the next
 > request then waits ~50s while it wakes. Because the Careers page fetches jobs through a Vercel
@@ -70,7 +70,7 @@ Reuse it — RecruitAI will live in its own `RecruitAI` database on the same clu
 1. Vercel → **New Project** → import this repo.
 2. Framework preset: **Vite** (auto-detected via `vercel.json`).
 3. Add env var:
-   - `VITE_API_BASE_URL` = `https://recruitai-backend.onrender.com/api`  *(your Step-2 URL + `/api`)*
+   - `VITE_API_BASE_URL` = `https://recruitai-backend-bvo0.onrender.com/api`  *(your Step-2 URL + `/api`)*
 4. Deploy. Recruiters can now log in from anywhere and create/publish jobs.
 
 > CORS is already open for any origin, so the dashboard talks to the Render backend without extra config.
@@ -82,7 +82,7 @@ Reuse it — RecruitAI will live in its own `RecruitAI` database on the same clu
 The Careers site (separate project, already on Vercel) reads the backend URL from `RECRUITAI_API_URL`.
 
 1. In the **OryFolks** Vercel project → Settings → Environment Variables:
-   - `RECRUITAI_API_URL` = `https://recruitai-backend.onrender.com`  *(no trailing slash, no `/api`)*
+   - `RECRUITAI_API_URL` = `https://recruitai-backend-bvo0.onrender.com`  *(no trailing slash, no `/api`)*
 2. **Redeploy** the OryFolks project so the change takes effect.
 3. (Local dev only) update `OryFolks/project/api/.env` the same way if testing locally.
 

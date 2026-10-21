@@ -11,8 +11,10 @@ info:
     email: orydevopsteam@gmail.com
 
 servers:
+  - url: https://recruitai-backend-bvo0.onrender.com/api
+    description: Production (Render QA)
   - url: https://recruitai.oryfolks.com/api
-    description: Production
+    description: Production Custom Domain
   - url: http://localhost:8089/api
     description: Local development
 
