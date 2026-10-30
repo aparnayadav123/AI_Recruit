@@ -282,7 +282,7 @@ public class CandidateController {
         return ResponseEntity.ok(convertToDto(updatedCandidate));
     }
 
-    @PostMapping("/renumber")
+    @RequestMapping(value = "/renumber", method = {RequestMethod.POST, RequestMethod.GET})
     public ResponseEntity<?> renumberAll() {
         return ResponseEntity.ok(sequenceService.renumberAllFromOne());
     }
@@ -311,7 +311,7 @@ public class CandidateController {
      * Re-run the ATS auto-match and fit-score formula across every candidate.
      * Useful after editing job requirements or importing new candidates.
      */
-    @PostMapping("/rescore-all")
+    @RequestMapping(value = "/rescore-all", method = {RequestMethod.POST, RequestMethod.GET})
     public ResponseEntity<Map<String, Object>> rescoreAllCandidates() {
         int updated = candidateService.rescoreAllCandidates();
         return ResponseEntity.ok(Map.of(
@@ -325,7 +325,7 @@ public class CandidateController {
      * entire Open + Active job pool, regardless of current assignment. Use
      * when seed data changes drastically or to reset to optimal placement.
      */
-    @PostMapping("/deep-rematch")
+    @RequestMapping(value = "/deep-rematch", method = {RequestMethod.POST, RequestMethod.GET})
     public ResponseEntity<Map<String, Object>> deepRematchAll() {
         int updated = candidateService.deepRematchAllCandidates();
         return ResponseEntity.ok(Map.of(

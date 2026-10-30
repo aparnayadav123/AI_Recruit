@@ -326,6 +326,10 @@ const CandidateDetails: React.FC = () => {
             setLoading(false);
             return;
         }
+        if (id === 'rescore-all' || id === 'deep-rematch' || id === 'renumber') {
+            navigate(`/candidates/${id}`, { replace: true });
+            return;
+        }
         let isMounted = true;
         const loadAllCandidateData = async () => {
             setLoading(true);

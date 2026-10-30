@@ -19,6 +19,7 @@ import Unauthorized from './pages/Unauthorized';
 import LinkedInAgent from './pages/LinkedInAgent';
 import CandidateDetails from './pages/CandidateDetails';
 import CandidateHistory from './pages/CandidateHistory';
+import BatchMaintenance from './pages/BatchMaintenance';
 import RejectedCandidates from './pages/RejectedCandidates';
 import SuggestedCandidates from './pages/SuggestedCandidates';
 import ApplicationTracker from './pages/ApplicationTracker';
@@ -43,6 +44,9 @@ const App: React.FC = () => {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="jobs" element={<JobManagement />} />
           <Route path="candidates" element={<Candidates />} />
+          <Route path="candidates/rescore-all" element={<BatchMaintenance action="rescore-all" />} />
+          <Route path="candidates/deep-rematch" element={<BatchMaintenance action="deep-rematch" />} />
+          <Route path="candidates/renumber" element={<BatchMaintenance action="renumber" />} />
           <Route path="candidates/:id" element={<CandidateDetails />} />
           <Route path="candidates/:id/history" element={<CandidateHistory />} />
           <Route path="resume-upload" element={<ResumeUpload />} />
