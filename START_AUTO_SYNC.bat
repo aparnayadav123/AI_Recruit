@@ -9,3 +9,4 @@ echo.
 cd /d "%~dp0"
 node auto-sync.js
 pause
+

@@ -101,3 +101,4 @@ fs.watch(REPO_DIR, { recursive: true }, (eventType, filename) => {
     scheduleSync(filename);
   }
 });
+
